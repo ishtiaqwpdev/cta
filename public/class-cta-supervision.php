@@ -52,7 +52,9 @@ class CTA_Supervision {
 			$user_id     = get_current_user_id();
 			$meta_status = (string) get_user_meta( $user_id, 'cta_supervision_status', true );
 
-			if ( 'active' === $meta_status ) {
+			if ( ! CTA_Associate_Access::can_access_booking( $user_id ) ) {
+				$user_status = 'pending_approval';
+			} elseif ( 'active' === $meta_status ) {
 				$user_status = 'active';
 			} elseif ( 'locked' === $meta_status ) {
 				$user_status = 'locked';
@@ -130,7 +132,16 @@ class CTA_Supervision {
 		}
 
 		$user_id = get_current_user_id();
-		$status  = (string) get_user_meta( $user_id, 'cta_supervision_status', true );
+
+		if ( ! CTA_Associate_Access::can_access_booking( $user_id ) ) {
+			wp_send_json_error(
+				array(
+					'message' => CTA_Associate_Access::get_pending_message(),
+				)
+			);
+		}
+
+		$status = (string) get_user_meta( $user_id, 'cta_supervision_status', true );
 
 		if ( 'active' !== $status ) {
 			wp_send_json_error(

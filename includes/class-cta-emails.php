@@ -61,6 +61,8 @@ class CTA_Emails {
 				return self::send_payment_failed( $user, $data );
 			case 'supervision_locked':
 				return self::send_supervision_locked( $user, $data );
+			case 'agency_representative_approval':
+				return self::send_agency_representative_approval( $user, $data );
 			default:
 				return false;
 		}
@@ -353,6 +355,94 @@ class CTA_Emails {
 	}
 
 	/**
+	 * Email agency representative with approval documents for signature.
+	 *
+	 * Sent when an Associate registers and is set to Pending Approval.
+	 *
+	 * @param WP_User $user Associate user.
+	 * @param array   $data Optional overrides.
+	 * @return bool
+	 */
+	private static function send_agency_representative_approval( $user, $data ) {
+		$approval_status = (string) get_user_meta( $user->ID, 'cta_approval_status', true );
+
+		if ( 'pending_approval' !== $approval_status ) {
+			return false;
+		}
+
+		$rep_email = sanitize_email(
+			$data['agency_representative_email'] ?? get_user_meta( $user->ID, 'cta_agency_representative_email', true )
+		);
+		$rep_name  = sanitize_text_field(
+			$data['agency_representative_name'] ?? get_user_meta( $user->ID, 'cta_agency_representative_name', true )
+		);
+		$agency    = sanitize_text_field(
+			$data['employer_agency_name'] ?? get_user_meta( $user->ID, 'cta_employer_agency_name', true )
+		);
+
+		if ( ! is_email( $rep_email ) ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+				error_log( sprintf( 'CTA_Emails: invalid agency representative email for user %d', $user->ID ) );
+			}
+			return false;
+		}
+
+		$documents   = self::get_agency_approval_documents();
+		$attachments = array();
+
+		foreach ( $documents as $document ) {
+			if ( ! empty( $document['path'] ) && file_exists( $document['path'] ) ) {
+				$attachments[] = $document['path'];
+			}
+		}
+
+		$subject = __( 'Action Required: CTA Associate Approval Documents for Signature', 'cta-lms' );
+
+		return self::deliver_to(
+			$rep_email,
+			$subject,
+			'agency-representative-approval',
+			array(
+				'user'                         => $user,
+				'rep_name'                     => $rep_name,
+				'agency_name'                  => $agency,
+				'associate_name'               => $user->display_name,
+				'associate_email'              => $user->user_email,
+				'documents'                    => $documents,
+				'support_email'                => self::get_support_email(),
+			),
+			$attachments
+		);
+	}
+
+	/**
+	 * Paths and labels for agency approval document attachments.
+	 *
+	 * @return array<int, array{label: string, path: string, url: string, filename: string}>
+	 */
+	public static function get_agency_approval_documents() {
+		$docs = array(
+			array(
+				'label'    => __( 'Associate Intake & Regulatory Clearance Packet', 'cta-lms' ),
+				'filename' => 'associate-intake-regulatory-clearance-packet.pdf',
+			),
+			array(
+				'label'    => __( 'CTA Employer Oversight Agreement', 'cta-lms' ),
+				'filename' => 'cta-employer-oversight-agreement.pdf',
+			),
+		);
+
+		foreach ( $docs as &$doc ) {
+			$doc['path'] = CTA_PLUGIN_DIR . 'assets/documents/' . $doc['filename'];
+			$doc['url']  = CTA_PLUGIN_URL . 'assets/documents/' . $doc['filename'];
+		}
+		unset( $doc );
+
+		return $docs;
+	}
+
+	/**
 	 * Render email HTML using base wrapper.
 	 *
 	 * @param string $template Template slug without .php.
@@ -371,19 +461,35 @@ class CTA_Emails {
 	}
 
 	/**
-	 * Send rendered HTML email.
+	 * Send rendered HTML email to a WordPress user.
 	 *
-	 * @param WP_User $user     Recipient.
-	 * @param string  $subject  Email subject.
-	 * @param string  $template Template slug.
-	 * @param array   $vars     Template variables.
+	 * @param WP_User $user        Recipient.
+	 * @param string  $subject     Email subject.
+	 * @param string  $template    Template slug.
+	 * @param array   $vars        Template variables.
+	 * @param array   $attachments Optional file paths.
 	 * @return bool
 	 */
-	private static function deliver( $user, $subject, $template, $vars ) {
+	private static function deliver( $user, $subject, $template, $vars, $attachments = array() ) {
+		return self::deliver_to( $user->user_email, $subject, $template, $vars, $attachments );
+	}
+
+	/**
+	 * Send rendered HTML email to an arbitrary address.
+	 *
+	 * @param string $to_email     Recipient email.
+	 * @param string $subject      Email subject.
+	 * @param string $template     Template slug.
+	 * @param array  $vars         Template variables.
+	 * @param array  $attachments  Optional absolute file paths.
+	 * @return bool
+	 */
+	private static function deliver_to( $to_email, $subject, $template, $vars, $attachments = array() ) {
 		$vars['email_subject'] = $subject;
 		$html                  = self::render( $template, $vars );
+		$attachments           = array_values( array_filter( (array) $attachments ) );
 
-		return wp_mail( $user->user_email, $subject, $html, self::get_headers() );
+		return wp_mail( $to_email, $subject, $html, self::get_headers(), $attachments );
 	}
 
 	/**

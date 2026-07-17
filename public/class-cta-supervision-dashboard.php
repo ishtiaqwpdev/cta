@@ -93,11 +93,17 @@ class CTA_Supervision_Dashboard {
 		$is_locked = in_array( $supervision_status, array( 'locked', 'past_due' ), true );
 		$no_plan   = ! $is_active && ! $is_locked;
 
+		$can_access_booking             = CTA_Associate_Access::can_access_booking( $user_id );
+		$can_access_meeting_links       = CTA_Associate_Access::can_access_meeting_links( $user_id );
+		$can_access_supervision_resources = CTA_Associate_Access::can_access_supervision_resources( $user_id );
+		$is_pending_approval            = CTA_Associate_Access::is_associate( $user_id ) && ! CTA_Associate_Access::is_approved( $user_id );
+		$pending_approval_message       = CTA_Associate_Access::get_pending_message();
+
 		$upcoming_sessions = array();
 		$session_history   = array();
 		$documents         = array();
 
-		if ( $is_active || $is_locked ) {
+		if ( ( $is_active || $is_locked ) && $can_access_booking ) {
 			$upcoming_sessions = $wpdb->get_results(
 				$wpdb->prepare(
 					"SELECT * FROM {$wpdb->prefix}cta_bookings
@@ -126,7 +132,9 @@ class CTA_Supervision_Dashboard {
 					$user_id
 				)
 			);
+		}
 
+		if ( ( $is_active || $is_locked ) && $can_access_supervision_resources ) {
 			$documents = $wpdb->get_results(
 				$wpdb->prepare(
 					"SELECT * FROM {$wpdb->prefix}cta_documents
@@ -171,6 +179,10 @@ class CTA_Supervision_Dashboard {
 
 		if ( ! is_user_logged_in() ) {
 			wp_send_json_error( array( 'message' => __( 'Please log in to upload documents.', 'cta-lms' ) ) );
+		}
+
+		if ( ! CTA_Associate_Access::can_access_supervision_resources() ) {
+			wp_send_json_error( array( 'message' => CTA_Associate_Access::get_pending_message() ) );
 		}
 
 		if ( ! $this->user_can_upload_documents() ) {
@@ -263,6 +275,10 @@ class CTA_Supervision_Dashboard {
 
 		if ( ! is_user_logged_in() ) {
 			wp_send_json_error( array( 'message' => __( 'Please log in to continue.', 'cta-lms' ) ) );
+		}
+
+		if ( ! CTA_Associate_Access::can_access_supervision_resources() ) {
+			wp_send_json_error( array( 'message' => CTA_Associate_Access::get_pending_message() ) );
 		}
 
 		$document_id = absint( wp_unslash( $_POST['document_id'] ?? 0 ) );
@@ -390,7 +406,7 @@ class CTA_Supervision_Dashboard {
 	}
 
 	/**
-	 * Enrich booking with slot seat data.
+	 * Enrich booking with slot seat data and meeting link access.
 	 *
 	 * @param object $booking Booking row.
 	 * @return object
@@ -407,11 +423,12 @@ class CTA_Supervision_Dashboard {
 
 		$seats_booked = 0;
 		$seats_total  = 'group' === $booking->session_type ? CTA_Supervision::GROUP_SEATS_MAX : 1;
+		$meeting_url  = $this->extract_meeting_url_from_notes( $booking->notes );
 
 		if ( $slot_id ) {
 			$slot = $wpdb->get_row(
 				$wpdb->prepare(
-					"SELECT seats_booked, seats_total FROM {$wpdb->prefix}cta_bookings WHERE id = %d AND user_id = 0",
+					"SELECT seats_booked, seats_total, notes FROM {$wpdb->prefix}cta_bookings WHERE id = %d AND user_id = 0",
 					$slot_id
 				)
 			);
@@ -419,14 +436,61 @@ class CTA_Supervision_Dashboard {
 			if ( $slot ) {
 				$seats_booked = (int) $slot->seats_booked;
 				$seats_total  = (int) $slot->seats_total;
+
+				if ( ! $meeting_url ) {
+					$meeting_url = $this->extract_meeting_url_from_notes( $slot->notes );
+				}
 			}
 		}
 
 		$booking->seats_booked = $seats_booked;
 		$booking->seats_total  = max( 1, $seats_total );
 		$booking->can_cancel   = $this->booking_can_cancel( $booking );
+		$booking->meeting_url  = $meeting_url;
+		$booking->can_join     = (bool) $meeting_url && CTA_Associate_Access::can_access_meeting_links( get_current_user_id() );
+
+		// Never expose the raw meeting URL when the associate is not approved.
+		if ( ! $booking->can_join ) {
+			$booking->meeting_url = '';
+		}
 
 		return $booking;
+	}
+
+	/**
+	 * Extract a meeting / join URL from booking notes.
+	 *
+	 * Supports JSON keys meeting_url, meeting_link, join_url, or a bare URL string.
+	 *
+	 * @param string $notes Notes field.
+	 * @return string
+	 */
+	private function extract_meeting_url_from_notes( $notes ) {
+		$notes = (string) $notes;
+
+		if ( '' === $notes ) {
+			return '';
+		}
+
+		$decoded = json_decode( $notes, true );
+
+		if ( is_array( $decoded ) ) {
+			foreach ( array( 'meeting_url', 'meeting_link', 'join_url', 'zoom_url' ) as $key ) {
+				if ( ! empty( $decoded[ $key ] ) && filter_var( $decoded[ $key ], FILTER_VALIDATE_URL ) ) {
+					return esc_url_raw( $decoded[ $key ] );
+				}
+			}
+
+			return '';
+		}
+
+		$notes = trim( $notes );
+
+		if ( filter_var( $notes, FILTER_VALIDATE_URL ) ) {
+			return esc_url_raw( $notes );
+		}
+
+		return '';
 	}
 
 	/**
@@ -605,6 +669,10 @@ class CTA_Supervision_Dashboard {
 	 * @return bool
 	 */
 	private function user_can_upload_documents() {
+		if ( ! CTA_Associate_Access::can_access_supervision_resources() ) {
+			return false;
+		}
+
 		$user  = wp_get_current_user();
 		$roles = (array) $user->roles;
 

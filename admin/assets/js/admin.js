@@ -731,6 +731,100 @@
     toggleCourseVideoUI();
   }
 
+  function initAssociateApprovals() {
+    var $table = $("#cta-pending-approvals-table");
+    var $notice = $("#cta-approvals-notice");
+
+    if (!$table.length) {
+      return;
+    }
+
+    function showNotice(type, message) {
+      if (!$notice.length) {
+        return;
+      }
+
+      $notice
+        .removeClass("notice-success notice-error")
+        .addClass(type === "success" ? "notice-success" : "notice-error")
+        .html("<p>" + message + "</p>")
+        .prop("hidden", false);
+    }
+
+    function ensureEmptyRow() {
+      if ($table.find("tbody tr.cta-approval-row").length) {
+        return;
+      }
+
+      if (!$table.find("tbody tr.cta-approvals-empty").length) {
+        $table
+          .find("tbody")
+          .append(
+            '<tr class="cta-approvals-empty"><td colspan="7">No Associates are currently pending approval.</td></tr>'
+          );
+      }
+    }
+
+    function handleDecision(action, $button) {
+      var userId = $button.data("user-id");
+      var confirmMsg =
+        action === "approve"
+          ? ctaAdmin.i18n.approveConfirm
+          : ctaAdmin.i18n.rejectConfirm;
+
+      if (!window.confirm(confirmMsg)) {
+        return;
+      }
+
+      var $row = $button.closest("tr");
+      var $buttons = $row.find("button");
+
+      $buttons.prop("disabled", true);
+
+      $.post(ctaAdmin.ajaxUrl, {
+        action: action === "approve" ? "cta_approve_associate" : "cta_reject_associate",
+        nonce: ctaAdmin.nonce,
+        user_id: userId
+      })
+        .done(function (response) {
+          if (!response || !response.success) {
+            $buttons.prop("disabled", false);
+            showNotice(
+              "error",
+              (response && response.data && response.data.message) ||
+                ctaAdmin.i18n.actionFailed
+            );
+            return;
+          }
+
+          showNotice(
+            "success",
+            (response.data && response.data.message) ||
+              (action === "approve"
+                ? ctaAdmin.i18n.approveSuccess
+                : ctaAdmin.i18n.rejectSuccess)
+          );
+
+          $row.fadeOut(200, function () {
+            $row.remove();
+            ensureEmptyRow();
+          });
+        })
+        .fail(function () {
+          $buttons.prop("disabled", false);
+          showNotice("error", ctaAdmin.i18n.actionFailed);
+        });
+    }
+
+    $(document).on("click", ".cta-approve-associate", function () {
+      handleDecision("approve", $(this));
+    });
+
+    $(document).on("click", ".cta-reject-associate", function () {
+      handleDecision("reject", $(this));
+    });
+  }
+
   $(function () {
     if (typeof ctaAdmin === "undefined") {
       return;
@@ -748,5 +842,6 @@
     initUserStats();
     initModals();
     initBookings();
+    initAssociateApprovals();
   });
 })(jQuery);

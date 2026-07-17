@@ -322,6 +322,26 @@
   align-items: center;
 }
 
+.cta-approval-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fcf0e3;
+  color: #9a6700;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cta-approval-row .cta-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#cta-approvals-notice {
+  margin: 12px 0 16px;
+}
+
 @media (max-width: 782px) {
   .cta-quiz-options-grid {
     grid-template-columns: 1fr;

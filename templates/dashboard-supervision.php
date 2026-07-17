@@ -7,6 +7,11 @@
  * @var bool   $is_active
  * @var bool   $is_locked
  * @var bool   $no_plan
+ * @var bool   $is_pending_approval
+ * @var bool   $can_access_booking
+ * @var bool   $can_access_meeting_links
+ * @var bool   $can_access_supervision_resources
+ * @var string $pending_approval_message
  * @var string $supervision_status
  * @var string $supervision_plan
  * @var string $plan_label
@@ -38,7 +43,19 @@ $document_count     = count( $documents );
 <div class="cta-plugin-wrapper">
 <div class="cta-lms cta-supervision-dashboard dashboard-layout" data-dashboard data-dashboard-user="<?php echo esc_attr( wp_json_encode( $dashboard_user ) ); ?>">
 
-	<?php if ( $no_plan ) : ?>
+	<?php if ( ! empty( $is_pending_approval ) ) : ?>
+		<div class="dashboard-main dashboard-main--full">
+			<?php if ( ! empty( $home_url ) ) : ?>
+				<p class="dashboard-home-link"><a href="<?php echo esc_url( $home_url ); ?>">&larr; <?php echo esc_html__( 'Back to Home', 'cta-lms' ); ?></a></p>
+			<?php endif; ?>
+			<div class="cta-empty-state cta-supervision-pending-approval">
+				<h1><?php echo esc_html__( 'Account pending approval', 'cta-lms' ); ?></h1>
+				<p><?php echo esc_html( $pending_approval_message ); ?></p>
+				<p><?php echo esc_html__( 'You will gain access to session booking, meeting links, and supervision resources after your agency documents are approved.', 'cta-lms' ); ?></p>
+			</div>
+		</div>
+
+	<?php elseif ( $no_plan ) : ?>
 		<div class="dashboard-main dashboard-main--full">
 			<?php if ( ! empty( $home_url ) ) : ?>
 				<p class="dashboard-home-link"><a href="<?php echo esc_url( $home_url ); ?>">&larr; <?php echo esc_html__( 'Back to Home', 'cta-lms' ); ?></a></p>
@@ -67,7 +84,7 @@ $document_count     = count( $documents );
 						<h3 class="service-card__title"><?php echo esc_html__( 'Individual 1-on-1', 'cta-lms' ); ?></h3>
 						<p class="service-card__price"><?php echo esc_html( $individual_display ); ?></p>
 						<p class="service-card__price-unit"><?php echo esc_html__( '/ session', 'cta-lms' ); ?></p>
-						<?php if ( $supervision_url ) : ?>
+						<?php if ( $supervision_url && ! empty( $can_access_booking ) ) : ?>
 							<a href="<?php echo esc_url( $supervision_url . '#booking' ); ?>" class="btn btn-primary btn--lg service-card__cta">
 								<?php echo esc_html__( 'View Sessions', 'cta-lms' ); ?>
 							</a>
@@ -119,12 +136,14 @@ $document_count     = count( $documents );
 					</span>
 					<?php echo esc_html__( 'My Sessions', 'cta-lms' ); ?>
 				</a>
-				<a href="#documents" class="dashboard-sidebar__link" data-dashboard-nav="documents">
-					<span class="dashboard-sidebar__icon" aria-hidden="true">
-						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
-					</span>
-					<?php echo esc_html__( 'Documents & Logs', 'cta-lms' ); ?>
-				</a>
+				<?php if ( ! empty( $can_access_supervision_resources ) ) : ?>
+					<a href="#documents" class="dashboard-sidebar__link" data-dashboard-nav="documents">
+						<span class="dashboard-sidebar__icon" aria-hidden="true">
+							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+						</span>
+						<?php echo esc_html__( 'Documents & Logs', 'cta-lms' ); ?>
+					</a>
+				<?php endif; ?>
 				<a href="#subscription" class="dashboard-sidebar__link" data-dashboard-nav="subscription">
 					<span class="dashboard-sidebar__icon" aria-hidden="true">
 						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
@@ -208,7 +227,7 @@ $document_count     = count( $documents );
 					<?php if ( empty( $upcoming_sessions ) ) : ?>
 						<div class="cta-empty-state cta-empty-state--inline">
 							<p><?php echo esc_html__( 'No upcoming sessions booked', 'cta-lms' ); ?></p>
-							<?php if ( $supervision_url ) : ?>
+							<?php if ( $supervision_url && ! empty( $can_access_booking ) ) : ?>
 								<a href="<?php echo esc_url( $supervision_url . '#booking' ); ?>" class="btn btn-primary">
 									<?php echo esc_html__( 'Book a Session', 'cta-lms' ); ?>
 								</a>
@@ -220,7 +239,7 @@ $document_count     = count( $documents );
 								<?php include CTA_PLUGIN_DIR . 'templates/partials/session-upcoming-card.php'; ?>
 							<?php endforeach; ?>
 						</div>
-						<?php if ( $supervision_url ) : ?>
+						<?php if ( $supervision_url && ! empty( $can_access_booking ) ) : ?>
 							<a href="<?php echo esc_url( $supervision_url . '#booking' ); ?>" class="btn btn-outline">
 								<?php echo esc_html__( 'Book New Session', 'cta-lms' ); ?>
 							</a>
@@ -273,6 +292,7 @@ $document_count     = count( $documents );
 				</section>
 			</div>
 
+			<?php if ( ! empty( $can_access_supervision_resources ) ) : ?>
 			<div class="dashboard-panel" data-dashboard-panel="documents" hidden>
 				<header class="dashboard-welcome">
 					<div>
@@ -315,6 +335,7 @@ $document_count     = count( $documents );
 					</div>
 				</section>
 			</div>
+			<?php endif; ?>
 
 			<div class="dashboard-panel" data-dashboard-panel="subscription" hidden>
 				<header class="dashboard-welcome">

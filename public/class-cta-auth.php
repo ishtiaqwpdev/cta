@@ -219,9 +219,22 @@ class CTA_Auth {
 			update_user_meta( $user_id, 'cta_employer_agency_name', $employer_agency_name );
 			update_user_meta( $user_id, 'cta_agency_representative_name', $agency_representative_name );
 			update_user_meta( $user_id, 'cta_agency_representative_email', $agency_representative_email );
+			update_user_meta( $user_id, 'cta_approval_status', 'pending_approval' );
 		}
 
 		CTA_Emails::send( 'welcome', $user_id );
+
+		if ( 'cta_associate' === $user_type ) {
+			CTA_Emails::send(
+				'agency_representative_approval',
+				$user_id,
+				array(
+					'employer_agency_name'         => $employer_agency_name,
+					'agency_representative_name'   => $agency_representative_name,
+					'agency_representative_email'  => $agency_representative_email,
+				)
+			);
+		}
 
 		$user = get_user_by( 'id', $user_id );
 

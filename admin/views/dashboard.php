@@ -105,6 +105,7 @@ $notice = sanitize_text_field( wp_unslash( $_GET['cta_notice'] ?? '' ) );
 
 	<div class="cta-admin-quick-links">
 		<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=cta-lms-course-edit' ) ); ?>"><?php esc_html_e( 'Add New Course', 'cta-lms' ); ?></a>
+		<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=cta-lms-approvals' ) ); ?>"><?php esc_html_e( 'Pending Approvals', 'cta-lms' ); ?></a>
 		<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=cta-lms-users' ) ); ?>"><?php esc_html_e( 'View All Users', 'cta-lms' ); ?></a>
 		<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=cta-lms-settings' ) ); ?>"><?php esc_html_e( 'Configure Settings', 'cta-lms' ); ?></a>
 	</div>

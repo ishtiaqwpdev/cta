@@ -43,6 +43,16 @@ $datetime_attr = esc_attr( $session->session_date . ' ' . $session->session_time
 	</div>
 
 	<div class="session-card__actions">
+		<?php if ( ! empty( $session->can_join ) && ! empty( $session->meeting_url ) ) : ?>
+			<a
+				href="<?php echo esc_url( $session->meeting_url ); ?>"
+				class="btn btn-primary btn--sm cta-join-session"
+				target="_blank"
+				rel="noopener noreferrer"
+			>
+				<?php echo esc_html__( 'Join Session', 'cta-lms' ); ?>
+			</a>
+		<?php endif; ?>
 		<?php if ( $session->can_cancel ) : ?>
 			<button
 				type="button"

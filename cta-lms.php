@@ -68,6 +68,7 @@ $cta_required_files = array(
 	'includes/class-cta-activator.php',
 	'includes/class-cta-deactivator.php',
 	'includes/class-cta-roles.php',
+	'includes/class-cta-associate-access.php',
 	'includes/class-cta-database.php',
 	'includes/class-cta-emails.php',
 	'includes/class-cta-loader.php',

@@ -40,6 +40,8 @@ class CTA_Admin {
 		add_action( 'wp_ajax_cta_preview_certificate', array( $this, 'ajax_preview_certificate' ) );
 		add_action( 'wp_ajax_cta_save_quiz', array( $this, 'ajax_save_quiz' ) );
 		add_action( 'wp_ajax_cta_load_quiz', array( $this, 'ajax_load_quiz' ) );
+		add_action( 'wp_ajax_cta_approve_associate', array( $this, 'ajax_approve_associate' ) );
+		add_action( 'wp_ajax_cta_reject_associate', array( $this, 'ajax_reject_associate' ) );
 	}
 
 	/**
@@ -90,6 +92,15 @@ class CTA_Admin {
 			'manage_options',
 			'cta-lms-users',
 			array( $this, 'render_users' )
+		);
+
+		add_submenu_page(
+			'cta-lms',
+			__( 'Pending Approvals', 'cta-lms' ),
+			__( 'Pending Approvals', 'cta-lms' ),
+			'manage_options',
+			'cta-lms-approvals',
+			array( $this, 'render_approvals' )
 		);
 
 		add_submenu_page(
@@ -171,6 +182,11 @@ class CTA_Admin {
 					'stripeTesting'  => __( 'Testing connection...', 'cta-lms' ),
 					'stripeSuccess'  => __( 'Stripe connection successful.', 'cta-lms' ),
 					'stripeFailed'   => __( 'Stripe connection failed.', 'cta-lms' ),
+					'approveConfirm' => __( 'Approve this Associate and unlock supervision access?', 'cta-lms' ),
+					'rejectConfirm'  => __( 'Reject this Associate? They will remain locked out of booking, meeting links, and resources.', 'cta-lms' ),
+					'approveSuccess' => __( 'Associate approved.', 'cta-lms' ),
+					'rejectSuccess'  => __( 'Associate rejected.', 'cta-lms' ),
+					'actionFailed'   => __( 'Unable to update approval status. Please try again.', 'cta-lms' ),
 				),
 			)
 		);
@@ -320,6 +336,22 @@ class CTA_Admin {
 				'users'       => $users ? $users : array(),
 				'role_filter' => $role_filter,
 				'search'      => $search,
+			)
+		);
+	}
+
+	/**
+	 * Render pending Associate approvals.
+	 */
+	public function render_approvals() {
+		$pending = class_exists( 'CTA_Associate_Access' )
+			? CTA_Associate_Access::get_pending_associates()
+			: array();
+
+		$this->load_view(
+			'approvals.php',
+			array(
+				'pending_associates' => $pending,
 			)
 		);
 	}
@@ -1490,6 +1522,68 @@ class CTA_Admin {
 		}
 
 		check_admin_referer( $action );
+	}
+
+	/**
+	 * AJAX: approve a pending Associate.
+	 */
+	public function ajax_approve_associate() {
+		$this->verify_admin_ajax();
+
+		$user_id = absint( wp_unslash( $_POST['user_id'] ?? 0 ) );
+
+		if ( ! $user_id || ! CTA_Associate_Access::is_associate( $user_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid Associate account.', 'cta-lms' ) ) );
+		}
+
+		$status = CTA_Associate_Access::get_approval_status( $user_id );
+
+		if ( CTA_Associate_Access::STATUS_PENDING !== $status ) {
+			wp_send_json_error( array( 'message' => __( 'This Associate is not pending approval.', 'cta-lms' ) ) );
+		}
+
+		if ( ! CTA_Associate_Access::approve( $user_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'Unable to approve this Associate.', 'cta-lms' ) ) );
+		}
+
+		wp_send_json_success(
+			array(
+				'message' => __( 'Associate approved. Supervision access is now unlocked.', 'cta-lms' ),
+				'user_id' => $user_id,
+				'status'  => CTA_Associate_Access::STATUS_APPROVED,
+			)
+		);
+	}
+
+	/**
+	 * AJAX: reject a pending Associate (keeps privileges locked).
+	 */
+	public function ajax_reject_associate() {
+		$this->verify_admin_ajax();
+
+		$user_id = absint( wp_unslash( $_POST['user_id'] ?? 0 ) );
+
+		if ( ! $user_id || ! CTA_Associate_Access::is_associate( $user_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid Associate account.', 'cta-lms' ) ) );
+		}
+
+		$status = CTA_Associate_Access::get_approval_status( $user_id );
+
+		if ( CTA_Associate_Access::STATUS_PENDING !== $status ) {
+			wp_send_json_error( array( 'message' => __( 'This Associate is not pending approval.', 'cta-lms' ) ) );
+		}
+
+		if ( ! CTA_Associate_Access::reject( $user_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'Unable to reject this Associate.', 'cta-lms' ) ) );
+		}
+
+		wp_send_json_success(
+			array(
+				'message' => __( 'Associate rejected. Access remains locked.', 'cta-lms' ),
+				'user_id' => $user_id,
+				'status'  => CTA_Associate_Access::STATUS_REJECTED,
+			)
+		);
 	}
 
 	/**
