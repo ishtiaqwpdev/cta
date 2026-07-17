@@ -203,17 +203,14 @@ class CTA_Loader {
 
 		$classes[] = 'cta-lms-page';
 
-		if ( self::is_current_plugin_page( 'cta_login_page_id' ) ) {
+		if ( self::is_login_page() ) {
 			$classes[] = 'cta-lms-page--login';
+			$classes[] = 'cta-lms-page--no-chrome';
 		}
 
-		if (
-			self::is_current_plugin_page( 'cta_student_dashboard_page_id' )
-			|| self::is_current_plugin_page( 'cta_course_player_page_id' )
-			|| self::is_current_plugin_page( 'cta_supervision_dashboard_page_id' )
-			|| self::is_current_plugin_page( 'cta_quiz_page_id' )
-		) {
+		if ( self::is_dashboard_page() ) {
 			$classes[] = 'dashboard-page';
+			$classes[] = 'cta-lms-page--no-chrome';
 		}
 
 		return $classes;
@@ -262,6 +259,93 @@ class CTA_Loader {
 		}
 
 		return self::post_has_cta_shortcode( $post );
+	}
+
+	/**
+	 * Whether the current page should hide theme/header/footer chrome.
+	 *
+	 * Login and dashboard surfaces are full-bleed app views.
+	 *
+	 * @return bool
+	 */
+	public static function is_no_chrome_page() {
+		return self::is_login_page() || self::is_dashboard_page();
+	}
+
+	/**
+	 * Whether the current request is the CTA login page.
+	 *
+	 * @return bool
+	 */
+	public static function is_login_page() {
+		if ( self::is_current_plugin_page( 'cta_login_page_id' ) ) {
+			return true;
+		}
+
+		return self::current_post_has_shortcode( 'cta_login_form' );
+	}
+
+	/**
+	 * Whether the current request is a CTA dashboard / app page.
+	 *
+	 * @return bool
+	 */
+	public static function is_dashboard_page() {
+		$dashboard_options = array(
+			'cta_student_dashboard_page_id',
+			'cta_course_player_page_id',
+			'cta_supervision_dashboard_page_id',
+			'cta_quiz_page_id',
+		);
+
+		foreach ( $dashboard_options as $option_name ) {
+			if ( self::is_current_plugin_page( $option_name ) ) {
+				return true;
+			}
+		}
+
+		$dashboard_shortcodes = array(
+			'cta_student_dashboard',
+			'cta_course_player',
+			'cta_supervision_dashboard',
+			'cta_quiz',
+		);
+
+		foreach ( $dashboard_shortcodes as $shortcode ) {
+			if ( self::current_post_has_shortcode( $shortcode ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Whether the current singular post content includes a shortcode.
+	 *
+	 * @param string $shortcode Shortcode tag.
+	 * @return bool
+	 */
+	private static function current_post_has_shortcode( $shortcode ) {
+		global $post;
+
+		if ( ! $post instanceof WP_Post ) {
+			return false;
+		}
+
+		if ( has_shortcode( $post->post_content, $shortcode ) ) {
+			return true;
+		}
+
+		if ( metadata_exists( 'post', $post->ID, '_elementor_data' ) ) {
+			$elementor_data = get_post_meta( $post->ID, '_elementor_data', true );
+
+			if ( is_string( $elementor_data ) && false !== strpos( $elementor_data, '[' . $shortcode ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**

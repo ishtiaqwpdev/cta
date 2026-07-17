@@ -66,6 +66,10 @@ class CTA_Shortcodes {
 	 * @return string
 	 */
 	public function render_header( $atts ) {
+		if ( class_exists( 'CTA_Loader' ) && CTA_Loader::is_no_chrome_page() ) {
+			return '';
+		}
+
 		$atts = shortcode_atts(
 			array(
 				'show_nav' => 'yes',
@@ -243,6 +247,10 @@ class CTA_Shortcodes {
 	 * @return string
 	 */
 	public function render_footer( $atts = array() ) {
+		if ( class_exists( 'CTA_Loader' ) && CTA_Loader::is_no_chrome_page() ) {
+			return '';
+		}
+
 		ob_start();
 		include CTA_PLUGIN_DIR . 'templates/footer.php';
 		return ob_get_clean();

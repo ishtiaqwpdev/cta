@@ -205,6 +205,49 @@ body.cta-lms-page .elementor-widget-theme-post-title {
   display: none !important;
 }
 
+/* --------------------------------------------------------------------------
+   Login + dashboard: hide theme / Elementor header & footer chrome
+   -------------------------------------------------------------------------- */
+body.cta-lms-page--no-chrome header:not(.cta-lms):not(.dashboard-sidebar):not(.dashboard-mobile-bar),
+body.cta-lms-page--no-chrome footer:not(.cta-lms):not(.dashboard-sidebar__footer),
+body.cta-lms-page--no-chrome .site-header,
+body.cta-lms-page--no-chrome .site-footer,
+body.cta-lms-page--no-chrome #masthead,
+body.cta-lms-page--no-chrome #colophon,
+body.cta-lms-page--no-chrome .elementor-location-header,
+body.cta-lms-page--no-chrome .elementor-location-footer,
+body.cta-lms-page--no-chrome .elementor-location-popup,
+body.cta-lms-page--no-chrome .edukon-header,
+body.cta-lms-page--no-chrome .edukon-footer,
+body.cta-lms-page--no-chrome .header-area,
+body.cta-lms-page--no-chrome .footer-area,
+body.cta-lms-page--no-chrome .main-header,
+body.cta-lms-page--no-chrome .main-footer,
+body.cta-lms-page--no-chrome .cta-lms.site-header,
+body.cta-lms-page--no-chrome .cta-lms.site-footer {
+  display: none !important;
+}
+
+body.cta-lms-page--no-chrome {
+  background: #fff;
+}
+
+body.cta-lms-page--login .site-content,
+body.cta-lms-page--login .content-area,
+body.cta-lms-page--login .entry-content,
+body.cta-lms-page--login .site-main,
+body.cta-lms-page--login #content,
+body.dashboard-page .site-content,
+body.dashboard-page .content-area,
+body.dashboard-page .entry-content,
+body.dashboard-page .site-main,
+body.dashboard-page #content {
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: none !important;
+  width: 100% !important;
+}
+
 body.cta-lms-page .site-content,
 body.cta-lms-page .content-area,
 body.cta-lms-page .entry-content,
