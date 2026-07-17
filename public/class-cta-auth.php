@@ -252,7 +252,9 @@ class CTA_Auth {
 	}
 
 	/**
-	 * Get dashboard URL based on user role.
+	 * Get frontend client dashboard URL based on user role.
+	 *
+	 * Never sends users to wp-admin from the login/register UI.
 	 *
 	 * @param WP_User $user WordPress user object.
 	 * @return string
@@ -261,13 +263,53 @@ class CTA_Auth {
 		$roles = (array) $user->roles;
 
 		if ( in_array( 'cta_associate', $roles, true ) ) {
-			$page_id = absint( get_option( 'cta_supervision_dashboard_page_id', 0 ) );
-		} elseif ( in_array( 'cta_licensed_professional', $roles, true ) ) {
-			$page_id = absint( get_option( 'cta_student_dashboard_page_id', 0 ) );
-		} elseif ( in_array( 'administrator', $roles, true ) ) {
-			return admin_url();
-		} else {
-			return home_url( '/' );
+			return $this->resolve_dashboard_page_url(
+				'cta_supervision_dashboard_page_id',
+				'cta_supervision_dashboard'
+			);
+		}
+
+		if ( in_array( 'cta_licensed_professional', $roles, true ) ) {
+			return $this->resolve_dashboard_page_url(
+				'cta_student_dashboard_page_id',
+				'cta_student_dashboard'
+			);
+		}
+
+		// Administrators and other roles: prefer the frontend client dashboards.
+		$student_url = $this->resolve_dashboard_page_url(
+			'cta_student_dashboard_page_id',
+			'cta_student_dashboard'
+		);
+
+		if ( $this->is_usable_frontend_url( $student_url ) ) {
+			return $student_url;
+		}
+
+		$supervision_url = $this->resolve_dashboard_page_url(
+			'cta_supervision_dashboard_page_id',
+			'cta_supervision_dashboard'
+		);
+
+		if ( $this->is_usable_frontend_url( $supervision_url ) ) {
+			return $supervision_url;
+		}
+
+		return home_url( '/' );
+	}
+
+	/**
+	 * Resolve a CTA dashboard page URL from option or shortcode fallback.
+	 *
+	 * @param string $option_name Option key storing page ID.
+	 * @param string $shortcode   Shortcode tag used to find the page.
+	 * @return string
+	 */
+	private function resolve_dashboard_page_url( $option_name, $shortcode ) {
+		$page_id = absint( get_option( $option_name, 0 ) );
+
+		if ( ! $page_id && function_exists( 'cta_lms_find_page_id_by_shortcode' ) ) {
+			$page_id = absint( cta_lms_find_page_id_by_shortcode( $shortcode ) );
 		}
 
 		if ( ! $page_id ) {
@@ -277,6 +319,25 @@ class CTA_Auth {
 		$url = get_permalink( $page_id );
 
 		return $url ? $url : home_url( '/' );
+	}
+
+	/**
+	 * Whether a URL is a usable frontend destination (not empty/home-only fallback).
+	 *
+	 * @param string $url Candidate URL.
+	 * @return bool
+	 */
+	private function is_usable_frontend_url( $url ) {
+		$url = (string) $url;
+
+		if ( '' === $url ) {
+			return false;
+		}
+
+		$home = untrailingslashit( home_url( '/' ) );
+		$cand = untrailingslashit( $url );
+
+		return $cand && $cand !== $home;
 	}
 }
 }

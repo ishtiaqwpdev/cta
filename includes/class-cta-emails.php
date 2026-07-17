@@ -538,7 +538,7 @@ class CTA_Emails {
 	}
 
 	/**
-	 * Dashboard URL based on user role.
+	 * Frontend client dashboard URL based on user role.
 	 *
 	 * @param WP_User $user User object.
 	 * @return string
@@ -554,8 +554,15 @@ class CTA_Emails {
 			return self::get_page_url( 'cta_student_dashboard_page_id' );
 		}
 
-		if ( in_array( 'administrator', $roles, true ) ) {
-			return admin_url();
+		// Prefer frontend client dashboards for admins and other roles.
+		$student = self::get_page_url( 'cta_student_dashboard_page_id' );
+		if ( $student && untrailingslashit( $student ) !== untrailingslashit( home_url( '/' ) ) ) {
+			return $student;
+		}
+
+		$supervision = self::get_page_url( 'cta_supervision_dashboard_page_id' );
+		if ( $supervision && untrailingslashit( $supervision ) !== untrailingslashit( home_url( '/' ) ) ) {
+			return $supervision;
 		}
 
 		return home_url( '/' );
