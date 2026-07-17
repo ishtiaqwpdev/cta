@@ -485,27 +485,81 @@ class CTA_Emails {
 	 * @return bool
 	 */
 	private static function deliver_to( $to_email, $subject, $template, $vars, $attachments = array() ) {
+		$to_email = sanitize_email( $to_email );
+
+		if ( ! is_email( $to_email ) ) {
+			return false;
+		}
+
 		$vars['email_subject'] = $subject;
 		$html                  = self::render( $template, $vars );
-		$attachments           = array_values( array_filter( (array) $attachments ) );
+		$attachments           = array_values(
+			array_filter(
+				(array) $attachments,
+				static function ( $path ) {
+					return is_string( $path ) && $path && file_exists( $path ) && is_readable( $path );
+				}
+			)
+		);
 
-		return wp_mail( $to_email, $subject, $html, self::get_headers(), $attachments );
+		$has_attachments = ! empty( $attachments );
+		$headers         = self::get_headers( $has_attachments );
+
+		if ( $has_attachments ) {
+			add_action( 'phpmailer_init', array( __CLASS__, 'configure_phpmailer_html' ) );
+		}
+
+		$sent = wp_mail( $to_email, $subject, $html, $headers, $attachments );
+
+		if ( $has_attachments ) {
+			remove_action( 'phpmailer_init', array( __CLASS__, 'configure_phpmailer_html' ) );
+		}
+
+		// Attachments + HTML often fail on hosts; retry without files so the message still arrives.
+		if ( ! $sent && $has_attachments ) {
+			$sent = wp_mail( $to_email, $subject, $html, self::get_headers( false ) );
+		}
+
+		if ( ! $sent && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			error_log( sprintf( 'CTA_Emails: wp_mail failed for %s (%s)', $to_email, $template ) );
+		}
+
+		return (bool) $sent;
+	}
+
+	/**
+	 * Ensure PHPMailer sends HTML when attachments are present.
+	 *
+	 * @param PHPMailer $phpmailer Mailer instance.
+	 */
+	public static function configure_phpmailer_html( $phpmailer ) {
+		if ( is_object( $phpmailer ) && method_exists( $phpmailer, 'isHTML' ) ) {
+			$phpmailer->isHTML( true );
+			$phpmailer->CharSet = 'UTF-8';
+		}
 	}
 
 	/**
 	 * Email headers with branded From address.
 	 *
+	 * @param bool $for_attachments When true, omit Content-Type so wp_mail can build multipart.
 	 * @return array
 	 */
-	public static function get_headers() {
+	public static function get_headers( $for_attachments = false ) {
 		$from_name  = get_option( 'cta_admin_name', 'Clinical Training and Supervision Academy' );
 		$from_email = self::get_support_email();
 
-		return array(
-			'Content-Type: text/html; charset=UTF-8',
+		$headers = array(
 			'From: ' . $from_name . ' <' . $from_email . '>',
 			'Reply-To: ' . $from_email,
 		);
+
+		if ( ! $for_attachments ) {
+			array_unshift( $headers, 'Content-Type: text/html; charset=UTF-8' );
+		}
+
+		return $headers;
 	}
 
 	/**

@@ -42,6 +42,8 @@ class CTA_Admin {
 		add_action( 'wp_ajax_cta_load_quiz', array( $this, 'ajax_load_quiz' ) );
 		add_action( 'wp_ajax_cta_approve_associate', array( $this, 'ajax_approve_associate' ) );
 		add_action( 'wp_ajax_cta_reject_associate', array( $this, 'ajax_reject_associate' ) );
+		add_action( 'admin_post_cta_approve_associate', array( $this, 'handle_approve_associate' ) );
+		add_action( 'admin_post_cta_reject_associate', array( $this, 'handle_reject_associate' ) );
 	}
 
 	/**
@@ -1531,19 +1533,10 @@ class CTA_Admin {
 		$this->verify_admin_ajax();
 
 		$user_id = absint( wp_unslash( $_POST['user_id'] ?? 0 ) );
+		$result  = $this->review_associate_approval( $user_id, 'approve' );
 
-		if ( ! $user_id || ! CTA_Associate_Access::is_associate( $user_id ) ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid Associate account.', 'cta-lms' ) ) );
-		}
-
-		$status = CTA_Associate_Access::get_approval_status( $user_id );
-
-		if ( CTA_Associate_Access::STATUS_PENDING !== $status ) {
-			wp_send_json_error( array( 'message' => __( 'This Associate is not pending approval.', 'cta-lms' ) ) );
-		}
-
-		if ( ! CTA_Associate_Access::approve( $user_id ) ) {
-			wp_send_json_error( array( 'message' => __( 'Unable to approve this Associate.', 'cta-lms' ) ) );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
 		}
 
 		wp_send_json_success(
@@ -1562,19 +1555,10 @@ class CTA_Admin {
 		$this->verify_admin_ajax();
 
 		$user_id = absint( wp_unslash( $_POST['user_id'] ?? 0 ) );
+		$result  = $this->review_associate_approval( $user_id, 'reject' );
 
-		if ( ! $user_id || ! CTA_Associate_Access::is_associate( $user_id ) ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid Associate account.', 'cta-lms' ) ) );
-		}
-
-		$status = CTA_Associate_Access::get_approval_status( $user_id );
-
-		if ( CTA_Associate_Access::STATUS_PENDING !== $status ) {
-			wp_send_json_error( array( 'message' => __( 'This Associate is not pending approval.', 'cta-lms' ) ) );
-		}
-
-		if ( ! CTA_Associate_Access::reject( $user_id ) ) {
-			wp_send_json_error( array( 'message' => __( 'Unable to reject this Associate.', 'cta-lms' ) ) );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
 		}
 
 		wp_send_json_success(
@@ -1584,6 +1568,85 @@ class CTA_Admin {
 				'status'  => CTA_Associate_Access::STATUS_REJECTED,
 			)
 		);
+	}
+
+	/**
+	 * Admin-post: approve Associate (works without JavaScript).
+	 */
+	public function handle_approve_associate() {
+		$this->handle_associate_review_post( 'approve' );
+	}
+
+	/**
+	 * Admin-post: reject Associate (works without JavaScript).
+	 */
+	public function handle_reject_associate() {
+		$this->handle_associate_review_post( 'reject' );
+	}
+
+	/**
+	 * Process Approve/Reject form submissions.
+	 *
+	 * @param string $decision approve|reject.
+	 */
+	private function handle_associate_review_post( $decision ) {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Permission denied.', 'cta-lms' ) );
+		}
+
+		$user_id = absint( wp_unslash( $_POST['user_id'] ?? 0 ) );
+		check_admin_referer( 'cta_review_associate_' . $user_id, 'cta_approval_nonce' );
+
+		$result = $this->review_associate_approval( $user_id, $decision );
+		$flash  = is_wp_error( $result ) ? 'error' : ( 'approve' === $decision ? 'approved' : 'rejected' );
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'         => 'cta-lms-approvals',
+					'cta_approval' => $flash,
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
+	 * Shared Approve/Reject business logic.
+	 *
+	 * @param int    $user_id  User ID.
+	 * @param string $decision approve|reject.
+	 * @return true|WP_Error
+	 */
+	private function review_associate_approval( $user_id, $decision ) {
+		$user_id  = absint( $user_id );
+		$decision = sanitize_key( $decision );
+
+		if ( ! $user_id || ! CTA_Associate_Access::is_associate( $user_id ) ) {
+			return new WP_Error( 'invalid_associate', __( 'Invalid Associate account.', 'cta-lms' ) );
+		}
+
+		$status = CTA_Associate_Access::get_approval_status( $user_id );
+
+		if ( CTA_Associate_Access::STATUS_PENDING !== $status ) {
+			return new WP_Error( 'not_pending', __( 'This Associate is not pending approval.', 'cta-lms' ) );
+		}
+
+		$ok = ( 'approve' === $decision )
+			? CTA_Associate_Access::approve( $user_id )
+			: CTA_Associate_Access::reject( $user_id );
+
+		if ( ! $ok ) {
+			return new WP_Error(
+				'update_failed',
+				'approve' === $decision
+					? __( 'Unable to approve this Associate.', 'cta-lms' )
+					: __( 'Unable to reject this Associate.', 'cta-lms' )
+			);
+		}
+
+		return true;
 	}
 
 	/**

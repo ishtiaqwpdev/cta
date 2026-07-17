@@ -211,9 +211,11 @@ class CTA_Auth {
 			array(
 				'ID'           => $user_id,
 				'display_name' => $fullname,
-				'role'         => $user_type,
 			)
 		);
+
+		$user_obj = new WP_User( $user_id );
+		$user_obj->set_role( $user_type );
 
 		if ( 'cta_associate' === $user_type ) {
 			update_user_meta( $user_id, 'cta_employer_agency_name', $employer_agency_name );
@@ -222,6 +224,10 @@ class CTA_Auth {
 			update_user_meta( $user_id, 'cta_approval_status', 'pending_approval' );
 		}
 
+		// Refresh user so role/meta are available to email helpers.
+		clean_user_cache( $user_id );
+		$user = get_user_by( 'id', $user_id );
+
 		CTA_Emails::send( 'welcome', $user_id );
 
 		if ( 'cta_associate' === $user_type ) {
@@ -229,14 +235,12 @@ class CTA_Auth {
 				'agency_representative_approval',
 				$user_id,
 				array(
-					'employer_agency_name'         => $employer_agency_name,
-					'agency_representative_name'   => $agency_representative_name,
-					'agency_representative_email'  => $agency_representative_email,
+					'employer_agency_name'        => $employer_agency_name,
+					'agency_representative_name'  => $agency_representative_name,
+					'agency_representative_email' => $agency_representative_email,
 				)
 			);
 		}
-
-		$user = get_user_by( 'id', $user_id );
 
 		wp_set_current_user( $user_id );
 		wp_set_auth_cookie( $user_id );

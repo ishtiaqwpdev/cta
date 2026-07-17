@@ -10,12 +10,22 @@
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
+
+$flash = sanitize_text_field( wp_unslash( $_GET['cta_approval'] ?? '' ) );
 ?>
 <div class="wrap cta-admin-wrap">
 	<h1><?php esc_html_e( 'Pending Approvals', 'cta-lms' ); ?></h1>
 	<p class="description">
 		<?php esc_html_e( 'Review Associates waiting for approval. Approving unlocks booking, meeting links, and supervision resources. Rejecting keeps access locked.', 'cta-lms' ); ?>
 	</p>
+
+	<?php if ( 'approved' === $flash ) : ?>
+		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Associate approved. Supervision access is now unlocked.', 'cta-lms' ); ?></p></div>
+	<?php elseif ( 'rejected' === $flash ) : ?>
+		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Associate rejected. Access remains locked.', 'cta-lms' ); ?></p></div>
+	<?php elseif ( 'error' === $flash ) : ?>
+		<div class="notice notice-error is-dismissible"><p><?php esc_html_e( 'Unable to update approval status. Please try again.', 'cta-lms' ); ?></p></div>
+	<?php endif; ?>
 
 	<div id="cta-approvals-notice" class="notice" hidden></div>
 
@@ -66,22 +76,30 @@ if ( ! defined( 'ABSPATH' ) ) {
 							<span class="cta-approval-status-badge"><?php esc_html_e( 'Pending Approval', 'cta-lms' ); ?></span>
 						</td>
 						<td class="cta-table-actions">
-							<button
-								type="button"
-								class="button button-primary cta-approve-associate"
-								data-user-id="<?php echo esc_attr( $user->ID ); ?>"
-								data-user-name="<?php echo esc_attr( $user->display_name ); ?>"
-							>
-								<?php esc_html_e( 'Approve', 'cta-lms' ); ?>
-							</button>
-							<button
-								type="button"
-								class="button cta-reject-associate"
-								data-user-id="<?php echo esc_attr( $user->ID ); ?>"
-								data-user-name="<?php echo esc_attr( $user->display_name ); ?>"
-							>
-								<?php esc_html_e( 'Reject', 'cta-lms' ); ?>
-							</button>
+							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="cta-approval-form cta-approval-form--approve">
+								<input type="hidden" name="action" value="cta_approve_associate">
+								<input type="hidden" name="user_id" value="<?php echo esc_attr( $user->ID ); ?>">
+								<?php wp_nonce_field( 'cta_review_associate_' . $user->ID, 'cta_approval_nonce' ); ?>
+								<button
+									type="submit"
+									class="button button-primary cta-approve-associate"
+									data-user-id="<?php echo esc_attr( $user->ID ); ?>"
+								>
+									<?php esc_html_e( 'Approve', 'cta-lms' ); ?>
+								</button>
+							</form>
+							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="cta-approval-form cta-approval-form--reject">
+								<input type="hidden" name="action" value="cta_reject_associate">
+								<input type="hidden" name="user_id" value="<?php echo esc_attr( $user->ID ); ?>">
+								<?php wp_nonce_field( 'cta_review_associate_' . $user->ID, 'cta_approval_nonce' ); ?>
+								<button
+									type="submit"
+									class="button cta-reject-associate"
+									data-user-id="<?php echo esc_attr( $user->ID ); ?>"
+								>
+									<?php esc_html_e( 'Reject', 'cta-lms' ); ?>
+								</button>
+							</form>
 						</td>
 					</tr>
 				<?php endforeach; ?>

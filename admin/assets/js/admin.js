@@ -735,7 +735,7 @@
     var $table = $("#cta-pending-approvals-table");
     var $notice = $("#cta-approvals-notice");
 
-    if (!$table.length) {
+    if (!$table.length || typeof ctaAdmin === "undefined") {
       return;
     }
 
@@ -747,8 +747,10 @@
       $notice
         .removeClass("notice-success notice-error")
         .addClass(type === "success" ? "notice-success" : "notice-error")
-        .html("<p>" + message + "</p>")
-        .prop("hidden", false);
+        .html("<p>" + $("<div>").text(message).html() + "</p>")
+        .prop("hidden", false)
+        .removeAttr("hidden")
+        .show();
     }
 
     function ensureEmptyRow() {
@@ -765,24 +767,33 @@
       }
     }
 
-    function handleDecision(action, $button) {
-      var userId = $button.data("user-id");
-      var confirmMsg =
-        action === "approve"
-          ? ctaAdmin.i18n.approveConfirm
-          : ctaAdmin.i18n.rejectConfirm;
+    function handleFormSubmit(e) {
+      var $form = $(this);
+      var isApprove = $form.hasClass("cta-approval-form--approve");
+      var userId = $form.find('input[name="user_id"]').val();
+      var confirmMsg = isApprove
+        ? ctaAdmin.i18n.approveConfirm
+        : ctaAdmin.i18n.rejectConfirm;
 
       if (!window.confirm(confirmMsg)) {
+        e.preventDefault();
         return;
       }
 
-      var $row = $button.closest("tr");
+      // Prefer AJAX when available; fall back to normal form POST.
+      if (!window.jQuery || !ctaAdmin.ajaxUrl) {
+        return;
+      }
+
+      e.preventDefault();
+
+      var $row = $form.closest("tr");
       var $buttons = $row.find("button");
 
       $buttons.prop("disabled", true);
 
       $.post(ctaAdmin.ajaxUrl, {
-        action: action === "approve" ? "cta_approve_associate" : "cta_reject_associate",
+        action: isApprove ? "cta_approve_associate" : "cta_reject_associate",
         nonce: ctaAdmin.nonce,
         user_id: userId
       })
@@ -800,7 +811,7 @@
           showNotice(
             "success",
             (response.data && response.data.message) ||
-              (action === "approve"
+              (isApprove
                 ? ctaAdmin.i18n.approveSuccess
                 : ctaAdmin.i18n.rejectSuccess)
           );
@@ -810,19 +821,17 @@
             ensureEmptyRow();
           });
         })
-        .fail(function () {
+        .fail(function (xhr) {
           $buttons.prop("disabled", false);
-          showNotice("error", ctaAdmin.i18n.actionFailed);
+          var msg = ctaAdmin.i18n.actionFailed;
+          if (xhr && xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
+            msg = xhr.responseJSON.data.message;
+          }
+          showNotice("error", msg);
         });
     }
 
-    $(document).on("click", ".cta-approve-associate", function () {
-      handleDecision("approve", $(this));
-    });
-
-    $(document).on("click", ".cta-reject-associate", function () {
-      handleDecision("reject", $(this));
-    });
+    $table.on("submit", ".cta-approval-form", handleFormSubmit);
   }
 
   $(function () {
@@ -830,18 +839,18 @@
       return;
     }
 
-    initCopyButtons();
-    initDeleteConfirms();
-    initSlugGeneration();
-    initObjectivesRepeater();
-    initCourseVideoSource();
-    initModulesPanel();
-    initQuizPanel();
-    initStripeTest();
-    initCertificatePreview();
-    initUserStats();
-    initModals();
-    initBookings();
-    initAssociateApprovals();
+    try { initCopyButtons(); } catch (e) {}
+    try { initDeleteConfirms(); } catch (e) {}
+    try { initSlugGeneration(); } catch (e) {}
+    try { initObjectivesRepeater(); } catch (e) {}
+    try { initCourseVideoSource(); } catch (e) {}
+    try { initModulesPanel(); } catch (e) {}
+    try { initQuizPanel(); } catch (e) {}
+    try { initStripeTest(); } catch (e) {}
+    try { initCertificatePreview(); } catch (e) {}
+    try { initUserStats(); } catch (e) {}
+    try { initModals(); } catch (e) {}
+    try { initBookings(); } catch (e) {}
+    try { initAssociateApprovals(); } catch (e) {}
   });
 })(jQuery);
