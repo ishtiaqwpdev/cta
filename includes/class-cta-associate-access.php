@@ -203,11 +203,45 @@ class CTA_Associate_Access {
 	 * @return WP_User[]
 	 */
 	public static function get_pending_associates( $limit = 200 ) {
+		return self::get_associates_for_approvals( self::STATUS_PENDING, $limit );
+	}
+
+	/**
+	 * Get Associates for the admin approvals screen.
+	 *
+	 * @param string $status Optional filter: pending_approval|approved|rejected|all|''.
+	 * @param int    $limit  Max users to return.
+	 * @return WP_User[]
+	 */
+	public static function get_associates_for_approvals( $status = 'all', $limit = 200 ) {
+		$status  = sanitize_text_field( (string) $status );
+		$allowed = array(
+			self::STATUS_PENDING,
+			self::STATUS_APPROVED,
+			self::STATUS_REJECTED,
+		);
+
+		$meta_query = array(
+			array(
+				'key'     => 'cta_approval_status',
+				'value'   => $allowed,
+				'compare' => 'IN',
+			),
+		);
+
+		if ( in_array( $status, $allowed, true ) ) {
+			$meta_query = array(
+				array(
+					'key'   => 'cta_approval_status',
+					'value' => $status,
+				),
+			);
+		}
+
 		$query = new WP_User_Query(
 			array(
 				'role'       => 'cta_associate',
-				'meta_key'   => 'cta_approval_status',
-				'meta_value' => self::STATUS_PENDING,
+				'meta_query' => $meta_query,
 				'number'     => absint( $limit ),
 				'orderby'    => 'registered',
 				'order'      => 'DESC',
@@ -217,6 +251,56 @@ class CTA_Associate_Access {
 		$users = $query->get_results();
 
 		return $users ? $users : array();
+	}
+
+	/**
+	 * Count Associates by approval status.
+	 *
+	 * @return array{pending_approval:int,approved:int,rejected:int,all:int}
+	 */
+	public static function count_associates_by_approval_status() {
+		$counts = array(
+			self::STATUS_PENDING  => 0,
+			self::STATUS_APPROVED => 0,
+			self::STATUS_REJECTED => 0,
+			'all'                 => 0,
+		);
+
+		foreach ( array( self::STATUS_PENDING, self::STATUS_APPROVED, self::STATUS_REJECTED ) as $status ) {
+			$query = new WP_User_Query(
+				array(
+					'role'       => 'cta_associate',
+					'meta_key'   => 'cta_approval_status',
+					'meta_value' => $status,
+					'fields'     => 'ID',
+					'number'     => 1,
+					'count_total'=> true,
+				)
+			);
+			$counts[ $status ] = (int) $query->get_total();
+		}
+
+		$counts['all'] = $counts[ self::STATUS_PENDING ] + $counts[ self::STATUS_APPROVED ] + $counts[ self::STATUS_REJECTED ];
+
+		return $counts;
+	}
+
+	/**
+	 * Human-readable approval status label.
+	 *
+	 * @param string $status Status slug.
+	 * @return string
+	 */
+	public static function get_status_label( $status ) {
+		switch ( $status ) {
+			case self::STATUS_APPROVED:
+				return __( 'Approved', 'cta-lms' );
+			case self::STATUS_REJECTED:
+				return __( 'Rejected', 'cta-lms' );
+			case self::STATUS_PENDING:
+			default:
+				return __( 'Pending Approval', 'cta-lms' );
+		}
 	}
 }
 }

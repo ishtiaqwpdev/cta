@@ -753,18 +753,10 @@
         .show();
     }
 
-    function ensureEmptyRow() {
-      if ($table.find("tbody tr.cta-approval-row").length) {
-        return;
-      }
-
-      if (!$table.find("tbody tr.cta-approvals-empty").length) {
-        $table
-          .find("tbody")
-          .append(
-            '<tr class="cta-approvals-empty"><td colspan="7">No Associates are currently pending approval.</td></tr>'
-          );
-      }
+    function reloadApprovalsPage(flash) {
+      var url = new URL(window.location.href);
+      url.searchParams.set("cta_approval", flash);
+      window.location.href = url.toString();
     }
 
     function handleFormSubmit(e) {
@@ -816,10 +808,8 @@
                 : ctaAdmin.i18n.rejectSuccess)
           );
 
-          $row.fadeOut(200, function () {
-            $row.remove();
-            ensureEmptyRow();
-          });
+          // Keep the record visible: reload so Approved/Rejected tabs stay in sync.
+          reloadApprovalsPage(isApprove ? "approved" : "rejected");
         })
         .fail(function (xhr) {
           $buttons.prop("disabled", false);

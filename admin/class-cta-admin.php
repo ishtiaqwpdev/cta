@@ -98,8 +98,8 @@ class CTA_Admin {
 
 		add_submenu_page(
 			'cta-lms',
-			__( 'Pending Approvals', 'cta-lms' ),
-			__( 'Pending Approvals', 'cta-lms' ),
+			__( 'Approvals', 'cta-lms' ),
+			__( 'Approvals', 'cta-lms' ),
 			'manage_options',
 			'cta-lms-approvals',
 			array( $this, 'render_approvals' )
@@ -350,17 +350,35 @@ class CTA_Admin {
 	}
 
 	/**
-	 * Render pending Associate approvals.
+	 * Render Associate approvals (pending, approved, rejected).
 	 */
 	public function render_approvals() {
-		$pending = class_exists( 'CTA_Associate_Access' )
-			? CTA_Associate_Access::get_pending_associates()
-			: array();
+		$status = sanitize_text_field( wp_unslash( $_GET['status'] ?? 'all' ) );
+		$allowed_status = array( 'all', 'pending_approval', 'approved', 'rejected' );
+
+		if ( ! in_array( $status, $allowed_status, true ) ) {
+			$status = 'all';
+		}
+
+		$associates = array();
+		$counts     = array(
+			'pending_approval' => 0,
+			'approved'         => 0,
+			'rejected'         => 0,
+			'all'              => 0,
+		);
+
+		if ( class_exists( 'CTA_Associate_Access' ) ) {
+			$associates = CTA_Associate_Access::get_associates_for_approvals( $status );
+			$counts     = CTA_Associate_Access::count_associates_by_approval_status();
+		}
 
 		$this->load_view(
 			'approvals.php',
 			array(
-				'pending_associates' => $pending,
+				'associates'      => $associates,
+				'current_status'  => $status,
+				'status_counts'   => $counts,
 			)
 		);
 	}
