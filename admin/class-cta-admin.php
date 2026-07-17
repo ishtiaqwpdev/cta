@@ -354,7 +354,7 @@ class CTA_Admin {
 	 */
 	public function render_approvals() {
 		$status = sanitize_text_field( wp_unslash( $_GET['status'] ?? 'all' ) );
-		$allowed_status = array( 'all', 'pending_approval', 'approved', 'rejected' );
+		$allowed_status = array( 'all', 'pending_approval', 'approved' );
 
 		if ( ! in_array( $status, $allowed_status, true ) ) {
 			$status = 'all';
@@ -1654,13 +1654,20 @@ class CTA_Admin {
 
 		$status = CTA_Associate_Access::get_approval_status( $user_id );
 
-		if ( CTA_Associate_Access::STATUS_PENDING !== $status ) {
-			return new WP_Error( 'not_pending', __( 'This Associate is not pending approval.', 'cta-lms' ) );
-		}
+		if ( 'approve' === $decision ) {
+			if ( CTA_Associate_Access::STATUS_PENDING !== $status && CTA_Associate_Access::STATUS_REJECTED !== $status ) {
+				return new WP_Error( 'not_pending', __( 'This Associate cannot be approved from the current status.', 'cta-lms' ) );
+			}
 
-		$ok = ( 'approve' === $decision )
-			? CTA_Associate_Access::approve( $user_id )
-			: CTA_Associate_Access::reject( $user_id );
+			$ok = CTA_Associate_Access::approve( $user_id );
+		} else {
+			// Reject pending, or revoke an already-approved Associate.
+			if ( CTA_Associate_Access::STATUS_PENDING !== $status && CTA_Associate_Access::STATUS_APPROVED !== $status ) {
+				return new WP_Error( 'not_pending', __( 'This Associate cannot be rejected from the current status.', 'cta-lms' ) );
+			}
+
+			$ok = CTA_Associate_Access::reject( $user_id );
+		}
 
 		if ( ! $ok ) {
 			return new WP_Error(

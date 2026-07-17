@@ -209,27 +209,33 @@ class CTA_Associate_Access {
 	/**
 	 * Get Associates for the admin approvals screen.
 	 *
-	 * @param string $status Optional filter: pending_approval|approved|rejected|all|''.
+	 * Rejected Associates are never listed — only Pending and Approved.
+	 *
+	 * @param string $status Optional filter: pending_approval|approved|all|''.
 	 * @param int    $limit  Max users to return.
 	 * @return WP_User[]
 	 */
 	public static function get_associates_for_approvals( $status = 'all', $limit = 200 ) {
 		$status  = sanitize_text_field( (string) $status );
-		$allowed = array(
+		$visible = array(
 			self::STATUS_PENDING,
 			self::STATUS_APPROVED,
-			self::STATUS_REJECTED,
 		);
+
+		// Rejected (and any other status) are excluded from this screen.
+		if ( self::STATUS_REJECTED === $status ) {
+			return array();
+		}
 
 		$meta_query = array(
 			array(
 				'key'     => 'cta_approval_status',
-				'value'   => $allowed,
+				'value'   => $visible,
 				'compare' => 'IN',
 			),
 		);
 
-		if ( in_array( $status, $allowed, true ) ) {
+		if ( in_array( $status, $visible, true ) ) {
 			$meta_query = array(
 				array(
 					'key'   => 'cta_approval_status',
@@ -254,33 +260,34 @@ class CTA_Associate_Access {
 	}
 
 	/**
-	 * Count Associates by approval status.
+	 * Count Associates by approval status (for Approvals tabs).
 	 *
-	 * @return array{pending_approval:int,approved:int,rejected:int,all:int}
+	 * Rejected are counted internally but not exposed in the "all" total used by the UI.
+	 *
+	 * @return array{pending_approval:int,approved:int,all:int}
 	 */
 	public static function count_associates_by_approval_status() {
 		$counts = array(
 			self::STATUS_PENDING  => 0,
 			self::STATUS_APPROVED => 0,
-			self::STATUS_REJECTED => 0,
 			'all'                 => 0,
 		);
 
-		foreach ( array( self::STATUS_PENDING, self::STATUS_APPROVED, self::STATUS_REJECTED ) as $status ) {
+		foreach ( array( self::STATUS_PENDING, self::STATUS_APPROVED ) as $status ) {
 			$query = new WP_User_Query(
 				array(
-					'role'       => 'cta_associate',
-					'meta_key'   => 'cta_approval_status',
-					'meta_value' => $status,
-					'fields'     => 'ID',
-					'number'     => 1,
-					'count_total'=> true,
+					'role'        => 'cta_associate',
+					'meta_key'    => 'cta_approval_status',
+					'meta_value'  => $status,
+					'fields'      => 'ID',
+					'number'      => 1,
+					'count_total' => true,
 				)
 			);
 			$counts[ $status ] = (int) $query->get_total();
 		}
 
-		$counts['all'] = $counts[ self::STATUS_PENDING ] + $counts[ self::STATUS_APPROVED ] + $counts[ self::STATUS_REJECTED ];
+		$counts['all'] = $counts[ self::STATUS_PENDING ] + $counts[ self::STATUS_APPROVED ];
 
 		return $counts;
 	}

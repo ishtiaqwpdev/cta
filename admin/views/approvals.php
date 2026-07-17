@@ -1,11 +1,11 @@
 <?php
 /**
- * Admin Associate approvals view (pending, approved, rejected).
+ * Admin Associate approvals view (pending + approved only).
  *
  * @package CTA_LMS
  *
  * @var WP_User[] $associates     Associates matching the current filter.
- * @var string    $current_status Filter: all|pending_approval|approved|rejected.
+ * @var string    $current_status Filter: all|pending_approval|approved.
  * @var array     $status_counts  Counts keyed by status.
  */
 
@@ -23,26 +23,24 @@ $tabs     = array(
 	'all'              => __( 'All', 'cta-lms' ),
 	'pending_approval' => __( 'Pending', 'cta-lms' ),
 	'approved'         => __( 'Approved', 'cta-lms' ),
-	'rejected'         => __( 'Rejected', 'cta-lms' ),
 );
 
 $empty_messages = array(
-	'all'              => __( 'No Associate approval records yet.', 'cta-lms' ),
+	'all'              => __( 'No pending or approved Associates yet.', 'cta-lms' ),
 	'pending_approval' => __( 'No Associates are currently pending approval.', 'cta-lms' ),
 	'approved'         => __( 'No approved Associates yet.', 'cta-lms' ),
-	'rejected'         => __( 'No rejected Associates yet.', 'cta-lms' ),
 );
 ?>
 <div class="wrap cta-admin-wrap">
 	<h1><?php esc_html_e( 'Approvals', 'cta-lms' ); ?></h1>
 	<p class="description">
-		<?php esc_html_e( 'Review Associate registrations. Approving unlocks booking, meeting links, and supervision resources. Rejecting keeps access locked. Approved and rejected records stay listed here.', 'cta-lms' ); ?>
+		<?php esc_html_e( 'Review Associate registrations. Approving unlocks booking, meeting links, and supervision resources. Rejected Associates are removed from this list; only Pending and Approved remain visible.', 'cta-lms' ); ?>
 	</p>
 
 	<?php if ( 'approved' === $flash ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Associate approved. Supervision access is now unlocked.', 'cta-lms' ); ?></p></div>
 	<?php elseif ( 'rejected' === $flash ) : ?>
-		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Associate rejected. Access remains locked.', 'cta-lms' ); ?></p></div>
+		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Associate rejected and removed from this list. Access remains locked.', 'cta-lms' ); ?></p></div>
 	<?php elseif ( 'error' === $flash ) : ?>
 		<div class="notice notice-error is-dismissible"><p><?php esc_html_e( 'Unable to update approval status. Please try again.', 'cta-lms' ); ?></p></div>
 	<?php endif; ?>
@@ -98,7 +96,6 @@ $empty_messages = array(
 						? CTA_Associate_Access::get_status_label( $approval_status )
 						: $approval_status;
 					$is_approved     = 'approved' === $approval_status;
-					$is_rejected     = 'rejected' === $approval_status;
 					?>
 					<tr
 						class="cta-approval-row"
@@ -125,7 +122,7 @@ $empty_messages = array(
 						<td><?php echo esc_html( wp_date( 'M j, Y', strtotime( $user->user_registered ) ) ); ?></td>
 						<td>
 							<?php
-							if ( $reviewed_at && ( $is_approved || $is_rejected ) ) {
+							if ( $reviewed_at && $is_approved ) {
 								echo esc_html( wp_date( 'M j, Y g:i a', strtotime( $reviewed_at ) ) );
 							} else {
 								echo '—';
@@ -151,8 +148,6 @@ $empty_messages = array(
 										<?php esc_html_e( 'Approve', 'cta-lms' ); ?>
 									</button>
 								</form>
-							<?php endif; ?>
-							<?php if ( ! $is_rejected ) : ?>
 								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="cta-approval-form cta-approval-form--reject">
 									<input type="hidden" name="action" value="cta_reject_associate">
 									<input type="hidden" name="user_id" value="<?php echo esc_attr( $user->ID ); ?>">
@@ -162,14 +157,23 @@ $empty_messages = array(
 										class="button cta-reject-associate"
 										data-user-id="<?php echo esc_attr( $user->ID ); ?>"
 									>
-										<?php echo $is_approved ? esc_html__( 'Revoke', 'cta-lms' ) : esc_html__( 'Reject', 'cta-lms' ); ?>
+										<?php esc_html_e( 'Reject', 'cta-lms' ); ?>
 									</button>
 								</form>
-							<?php endif; ?>
-							<?php if ( $is_approved ) : ?>
+							<?php else : ?>
+								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="cta-approval-form cta-approval-form--reject">
+									<input type="hidden" name="action" value="cta_reject_associate">
+									<input type="hidden" name="user_id" value="<?php echo esc_attr( $user->ID ); ?>">
+									<?php wp_nonce_field( 'cta_review_associate_' . $user->ID, 'cta_approval_nonce' ); ?>
+									<button
+										type="submit"
+										class="button cta-reject-associate"
+										data-user-id="<?php echo esc_attr( $user->ID ); ?>"
+									>
+										<?php esc_html_e( 'Revoke', 'cta-lms' ); ?>
+									</button>
+								</form>
 								<span class="cta-approval-action-note"><?php esc_html_e( 'Access unlocked', 'cta-lms' ); ?></span>
-							<?php elseif ( $is_rejected ) : ?>
-								<span class="cta-approval-action-note"><?php esc_html_e( 'Access locked', 'cta-lms' ); ?></span>
 							<?php endif; ?>
 						</td>
 					</tr>
