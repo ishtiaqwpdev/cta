@@ -20,7 +20,7 @@
   margin-right: var(--cta-breakout);
   clear: both;
   position: relative;
-  font-family: var(--font-family);
+  font-family: var(--font-family-body);
   color: var(--color-text-dark);
 }
 
@@ -154,7 +154,8 @@
 .cta-lms h4,
 .cta-lms h5,
 .cta-lms h6 {
-  font-family: var(--font-family);
+  font-family: var(--font-family-heading);
+  font-weight: var(--font-weight-heading);
   letter-spacing: var(--letter-spacing-tight);
 }
 
@@ -173,12 +174,60 @@
 .cta-lms .btn,
 .cta-lms .btn-primary,
 .cta-lms .btn-outline {
-  font-family: var(--font-family);
+  font-family: var(--font-family-body);
+  font-weight: var(--font-weight-regular);
 }
 
 /* --------------------------------------------------------------------------
-   Header / footer shortcodes inside theme pages
+   Typography — Playfair Display headings, Montserrat body
    -------------------------------------------------------------------------- */
+.cta-plugin-wrapper .page-hero__title,
+.cta-plugin-wrapper .auth-form__title,
+.cta-plugin-wrapper .auth-page__brand-title,
+.cta-plugin-wrapper .dashboard-welcome__greeting,
+.cta-plugin-wrapper .dashboard-section__title,
+.cta-plugin-wrapper .section__title,
+.cta-plugin-wrapper .service-card__title,
+.cta-plugin-wrapper .card__title,
+.cta-plugin-wrapper .cta-empty-state h1,
+.cta-plugin-wrapper .cta-empty-state h2,
+.cta-plugin-wrapper .cta-empty-state h3,
+.cta-lms .page-hero__title,
+.cta-lms .auth-form__title,
+.cta-lms .auth-page__brand-title,
+.cta-lms .dashboard-welcome__greeting,
+.cta-lms .dashboard-section__title,
+.cta-lms .section__title,
+.cta-lms .service-card__title,
+.cta-lms .card__title {
+  font-family: var(--font-family-heading) !important;
+  font-weight: var(--font-weight-heading) !important;
+}
+
+.cta-plugin-wrapper .form-label,
+.cta-plugin-wrapper .form-input,
+.cta-plugin-wrapper .form-select,
+.cta-plugin-wrapper .form-textarea,
+.cta-plugin-wrapper .btn,
+.cta-plugin-wrapper .badge,
+.cta-plugin-wrapper .dashboard-sidebar__link,
+.cta-plugin-wrapper .dashboard-sidebar__name,
+.cta-plugin-wrapper .site-header__nav-link,
+.cta-plugin-wrapper .site-footer,
+.cta-lms .form-label,
+.cta-lms .form-input,
+.cta-lms .form-select,
+.cta-lms .form-textarea,
+.cta-lms .btn,
+.cta-lms .badge {
+  font-family: var(--font-family-body) !important;
+}
+
+body.cta-lms-page,
+body.cta-lms-page--login,
+body.dashboard-page {
+  font-family: var(--font-family-body);
+}
 .cta-lms.site-header,
 .cta-lms.site-footer {
   width: 100vw;

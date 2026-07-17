@@ -155,9 +155,16 @@ class CTA_Admin {
 		}
 
 		wp_enqueue_style(
+			'cta-admin-fonts',
+			'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap',
+			array(),
+			null
+		);
+
+		wp_enqueue_style(
 			'cta-admin',
 			CTA_PLUGIN_URL . 'admin/assets/css/admin.css',
-			array(),
+			array( 'cta-admin-fonts' ),
 			CTA_VERSION
 		);
 

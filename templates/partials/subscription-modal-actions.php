@@ -19,7 +19,7 @@ $support_email = ! empty( $support_email ) ? $support_email : 'support@clinicalt
 	<a
 		href="<?php echo esc_url( $supervision_url ); ?>"
 		class="cta-renew-btn"
-		style="display:block;width:100%;padding:14px;background:#16A34A;color:#fff;text-align:center;font-weight:600;font-size:15px;font-family:'Outfit',sans-serif;text-decoration:none;margin-bottom:10px;border:none;cursor:pointer;border-radius:10px;"
+		style="display:block;width:100%;padding:14px;background:#16A34A;color:#fff;text-align:center;font-weight:600;font-size:15px;font-family:'Montserrat',sans-serif;text-decoration:none;margin-bottom:10px;border:none;cursor:pointer;border-radius:10px;"
 	>
 		<?php echo esc_html__( '🔄 Renew Subscription', 'cta-lms' ); ?>
 	</a>

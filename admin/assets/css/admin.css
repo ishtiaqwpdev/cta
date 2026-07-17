@@ -3,7 +3,34 @@
  */
 
 .cta-admin-wrap {
+  --cta-admin-font-heading: "Playfair Display", Georgia, "Times New Roman", serif;
+  --cta-admin-font-body: "Montserrat", system-ui, -apple-system, sans-serif;
   max-width: 1200px;
+  font-family: var(--cta-admin-font-body);
+  font-weight: 400;
+}
+
+.cta-admin-wrap h1,
+.cta-admin-wrap h2,
+.cta-admin-wrap h3,
+.cta-admin-wrap .cta-stat-card__value {
+  font-family: var(--cta-admin-font-heading);
+  font-weight: 700;
+}
+
+.cta-admin-wrap p,
+.cta-admin-wrap label,
+.cta-admin-wrap input,
+.cta-admin-wrap select,
+.cta-admin-wrap textarea,
+.cta-admin-wrap button,
+.cta-admin-wrap .button,
+.cta-admin-wrap .description,
+.cta-admin-wrap td,
+.cta-admin-wrap th,
+.cta-admin-wrap .cta-stat-card__label {
+  font-family: var(--cta-admin-font-body);
+  font-weight: 400;
 }
 
 .cta-admin-header-row {

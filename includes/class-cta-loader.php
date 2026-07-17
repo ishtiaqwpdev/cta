@@ -117,7 +117,7 @@ class CTA_Loader {
 
 		wp_enqueue_style(
 			'cta-google-fonts',
-			'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap',
+			'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap',
 			array(),
 			null
 		);

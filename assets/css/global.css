@@ -17,7 +17,8 @@
 .cta-plugin-wrapper {
   display: block;
   width: 100%;
-  font-family: "Outfit", var(--font-family), sans-serif !important;
+  font-family: var(--font-family-body) !important;
+  font-weight: var(--font-weight-regular);
   color: #1a1a2e !important;
   box-sizing: border-box;
 }
@@ -26,7 +27,7 @@
 .cta-plugin-wrapper *::before,
 .cta-plugin-wrapper *::after {
   box-sizing: border-box;
-  font-family: "Outfit", var(--font-family), sans-serif;
+  font-family: var(--font-family-body);
 }
 
 .cta-plugin-wrapper h1,
@@ -35,17 +36,27 @@
 .cta-plugin-wrapper h4,
 .cta-plugin-wrapper h5,
 .cta-plugin-wrapper h6 {
-  font-family: "Outfit", var(--font-family), sans-serif !important;
+  font-family: var(--font-family-heading) !important;
   color: #122b51 !important;
-  font-weight: 700 !important;
+  font-weight: var(--font-weight-heading) !important;
   line-height: 1.2 !important;
   margin-bottom: 16px !important;
 }
 
+.cta-plugin-wrapper p,
+.cta-plugin-wrapper label,
+.cta-plugin-wrapper input,
+.cta-plugin-wrapper select,
+.cta-plugin-wrapper textarea,
+.cta-plugin-wrapper button,
+.cta-plugin-wrapper .btn {
+  font-family: var(--font-family-body) !important;
+}
+
 .cta-plugin-wrapper p {
-  font-family: "Outfit", var(--font-family), sans-serif !important;
   color: #1a1a2e !important;
   line-height: 1.6 !important;
+  font-weight: var(--font-weight-regular);
 }
 
 /* --------------------------------------------------------------------------
@@ -66,7 +77,7 @@
 .cta-lms {
   margin: 0;
   padding: 0;
-  font-family: var(--font-family);
+  font-family: var(--font-family-body);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-regular);
   line-height: var(--line-height-normal);
@@ -175,8 +186,9 @@
 .cta-lms .text-h1,
 .cta-plugin-wrapper h1,
 .cta-lms h1 {
+  font-family: var(--font-family-heading);
   font-size: var(--font-size-4xl);
-  font-weight: var(--font-weight-extrabold);
+  font-weight: var(--font-weight-heading);
   letter-spacing: var(--letter-spacing-tight);
 }
 
@@ -184,40 +196,45 @@
 .cta-lms .text-h2,
 .cta-plugin-wrapper h2,
 .cta-lms h2 {
+  font-family: var(--font-family-heading);
   font-size: var(--font-size-3xl);
-  font-weight: var(--font-weight-bold);
+  font-weight: var(--font-weight-heading);
 }
 
 .cta-plugin-wrapper .text-h3,
 .cta-lms .text-h3,
 .cta-plugin-wrapper h3,
 .cta-lms h3 {
+  font-family: var(--font-family-heading);
   font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
+  font-weight: var(--font-weight-heading);
 }
 
 .cta-plugin-wrapper .text-h4,
 .cta-lms .text-h4,
 .cta-plugin-wrapper h4,
 .cta-lms h4 {
+  font-family: var(--font-family-heading);
   font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-heading);
 }
 
 .cta-plugin-wrapper .text-h5,
 .cta-lms .text-h5,
 .cta-plugin-wrapper h5,
 .cta-lms h5 {
+  font-family: var(--font-family-heading);
   font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-heading);
 }
 
 .cta-plugin-wrapper .text-h6,
 .cta-lms .text-h6,
 .cta-plugin-wrapper h6,
 .cta-lms h6 {
+  font-family: var(--font-family-heading);
   font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-heading);
 }
 
 .cta-plugin-wrapper .text-body,

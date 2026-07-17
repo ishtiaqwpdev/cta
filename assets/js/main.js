@@ -1,5 +1,5 @@
 /**
- * CTA Design System — Main JavaScript
+ * CTA Design System â€” Main JavaScript
  * Clinical Training and Supervision Academy
  */
 
@@ -253,7 +253,7 @@
   }
 
   /**
-   * Supervision associate dashboard — uploads, deletes, portal, cancel booking.
+   * Supervision associate dashboard â€” uploads, deletes, portal, cancel booking.
    */
   function initCtaSupervisionDashboard() {
     var root = document.querySelector(".cta-supervision-dashboard");
@@ -748,7 +748,7 @@
   }
 
   /**
-   * Dashboard settings save (mock — no backend yet)
+   * Dashboard settings save (mock â€” no backend yet)
    */
   function initDashboardSettings() {
     document.querySelectorAll(".dashboard-settings-form").forEach(function (form) {
@@ -852,7 +852,7 @@
       if (video.classList.contains("course-player__video--playing")) return;
 
       video.classList.add("course-player__video--playing");
-      showPlayerNotice("Video playing… (demo preview)", "info");
+      showPlayerNotice("Video playingâ€¦ (demo preview)", "info");
 
       setTimeout(function () {
         video.classList.remove("course-player__video--playing");
@@ -971,7 +971,7 @@
   }
 
   /**
-   * Course catalog — category filters, sort, search
+   * Course catalog â€” category filters, sort, search
    */
   function initCatalogFilters() {
     if (document.getElementById("cta-courses-grid")) {
@@ -1414,7 +1414,7 @@
   }
 
   /**
-   * Policies page sticky sidebar — active section highlight
+   * Policies page sticky sidebar â€” active section highlight
    * Container: [data-policies-page]
    * Nav links: [data-policies-nav]
    * Sections: .legal-section[id]
@@ -1597,7 +1597,7 @@
       "position:fixed; top:0; left:0; width:100%; height:100%;" +
       "background:rgba(0,0,0,0.6); z-index:99999;" +
       "display:flex; align-items:center; justify-content:center;" +
-      "font-family:'Outfit',sans-serif;" +
+      "font-family:'Montserrat',sans-serif;" +
       '">' +
       '<div id="cta-demo-inner" style="' +
       "background:#fff; width:100%; max-width:460px;" +
@@ -1620,23 +1620,23 @@
       "</div>" +
       '<div style="margin-bottom:16px;">' +
       '<label style="display:block; font-size:13px; color:#374151; margin-bottom:6px; font-weight:600;">Card Number</label>' +
-      '<input type="text" value="4242 4242 4242 4242" readonly style="width:100%; padding:12px; border:1px solid #D1D5DB; font-size:15px; font-family:\'Outfit\',sans-serif; color:#6B7280; background:#F9FAFB;">' +
+      '<input type="text" value="4242 4242 4242 4242" readonly style="width:100%; padding:12px; border:1px solid #D1D5DB; font-size:15px; font-family:\'Montserrat\',sans-serif; color:#6B7280; background:#F9FAFB;">' +
       "</div>" +
       '<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">' +
       "<div><label style=\"display:block; font-size:13px; color:#374151; margin-bottom:6px; font-weight:600;\">Expiry</label>" +
-      '<input type="text" value="12/28" readonly style="width:100%; padding:12px; border:1px solid #D1D5DB; font-size:15px; font-family:\'Outfit\',sans-serif; color:#6B7280; background:#F9FAFB;"></div>' +
+      '<input type="text" value="12/28" readonly style="width:100%; padding:12px; border:1px solid #D1D5DB; font-size:15px; font-family:\'Montserrat\',sans-serif; color:#6B7280; background:#F9FAFB;"></div>' +
       "<div><label style=\"display:block; font-size:13px; color:#374151; margin-bottom:6px; font-weight:600;\">CVC</label>" +
-      '<input type="text" value="•••" readonly style="width:100%; padding:12px; border:1px solid #D1D5DB; font-size:15px; font-family:\'Outfit\',sans-serif; color:#6B7280; background:#F9FAFB;"></div>' +
+      '<input type="text" value="•••" readonly style="width:100%; padding:12px; border:1px solid #D1D5DB; font-size:15px; font-family:\'Montserrat\',sans-serif; color:#6B7280; background:#F9FAFB;"></div>' +
       "</div>" +
       '<button id="cta-demo-pay" type="button" style="' +
       "width:100%; padding:14px; background:#3266A9; color:#fff;" +
       "border:none; font-size:16px; font-weight:600; cursor:pointer;" +
-      "font-family:'Outfit',sans-serif; margin-top:8px;" +
+      "font-family:'Montserrat',sans-serif; margin-top:8px;" +
       '">Pay ' +
       price +
       "</button>" +
       '<p style="text-align:center; font-size:12px; color:#9CA3AF; margin-top:12px;">' +
-      "Demo mode — no real payment processed" +
+      "Demo mode â€” no real payment processed" +
       "</p>" +
       "</div>" +
       '<div id="cta-demo-step2" style="display:none; text-align:center; padding:20px 0;">' +
@@ -1762,7 +1762,7 @@
     var stripeConfigured = !!(data && data.stripe_configured);
     var footerText = stripeConfigured
       ? "Renew your subscription to restore billing access."
-      : "Demo mode — Stripe billing portal not configured yet";
+      : "Demo mode â€” Stripe billing portal not configured yet";
     var supportBlock = supportEmail
       ? '<a href="mailto:' + supportEmail + '" style="color:#3266A9;text-decoration:none;">' + supportEmail + "</a>"
       : "support";
@@ -1773,16 +1773,16 @@
       actionBlock =
         '<a href="' +
         renewUrl +
-        '" class="cta-renew-btn" style="display:block;width:100%;padding:14px;background:#16A34A;color:#fff;text-align:center;font-weight:600;font-size:15px;font-family:\'Outfit\',sans-serif;text-decoration:none;margin-bottom:10px;border:none;cursor:pointer;border-radius:10px;">\uD83D\uDD04 Renew Subscription</a>';
+        '" class="cta-renew-btn" style="display:block;width:100%;padding:14px;background:#16A34A;color:#fff;text-align:center;font-weight:600;font-size:15px;font-family:\'Montserrat\',sans-serif;text-decoration:none;margin-bottom:10px;border:none;cursor:pointer;border-radius:10px;">\uD83D\uDD04 Renew Subscription</a>';
     } else if (supportEmail) {
       actionBlock =
         '<a href="mailto:' +
         supportEmail +
-        '" style="display:block;text-align:center;font-size:13px;color:#6B7280;margin-top:8px;margin-bottom:10px;text-decoration:underline;">Cancel subscription — contact support</a>';
+        '" style="display:block;text-align:center;font-size:13px;color:#6B7280;margin-top:8px;margin-bottom:10px;text-decoration:underline;">Cancel subscription â€” contact support</a>';
     }
 
     var modalHtml =
-      '<div id="cta-demo-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:\'Outfit\',sans-serif;">' +
+      '<div id="cta-demo-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:\'Montserrat\',sans-serif;">' +
       '<div style="background:#fff;width:100%;max-width:480px;margin:20px;padding:36px;position:relative;border-radius:10px;">' +
       '<button type="button" id="cta-demo-close" style="position:absolute;top:16px;right:20px;background:none;border:none;font-size:22px;cursor:pointer;color:#6B7280;">&times;</button>' +
       '<div style="text-align:center;margin-bottom:24px;">' +
@@ -1804,7 +1804,7 @@
       supportBlock +
       " to update payment details or cancel your plan.</p>" +
       actionBlock +
-      '<button type="button" id="cta-demo-sub-close" style="width:100%;padding:14px;background:#3266A9;color:#fff;border:none;font-size:16px;font-weight:600;cursor:pointer;font-family:\'Outfit\',sans-serif;border-radius:10px;">Close</button>' +
+      '<button type="button" id="cta-demo-sub-close" style="width:100%;padding:14px;background:#3266A9;color:#fff;border:none;font-size:16px;font-weight:600;cursor:pointer;font-family:\'Montserrat\',sans-serif;border-radius:10px;">Close</button>' +
       '<p style="text-align:center;font-size:12px;color:#9CA3AF;margin-top:12px;">' + footerText + "</p>" +
       "</div></div>";
 
@@ -1826,7 +1826,7 @@
   }
 
   /**
-   * Stripe checkout — course purchase, subscriptions, and bundles.
+   * Stripe checkout â€” course purchase, subscriptions, and bundles.
    */
   function initCtaStripePayments() {
     if (typeof jQuery === "undefined" || typeof ctaAjax === "undefined") {
@@ -2114,7 +2114,7 @@
   }
 
   /**
-   * WordPress CE course player — mark module complete.
+   * WordPress CE course player â€” mark module complete.
    */
   function initCtaWpCoursePlayer() {
     var markBtn = document.getElementById("cta-mark-complete");
@@ -2388,13 +2388,13 @@
 
       if (passed) {
         html +=
-          '<div class="cta-quiz-result__icon cta-quiz-result__icon--pass" aria-hidden="true">✓</div>' +
+          '<div class="cta-quiz-result__icon cta-quiz-result__icon--pass" aria-hidden="true">âœ“</div>' +
           "<h2>Congratulations! You passed!</h2>" +
           "<p>Score: " + data.score + "%</p>" +
           '<button type="button" class="btn btn-primary" id="cta-continue-evaluation">Continue to Course Evaluation</button>';
       } else {
         html +=
-          '<div class="cta-quiz-result__icon cta-quiz-result__icon--fail" aria-hidden="true">✕</div>' +
+          '<div class="cta-quiz-result__icon cta-quiz-result__icon--fail" aria-hidden="true">âœ•</div>' +
           "<h2>You did not pass this time</h2>" +
           "<p>Score: " +
           data.score +
@@ -2457,7 +2457,7 @@
 
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.textContent = autoSubmit ? "Time expired — submitting..." : "Submitting...";
+        submitBtn.textContent = autoSubmit ? "Time expired â€” submitting..." : "Submitting...";
       }
 
       $.post(ctaAjax.ajaxUrl, {
