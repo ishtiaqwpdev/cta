@@ -1,0 +1,332 @@
+{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fswiss\fcharset0 Calibri;}{\f1\fmodern\fcharset0 Consolas;}}{\colortbl;\red0\green0\blue0;\red30\green60\blue90;\red80\green80\blue80;}\viewkind4\uc1\pard\f0\fs22
+\pard\qc\f0\fs48\b CTA LMS\b0\par
+\pard\qc\f0\fs32\b System Documentation & Training Package\b0\par
+\pard\f0\fs22\par
+\pard\qc\f0\fs24 Clinical Training and Supervision Academy\par
+\pard\qc\f0\fs22 Plugin version 1.0.26\par
+\pard\qc\f0\fs22 Document generated: July 2026\par
+\pard\qc\f0\fs20\cf2 Client-facing overview + Technical appendix for future developers\cf0\par
+\pard\f0\fs22\par
+\pard\sb120\sa120\brdrb\brdrs\brdrw10\brsp20\f0\fs22\par
+\pard\sb360\sa120\f0\fs32\b TABLE OF CONTENTS\b0\par
+\pard\f0\fs22 1. System Overview\par
+\pard\f0\fs22 2. How Each Module Works (for admin staff)\par
+\pard\f0\fs22 3. Admin Quick-Reference Guide\par
+\pard\f0\fs22 4. Technical Appendix\par
+\pard\f0\fs22     4.1 File and folder structure\par
+\pard\f0\fs22     4.2 Database schema\par
+\pard\f0\fs22     4.3 Module-to-file map\par
+\pard\f0\fs22     4.4 Third-party dependencies and licenses\par
+\pard\f0\fs22     4.5 Configuration, options, and integrations\par
+\pard\f0\fs22     4.6 Known limitations and documentation gaps\par
+\pard\f0\fs22 5. Ownership & Portability Note\par
+\pard\sb120\sa120\brdrb\brdrs\brdrw10\brsp20\f0\fs22\par
+\pard\sb360\sa120\f0\fs32\b 1. SYSTEM OVERVIEW\b0\par
+\pard\f0\fs22 CTA LMS is a custom WordPress plugin that powers the Clinical Training and Supervision Academy learning platform. It manages continuing education (CE) courses for licensed professionals and clinical supervision for registered associates \u8212? including enrollment, video lessons, quizzes, certificates, memberships/bundles, session booking, document uploads, payments (Stripe), and email notifications.\par
+\pard\f0\fs22 In plain terms: the website helps two audiences. Licensed professionals (LMFT, LCSW, LPCC, LEP) browse and purchase CE courses, watch lessons module by module, pass a final quiz, and download a certificate. Registered associates (AMFT, ASW, APCC) subscribe to supervision plans, book group or individual sessions, upload BBS documents, and track their supervision activity from a dedicated dashboard.\par
+\pard\f0\fs22 Everything is managed from the WordPress admin under the CTA LMS menu. Public pages are built with shortcodes placed on WordPress pages (and work with Elementor when shortcodes are embedded in builder content). Payments run through Stripe. When someone pays successfully, the plugin grants access automatically via webhooks and checkout completion handlers.\par
+\pard\sb280\sa120\f0\fs28\b How the system is structured (simple view)\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  WordPress hosts users, pages, and the plugin.\par
+\pard\li360\fi-180\f0\fs22 \bullet  CTA LMS stores courses, modules, enrollments, quizzes, certificates, bookings, documents, payments, and bundles in custom database tables.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Two custom roles route users: CTA Licensed Professional (CE path) and CTA Associate (supervision path).\par
+\pard\li360\fi-180\f0\fs22 \bullet  Admins use CTA LMS \u8594? Dashboard / Courses / Users / Bookings / Settings / Shortcodes.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Students and associates use shortcode-powered frontend pages (catalog, course player, quiz, dashboards, booking, memberships).\par
+\pard\sb360\sa120\f0\fs32\b 2. HOW EACH MODULE WORKS\b0\par
+\pard\f0\fs22 These summaries are written for site administrators and program staff \u8212? not developers.\par
+\pard\sb280\sa120\f0\fs28\b 2.1 Course creation and management\b0\par
+\pard\f0\fs22 Admins create CE courses in CTA LMS \u8594? Courses. Each course has a title, category, CE hours, price, description, learning objectives, thumbnail, optional preview video (Vimeo, YouTube, or media library), and a status (Draft or Published). Only published courses appear in the public catalog. Editing a course also opens tools to add modules and a quiz on the same screen.\par
+\pard\sb280\sa120\f0\fs28\b 2.2 Module structure and progression controls\b0\par
+\pard\f0\fs22 Modules are the individual video lessons inside a course. Students typically complete them in order. When \u8220?locked until previous complete\u8221? is enabled, the next lesson stays locked until the previous one is marked complete. Progress is stored per enrollment as a percentage and a list of completed module IDs. The quiz unlocks only after all modules are finished (100% progress).\par
+\pard\sb280\sa120\f0\fs28\b 2.3 Quiz and assessment engine\b0\par
+\pard\f0\fs22 Each course can have one final quiz with multiple-choice questions (A\u8211?D), a passing score (default 70%), optional time limit, and a maximum number of attempts (default 3). Students start and submit quizzes from the quiz page. After passing, they may be asked for a short course evaluation (rating questions). Passing is what triggers certificate generation.\par
+\pard\sb280\sa120\f0\fs28\b 2.4 Certificate generation workflow\b0\par
+\pard\f0\fs22 Certificates are created automatically after a student passes the course quiz. The system marks the enrollment complete, assigns a unique certificate number (format CTA-YEAR-######), writes an HTML certificate file into the WordPress uploads folder, stores the record, and emails the student that the certificate is ready. Students download certificates from the CE dashboard under My Certificates. Header text, footer, signature name, and CAMFT provider number are configurable in Settings.\par
+\pard\sb280\sa120\f0\fs28\b 2.5 Membership and subscription management\b0\par
+\pard\f0\fs22 The Memberships page shows pre-seeded plans (course bundles, annual all-access CE pass, and a supervision + CE hybrid subscription). Customers must be logged in to purchase. One-time bundles enroll the buyer in the listed courses; annual and hybrid plans grant broader access according to plan type. Recurring billing is handled by Stripe. Bundle names, prices, and included course IDs live in the database (seeded on install); changing them currently requires developer/database help rather than a full admin UI.\par
+\pard\sb280\sa120\f0\fs28\b 2.6 Student dashboard and progress tracking\b0\par
+\pard\f0\fs22 Licensed professionals use the CE Student Dashboard to see enrolled courses, progress percentages, continue learning links, certificates, and account settings (name, license number, photo, password). Only purchased/enrolled courses appear. The Course Player is where videos are watched and modules are marked complete. Unenrolled visitors see a locked message with an enroll link.\par
+\pard\sb280\sa120\f0\fs28\b 2.7 Supervision management structure\b0\par
+\pard\f0\fs22 Associates register with the associate role and use the Supervision Dashboard. Without an active plan they see subscribe options. With an active plan they manage sessions, history, BBS document uploads (with review status), subscription/billing, and account settings. If a Stripe subscription payment fails, access can lock until payment is updated. Group sessions are capped (default 8 seats) to support California BBS-style group limits.\par
+\pard\sb280\sa120\f0\fs28\b 2.8 Scheduling and booking management\b0\par
+\pard\f0\fs22 Admins create available supervision sessions under CTA LMS \u8594? Bookings (date, time, group or individual). Those open slots appear on the public Supervision Booking page calendar. Associates with an active group subscription (or who pay for individual sessions) book seats. Confirmed bookings show on the associate dashboard; admins can cancel sessions and review history. Daily email reminders can go out for upcoming sessions.\par
+\pard\sb280\sa120\f0\fs28\b 2.9 Reporting and admin tools\b0\par
+\pard\f0\fs22 The CTA LMS Dashboard shows high-level stats: published courses, enrolled users, completions, revenue from completed payments, certificates issued, plus recent enrollments and bookings. The Users screen lists students and associates with enrollment/certificate counts. Bookings and Settings complete the day-to-day admin toolkit. There is no separate advanced analytics/export module beyond these admin views.\par
+\pard\sb360\sa120\f0\fs32\b 3. ADMIN QUICK-REFERENCE GUIDE\b0\par
+\pard\f0\fs22 Log into WordPress at /wp-admin/, then open CTA LMS in the left menu. You need an administrator account (capability: manage_options).\par
+\pard\sb280\sa120\f0\fs28\b Create a course\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  Go to CTA LMS \u8594? Courses \u8594? Add New Course.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Enter title, category, CE hours, price (0 for free), description, and learning objectives.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Add thumbnail URL and optional preview video (Vimeo ID, YouTube, or Media Library).\par
+\pard\li360\fi-180\f0\fs22 \bullet  Set Status to Published when ready to show on the site (Draft hides it).\par
+\pard\li360\fi-180\f0\fs22 \bullet  Click Save Course.\par
+\pard\sb280\sa120\f0\fs28\b Add a module (lesson)\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  Open the course: CTA LMS \u8594? Courses \u8594? Edit.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Scroll to Course Modules.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Enter module title, description, video source, and duration in minutes.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Leave \u8220?Locked until previous complete\u8221? checked if lessons must be sequential.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Click Add Module. Drag to reorder if needed. Repeat for every lesson.\par
+\pard\sb280\sa120\f0\fs28\b Set up a quiz\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  On the course edit page, scroll to Course Quiz.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Enter a quiz title (for example, Final Assessment).\par
+\pard\li360\fi-180\f0\fs22 \bullet  Add questions: text, options A\u8211?D, and mark the correct answer.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Save/Create Quiz. Students can only take it after all modules are complete.\par
+\pard\sb280\sa120\f0\fs28\b Certificate workflow (automatic)\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  Ensure modules and quiz are complete for the course.\par
+\pard\li360\fi-180\f0\fs22 \bullet  When a student passes the quiz, the certificate is generated automatically.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Customize wording under CTA LMS \u8594? Settings \u8594? Certificate Settings.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Students download from CE Dashboard \u8594? My Certificates.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Optional: use certificate preview in Settings if available in your admin UI.\par
+\pard\sb280\sa120\f0\fs28\b Manage memberships / bundles\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  Public plans appear on the Memberships page via [cta_membership_pricing].\par
+\pard\li360\fi-180\f0\fs22 \bullet  Customers log in, purchase via Stripe, and receive enrollments/access based on plan type.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Default seeded plans include starter/clinical/crisis bundles, annual all-access, and hybrid supervision + CE.\par
+\pard\li360\fi-180\f0\fs22 \bullet  To change plan names, prices, or included course IDs, contact a developer (no full admin editor for bundles yet).\par
+\pard\sb280\sa120\f0\fs28\b Add supervision sessions for booking\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  Go to CTA LMS \u8594? Bookings \u8594? Upcoming Sessions.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Click Add New Session; set date, time, and type (Group or Individual).\par
+\pard\li360\fi-180\f0\fs22 \bullet  Save. The session appears on the Supervision Booking calendar.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Create sessions 2\u8211?4 weeks ahead so associates always have options.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Use Session History for past sessions and attendance context.\par
+\pard\sb280\sa120\f0\fs28\b Review associate documents\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  Associates upload BBS documents from the Supervision Dashboard.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Admins can review documents (approve/reject) via the admin booking/document review AJAX tools.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Review status is stored as pending until an admin acts.\par
+\pard\sb280\sa120\f0\fs28\b View reports / activity\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  Open CTA LMS \u8594? Dashboard for totals (courses, enrollments, completions, revenue, certificates).\par
+\pard\li360\fi-180\f0\fs22 \bullet  Review recent enrollments and recent bookings on the same screen.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Open CTA LMS \u8594? Users to inspect individual student/associate activity counts.\par
+\pard\sb280\sa120\f0\fs28\b Configure Stripe and pages (go-live checklist)\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  CTA LMS \u8594? Settings \u8594? Stripe: enter Secret Key, Publishable Key, Webhook Secret; set Test or Live mode.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Copy the Webhook URL shown in Settings into the Stripe Dashboard (endpoint path: /wp-json/cta-lms/v1/stripe-webhook).\par
+\pard\li360\fi-180\f0\fs22 \bullet  Turn OFF \u8220?Skip payments\u8221? (payments bypass) before accepting real money. Default after install is bypass ON for testing.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Assign all Page Assignments (login, courses, single course, supervision, memberships, dashboards, player, quiz).\par
+\pard\li360\fi-180\f0\fs22 \bullet  Run a small live test purchase before announcing launch.\par
+\pard\sb280\sa120\f0\fs28\b Shortcode cheat sheet\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  [cta_login_form] \u8212? Login / register page\par
+\pard\li360\fi-180\f0\fs22 \bullet  [cta_course_catalog] \u8212? Full course catalog (use limit="3" for home featured list)\par
+\pard\li360\fi-180\f0\fs22 \bullet  [cta_single_course] \u8212? Single course detail (?course_id=)\par
+\pard\li360\fi-180\f0\fs22 \bullet  [cta_membership_pricing] \u8212? Memberships & bundles\par
+\pard\li360\fi-180\f0\fs22 \bullet  [cta_supervision_booking] \u8212? Supervision plans + booking calendar\par
+\pard\li360\fi-180\f0\fs22 \bullet  [cta_student_dashboard] \u8212? CE student dashboard\par
+\pard\li360\fi-180\f0\fs22 \bullet  [cta_supervision_dashboard] \u8212? Associate supervision dashboard\par
+\pard\li360\fi-180\f0\fs22 \bullet  [cta_course_player] \u8212? Video lesson player\par
+\pard\li360\fi-180\f0\fs22 \bullet  [cta_quiz] \u8212? Final quiz page\par
+\pard\li360\fi-180\f0\fs22 \bullet  [cta_auth_button] \u8212? Login / dashboard button\par
+\pard\li360\fi-180\f0\fs22 \bullet  [cta_header] / [cta_footer] \u8212? Optional plugin header/footer\par
+\pard\sb360\sa120\f0\fs32\b 4. TECHNICAL APPENDIX\b0\par
+\pard\f0\fs22 This section is for developers who may maintain or extend the plugin. Facts below were verified against the codebase (plugin v1.0.26).\par
+\pard\sb280\sa120\f0\fs28\b 4.1 Full file / folder structure\b0\par
+\pard\f0\fs22 Plugin root entry points:\par
+\pard\li360\fi-180\f0\fs22 \bullet  Cta-plugin.php \u8212? WordPress plugin header, version gate, loads bootstrap\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta-lms.php \u8212? Constants, file loading, init, helpers, admin duplicate-plugin notice\par
+\pard\li360\fi-180\f0\fs22 \bullet  uninstall.php \u8212? Drops custom tables, removes roles, deletes plugin options\par
+\pard\li360\fi-180\f0\fs22 \bullet  composer.json \u8212? Declares PHP >=7.4 and stripe/stripe-php ^10.0 (GPL-2.0-or-later)\par
+\pard\li360\fi-180\f0\fs22 \bullet  guide.txt \u8212? Existing client how-to guide (plain text companion)\par
+\pard\f0\fs22 includes/ \u8212? Core services\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-activator.php \u8212? Activation: roles, tables, default options, cron, seed bundles\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-deactivator.php \u8212? Clears session-reminder cron, flush rewrites\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-database.php \u8212? CREATE TABLE schemas + query helpers\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-roles.php \u8212? Roles: cta_licensed_professional, cta_associate\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-loader.php \u8212? Asset enqueue, body classes, page/shortcode detection\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-stripe.php \u8212? Checkout, subscriptions, webhook REST API, enrollments\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-emails.php \u8212? Transactional emails + daily session reminders\par
+\pard\f0\fs22 public/ \u8212? Frontend feature classes\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-shortcodes.php \u8212? Header/footer/auth button shortcodes\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-auth.php \u8212? Login/register AJAX + [cta_login_form]\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-courses.php \u8212? Catalog + single course shortcodes/enrollment UI\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-memberships.php \u8212? [cta_membership_pricing] + bundle purchase AJAX\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-supervision.php \u8212? [cta_supervision_booking] + book/cancel AJAX\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-student-dashboard.php \u8212? CE dashboard, course player, module complete AJAX\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-supervision-dashboard.php \u8212? Associate dashboard, documents, subscription UI\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-quiz.php \u8212? Quiz page + start/submit/evaluation AJAX\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-certificates.php \u8212? Certificate HTML file generation\par
+\pard\f0\fs22 admin/ \u8212? Admin UI\par
+\pard\li360\fi-180\f0\fs22 \bullet  class-cta-admin.php \u8212? Menus, course/module/quiz CRUD, bookings, settings, stats\par
+\pard\li360\fi-180\f0\fs22 \bullet  views/ \u8212? dashboard.php, courses.php, courses-edit.php, users.php, bookings.php, settings.php, shortcodes.php\par
+\pard\li360\fi-180\f0\fs22 \bullet  assets/css/admin.css, assets/js/admin.js\par
+\pard\f0\fs22 templates/ \u8212? PHP views for shortcodes, dashboards, quiz, certificate, emails, partials\par
+\pard\f0\fs22 assets/ \u8212? Public CSS (variables, global, components, layout, theme-compat), JS (main.js), images\par
+\pard\f0\fs22 design/ \u8212? Static HTML/CSS mockups used during design (not loaded by the live plugin)\par
+\pard\f0\fs22 Note: vendor/ (Composer Stripe SDK) is required at runtime but was not present in this working copy. Run composer install in the plugin root before deploying payments.\par
+\pard\sb280\sa120\f0\fs28\b 4.2 Database schema\b0\par
+\pard\f0\fs22 All tables use the WordPress table prefix (typically wp_) plus the names below. Created via dbDelta in CTA_Database::create_tables().\par
+\pard\sb200\sa120\f0\fs24\b Table: \{prefix\}cta_courses\b0\par
+\pard\f0\fs22 Purpose: CE course catalog\par
+\pard\li360\fi-180\f0\fs22 \bullet  id (bigint PK AI)\par
+\pard\li360\fi-180\f0\fs22 \bullet  title (varchar 255)\par
+\pard\li360\fi-180\f0\fs22 \bullet  slug (varchar 255 UNIQUE)\par
+\pard\li360\fi-180\f0\fs22 \bullet  description (longtext)\par
+\pard\li360\fi-180\f0\fs22 \bullet  ce_hours (decimal 4,1)\par
+\pard\li360\fi-180\f0\fs22 \bullet  price (decimal 10,2)\par
+\pard\li360\fi-180\f0\fs22 \bullet  category (varchar 100)\par
+\pard\li360\fi-180\f0\fs22 \bullet  learning_objectives (longtext)\par
+\pard\li360\fi-180\f0\fs22 \bullet  modules_count (int)\par
+\pard\li360\fi-180\f0\fs22 \bullet  status (varchar 20: draft|published)\par
+\pard\li360\fi-180\f0\fs22 \bullet  thumbnail_url (varchar 500)\par
+\pard\li360\fi-180\f0\fs22 \bullet  vimeo_id (varchar 100)\par
+\pard\li360\fi-180\f0\fs22 \bullet  video_url (varchar 500)\par
+\pard\li360\fi-180\f0\fs22 \bullet  created_at / updated_at (datetime)\par
+\pard\sb200\sa120\f0\fs24\b Table: \{prefix\}cta_course_modules\b0\par
+\pard\f0\fs22 Purpose: Lessons belonging to a course\par
+\pard\li360\fi-180\f0\fs22 \bullet  id (bigint PK AI)\par
+\pard\li360\fi-180\f0\fs22 \bullet  course_id (bigint FK logical \u8594? cta_courses.id)\par
+\pard\li360\fi-180\f0\fs22 \bullet  title, description, video_url\par
+\pard\li360\fi-180\f0\fs22 \bullet  duration_mins (int)\par
+\pard\li360\fi-180\f0\fs22 \bullet  order_index (int)\par
+\pard\li360\fi-180\f0\fs22 \bullet  is_locked (tinyint 1 \u8212? sequential lock flag)\par
+\pard\li360\fi-180\f0\fs22 \bullet  created_at (datetime)\par
+\pard\sb200\sa120\f0\fs24\b Table: \{prefix\}cta_enrollments\b0\par
+\pard\f0\fs22 Purpose: User course access and progress\par
+\pard\li360\fi-180\f0\fs22 \bullet  id (bigint PK AI)\par
+\pard\li360\fi-180\f0\fs22 \bullet  user_id (bigint \u8594? wp_users)\par
+\pard\li360\fi-180\f0\fs22 \bullet  course_id (bigint \u8594? cta_courses)\par
+\pard\li360\fi-180\f0\fs22 \bullet  status (varchar: active|completed\u8230?)\par
+\pard\li360\fi-180\f0\fs22 \bullet  progress (int 0\u8211?100)\par
+\pard\li360\fi-180\f0\fs22 \bullet  modules_completed (longtext JSON of module IDs)\par
+\pard\li360\fi-180\f0\fs22 \bullet  enrolled_at, completed_at, expires_at\par
+\pard\li360\fi-180\f0\fs22 \bullet  payment_id (varchar \u8212? Stripe/payment reference)\par
+\pard\li360\fi-180\f0\fs22 \bullet  UNIQUE (user_id, course_id)\par
+\pard\sb200\sa120\f0\fs24\b Table: \{prefix\}cta_bookings\b0\par
+\pard\f0\fs22 Purpose: Supervision sessions and seat tracking\par
+\pard\li360\fi-180\f0\fs22 \bullet  id (bigint PK AI)\par
+\pard\li360\fi-180\f0\fs22 \bullet  user_id (bigint \u8212? 0 for open admin-created slots; user ID when booked)\par
+\pard\li360\fi-180\f0\fs22 \bullet  session_type (varchar: group|individual)\par
+\pard\li360\fi-180\f0\fs22 \bullet  session_date (date), session_time (time)\par
+\pard\li360\fi-180\f0\fs22 \bullet  duration_mins (int, default 60)\par
+\pard\li360\fi-180\f0\fs22 \bullet  seats_total (int, default 8), seats_booked (int)\par
+\pard\li360\fi-180\f0\fs22 \bullet  status (varchar, default confirmed)\par
+\pard\li360\fi-180\f0\fs22 \bullet  stripe_sub_id (varchar), notes (text), created_at\par
+\pard\sb200\sa120\f0\fs24\b Table: \{prefix\}cta_documents\b0\par
+\pard\f0\fs22 Purpose: Associate uploaded BBS documents\par
+\pard\li360\fi-180\f0\fs22 \bullet  id, user_id, file_name, file_url, file_type, file_size\par
+\pard\li360\fi-180\f0\fs22 \bullet  doc_category, review_status (pending/\u8230?), uploaded_at\par
+\pard\li360\fi-180\f0\fs22 \bullet  reviewed_at, reviewed_by (admin user id)\par
+\pard\sb200\sa120\f0\fs24\b Table: \{prefix\}cta_payments\b0\par
+\pard\f0\fs22 Purpose: Payment ledger linked to Stripe\par
+\pard\li360\fi-180\f0\fs22 \bullet  id, user_id\par
+\pard\li360\fi-180\f0\fs22 \bullet  stripe_payment_id (UNIQUE), stripe_customer_id\par
+\pard\li360\fi-180\f0\fs22 \bullet  amount, currency (default usd)\par
+\pard\li360\fi-180\f0\fs22 \bullet  payment_type, product_type, product_id\par
+\pard\li360\fi-180\f0\fs22 \bullet  status (pending|completed\u8230?), created_at\par
+\pard\sb200\sa120\f0\fs24\b Table: \{prefix\}cta_bundles\b0\par
+\pard\f0\fs22 Purpose: Membership/bundle plans\par
+\pard\li360\fi-180\f0\fs22 \bullet  id, name, slug (UNIQUE), description\par
+\pard\li360\fi-180\f0\fs22 \bullet  plan_type (bundle|annual|subscription\u8230?)\par
+\pard\li360\fi-180\f0\fs22 \bullet  price, billing_cycle (one_time|yearly|monthly)\par
+\pard\li360\fi-180\f0\fs22 \bullet  included_courses (JSON array of course IDs)\par
+\pard\li360\fi-180\f0\fs22 \bullet  stripe_price_id, is_featured, status, sort_order, created_at\par
+\pard\sb200\sa120\f0\fs24\b Table: \{prefix\}cta_certificates\b0\par
+\pard\f0\fs22 Purpose: Issued CE certificates\par
+\pard\li360\fi-180\f0\fs22 \bullet  id, user_id, course_id, enrollment_id\par
+\pard\li360\fi-180\f0\fs22 \bullet  certificate_number (UNIQUE, e.g. CTA-2026-123456)\par
+\pard\li360\fi-180\f0\fs22 \bullet  issued_at, file_path, file_url\par
+\pard\sb200\sa120\f0\fs24\b Table: \{prefix\}cta_quizzes\b0\par
+\pard\f0\fs22 Purpose: One quiz per course\par
+\pard\li360\fi-180\f0\fs22 \bullet  id, course_id (UNIQUE), title\par
+\pard\li360\fi-180\f0\fs22 \bullet  passing_score (default 70), time_limit_mins, max_attempts (default 3)\par
+\pard\li360\fi-180\f0\fs22 \bullet  status, created_at\par
+\pard\sb200\sa120\f0\fs24\b Table: \{prefix\}cta_quiz_questions\b0\par
+\pard\f0\fs22 Purpose: Multiple-choice questions\par
+\pard\li360\fi-180\f0\fs22 \bullet  id, quiz_id, question_text\par
+\pard\li360\fi-180\f0\fs22 \bullet  option_a\u8211?d, correct_option (A/B/C/D), explanation, order_index\par
+\pard\sb200\sa120\f0\fs24\b Table: \{prefix\}cta_quiz_attempts\b0\par
+\pard\f0\fs22 Purpose: Student quiz attempts\par
+\pard\li360\fi-180\f0\fs22 \bullet  id, user_id, quiz_id, course_id\par
+\pard\li360\fi-180\f0\fs22 \bullet  answers (JSON), score, passed, attempt_number\par
+\pard\li360\fi-180\f0\fs22 \bullet  started_at, completed_at\par
+\pard\li360\fi-180\f0\fs22 \bullet  UNIQUE (user_id, quiz_id, attempt_number)\par
+\pard\sb200\sa120\f0\fs24\b Table: \{prefix\}cta_evaluations\b0\par
+\pard\f0\fs22 Purpose: Post-course evaluations\par
+\pard\li360\fi-180\f0\fs22 \bullet  id, user_id, course_id\par
+\pard\li360\fi-180\f0\fs22 \bullet  rating, content_quality, instructor_rating, would_recommend, comments\par
+\pard\li360\fi-180\f0\fs22 \bullet  submitted_at; UNIQUE (user_id, course_id)\par
+\pard\sb200\sa120\f0\fs24\b Key relationships (logical)\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_courses 1\u8594?N cta_course_modules; 1\u8594?1 cta_quizzes\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_quizzes 1\u8594?N cta_quiz_questions; 1\u8594?N cta_quiz_attempts\par
+\pard\li360\fi-180\f0\fs22 \bullet  wp_users 1\u8594?N cta_enrollments \u8594? cta_courses; 1\u8594?N cta_certificates\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_enrollments \u8596? cta_certificates (enrollment_id)\par
+\pard\li360\fi-180\f0\fs22 \bullet  wp_users 1\u8594?N cta_bookings, cta_documents, cta_payments, cta_evaluations\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_bundles.included_courses JSON \u8594? course IDs (not a SQL FK)\par
+\pard\sb200\sa120\f0\fs24\b Important user meta keys\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_license_number \u8212? shown on certificates / profile\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_supervision_status \u8212? associate plan state (active/locked/etc.)\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_supervision_subscription_id \u8212? Stripe subscription id\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_stripe_customer_id \u8212? Stripe customer id\par
+\pard\sb280\sa120\f0\fs28\b 4.3 Module-to-file map\b0\par
+\pard\f0\fs22\b Course creation and management\b0\par
+\pard\li360\f0\fs22 admin/class-cta-admin.php; admin/views/courses*.php; public/class-cta-courses.php; includes/class-cta-database.php\par
+\pard\f0\fs22\b Module structure / progression\b0\par
+\pard\li360\f0\fs22 admin AJAX save/reorder/delete modules; public/class-cta-student-dashboard.php (cta_complete_module); templates/dashboard-ce-player.php\par
+\pard\f0\fs22\b Quiz and assessment\b0\par
+\pard\li360\f0\fs22 admin ajax_save_quiz / ajax_load_quiz; public/class-cta-quiz.php; templates/quiz.php; cta_quizzes / questions / attempts / evaluations tables\par
+\pard\f0\fs22\b Certificates\b0\par
+\pard\li360\f0\fs22 public/class-cta-certificates.php; templates/certificate.php; email certificate_ready\par
+\pard\f0\fs22\b Memberships / subscriptions\b0\par
+\pard\li360\f0\fs22 public/class-cta-memberships.php; includes/class-cta-stripe.php; cta_bundles + cta_payments; seed in CTA_Database::seed_bundles()\par
+\pard\f0\fs22\b Student dashboard / progress\b0\par
+\pard\li360\f0\fs22 public/class-cta-student-dashboard.php; templates/dashboard-ce.php, dashboard-ce-player.php\par
+\pard\f0\fs22\b Supervision management\b0\par
+\pard\li360\f0\fs22 public/class-cta-supervision-dashboard.php; templates/dashboard-supervision.php; documents table + review AJAX\par
+\pard\f0\fs22\b Scheduling / booking\b0\par
+\pard\li360\f0\fs22 admin bookings views + ajax_add_session/cancel; public/class-cta-supervision.php; templates/supervision.php\par
+\pard\f0\fs22\b Reporting / admin tools\b0\par
+\pard\li360\f0\fs22 admin/class-cta-admin.php get_dashboard_stats; admin/views/dashboard.php, users.php\par
+\pard\sb280\sa120\f0\fs28\b 4.4 Third-party dependencies and licenses\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  WordPress core \u8212? required (plugin Requires at least: 5.8). GPLv2 or later.\par
+\pard\li360\fi-180\f0\fs22 \bullet  PHP >= 7.4 \u8212? required by plugin header and composer.json.\par
+\pard\li360\fi-180\f0\fs22 \bullet  stripe/stripe-php ^10.0 \u8212? Composer dependency (MIT License). Loaded from vendor/autoload.php when present.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Plugin license: GPL-2.0+ (Cta-plugin.php) / GPL-2.0-or-later (composer.json).\par
+\pard\li360\fi-180\f0\fs22 \bullet  Google Fonts Outfit \u8212? loaded from fonts.googleapis.com on CTA frontend pages (external CSS).\par
+\pard\li360\fi-180\f0\fs22 \bullet  jQuery / jQuery UI Sortable \u8212? WordPress-bundled scripts used in admin module reordering.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Vimeo / YouTube embeds \u8212? optional external players when admins paste video URLs/IDs (no SDK bundled).\par
+\pard\li360\fi-180\f0\fs22 \bullet  Elementor (optional host site plugin) \u8212? shortcodes detected inside _elementor_data meta; not a hard dependency.\par
+\pard\li360\fi-180\f0\fs22 \bullet  No package.json / npm frontend build; CSS/JS are hand-authored static assets.\par
+\pard\li360\fi-180\f0\fs22 \bullet  vendor/ folder is NOT committed in this workspace snapshot \u8212? must be installed via Composer for Stripe.\par
+\pard\sb280\sa120\f0\fs28\b 4.5 Configuration, options, and integrations\b0\par
+\pard\f0\fs22 No API keys are hardcoded in source. Secrets are stored as WordPress options and entered in CTA LMS \u8594? Settings. Defaults are set on activation.\par
+\pard\sb200\sa120\f0\fs24\b WordPress options (selected)\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_lms_version \u8212? installed plugin version for DB upgrades\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_*_page_id \u8212? page assignments for login, courses, single course, supervision, memberships, FAQ, policies, dashboards, player, quiz\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_stripe_secret_key, cta_stripe_publishable_key, cta_stripe_webhook_secret, cta_stripe_mode (test|live)\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_payments_bypass (yes|no) \u8212? DEFAULT yes on activation (skips Stripe for demo enrollment)\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_supervision_monthly_price (default 260), cta_individual_session_price (default 120 where used)\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_camft_provider_number / cta_cepa_provider_number \u8212? certificate provider text\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_admin_name, cta_support_email \u8212? emails and certificate/site identity\par
+\pard\li360\fi-180\f0\fs22 \bullet  cta_certificate_header_text, footer_text, signature_name, cta_certificate_upload_dir\par
+\pard\sb200\sa120\f0\fs24\b External services\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  Stripe Checkout + Subscriptions + Customer Portal patterns via AJAX create_checkout / create_subscription\par
+\pard\li360\fi-180\f0\fs22 \bullet  Stripe Webhook REST route: POST /wp-json/cta-lms/v1/stripe-webhook \u8212? events: checkout.session.completed, customer.subscription.deleted, invoice.payment_failed\par
+\pard\li360\fi-180\f0\fs22 \bullet  Vimeo player iframes / YouTube embeds for lesson video delivery\par
+\pard\li360\fi-180\f0\fs22 \bullet  Google Fonts CDN for Outfit typeface\par
+\pard\li360\fi-180\f0\fs22 \bullet  WordPress wp_mail for transactional emails (welcome, enrollment, booking, reminder, certificate, payment receipt/failed, supervision locked)\par
+\pard\li360\fi-180\f0\fs22 \bullet  WP-Cron event cta_send_session_reminders (daily) registered by CTA_Emails\par
+\pard\sb200\sa120\f0\fs24\b AJAX / REST surface (high level)\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  Public nonce: cta_nonce (localized as ctaAjax) \u8212? checkout, book session, complete module, quizzes, etc.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Login nonce: cta_login_action\par
+\pard\li360\fi-180\f0\fs22 \bullet  Admin nonce: cta_admin_nonce \u8212? modules, quizzes, bookings, Stripe test, document review\par
+\pard\li360\fi-180\f0\fs22 \bullet  admin-post actions: cta_save_course, cta_delete_course, cta_toggle_course, cta_save_settings\par
+\pard\sb200\sa120\f0\fs24\b Environment / deploy notes\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  Install/activate the plugin folder containing Cta-plugin.php (avoid duplicate CTA LMS copies).\par
+\pard\li360\fi-180\f0\fs22 \bullet  Run composer install so vendor/autoload.php and Stripe SDK exist.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Configure Stripe keys + webhook; disable payments bypass for production.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Create WordPress pages, place shortcodes, assign pages in Settings.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Ensure uploads directory is writable for certificates (wp-content/uploads/cta-certificates by default).\par
+\pard\li360\fi-180\f0\fs22 \bullet  HTTPS recommended for Stripe live mode.\par
+\pard\sb280\sa120\f0\fs28\b 4.6 Known limitations and documentation gaps\b0\par
+\pard\li360\fi-180\f0\fs22 \bullet  Bundle/plan admin UI is limited: plans are seeded in code/DB; no rich CRUD screen for memberships.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Certificates are HTML files (print-to-PDF style), not a native PDF library.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Foreign keys are logical only (MyISAM/InnoDB via dbDelta without explicit CONSTRAINT FKs).\par
+\pard\li360\fi-180\f0\fs22 \bullet  Payments bypass defaults to ON after activation \u8212? easy to forget before go-live.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Composer vendor directory missing from this repo snapshot \u8212? deploy risk if not installed on server.\par
+\pard\li360\fi-180\f0\fs22 \bullet  design/ mockups are not wired into runtime; keep them for design reference only.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Inline documentation: most PHP classes have file/class docblocks and many method @param notes (especially database, stripe, emails, loader, admin). Templates and admin views often have only a short file header. Admin JS and public main.js have relatively little narrative documentation. No phpDocumentor/API site ships with the plugin.\par
+\pard\li360\fi-180\f0\fs22 \bullet  guide.txt exists as a client operations guide but is separate from this formal package.\par
+\pard\li360\fi-180\f0\fs22 \bullet  Uninstall drops all CTA tables and options \u8212? irreversible data loss if plugin is deleted via WordPress.\par
+\pard\sb360\sa120\f0\fs32\b 5. OWNERSHIP & PORTABILITY NOTE\b0\par
+\pard\f0\fs22 Verified from the plugin headers and composer.json: CTA LMS is distributed as a standard WordPress plugin under the GPL-2.0+ / GPL-2.0-or-later license. It does not implement an external license lock-in, phone-home license server, or proprietary activation key system inside the codebase.\par
+\pard\f0\fs22 The plugin is portable across standard WordPress installs that meet the requirements (WordPress 5.8+, PHP 7.4+), provided that: (1) the plugin files are copied/activated, (2) Composer dependencies (Stripe SDK) are installed, (3) Stripe and page settings are reconfigured for the new environment, and (4) database tables are created on activation. Site-specific content (courses, users, payments history) lives in the WordPress database and uploads directory and must be migrated separately if moving hosts.\par
+\pard\f0\fs22 Third-party services used at runtime (Stripe, Vimeo/YouTube, Google Fonts) remain subject to those providers\u8217? own terms; they are integrations, not ownership locks on the plugin code itself.\par
+\pard\f0\fs22\par
+\pard\sb120\sa120\brdrb\brdrs\brdrw10\brsp20\f0\fs22\par
+\pard\qc\f0\fs20\cf2 End of CTA LMS Documentation Package \u8212? Plugin v1.0.26 \u8212? July 2026\cf0\par
+}

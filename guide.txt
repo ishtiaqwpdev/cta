@@ -1,0 +1,577 @@
+================================================================================
+  CTA LMS — CLIENT GUIDE (How Your Website Works)
+  Clinical Training Academy | https://cta.techosuppglobal.com
+================================================================================
+
+This guide explains how your learning and supervision website works in simple
+steps. You do not need to know coding. Most day-to-day work is done from the
+WordPress admin area (your website control panel).
+
+
+--------------------------------------------------------------------------------
+PART 1 — BIG PICTURE: WHAT DOES THIS SYSTEM DO?
+--------------------------------------------------------------------------------
+
+Your website helps two types of people:
+
+  A) LICENSED PROFESSIONALS (LMFT, LCSW, LPCC, LEP)
+     - Browse and buy CE (Continuing Education) courses
+     - Watch video lessons module by module
+     - Pass a quiz and download a certificate
+     - Use the CE Student Dashboard
+
+  B) REGISTERED ASSOCIATES (AMFT, ASW, APCC)
+     - Subscribe to supervision plans
+     - Book group or individual supervision sessions
+     - Upload BBS documents and track hours
+     - Use the Supervision Dashboard
+
+Everything is managed by the "CTA LMS" plugin inside WordPress. Payments go
+through Stripe (credit card). When someone pays, they automatically get access.
+
+
+--------------------------------------------------------------------------------
+PART 2 — YOUR MAIN WEBSITE PAGES
+--------------------------------------------------------------------------------
+
+Below are the important public pages on your live site:
+
+  HOME PAGE
+  https://cta.techosuppglobal.com/
+  Usually shows featured courses (a small selection from your full catalog).
+
+  ALL CE COURSES PAGE
+  Shows every published course in a grid. Students can search and filter.
+
+  SINGLE COURSE PAGE
+  Shows one course: description, price, modules list, and Enroll button.
+  (Each course opens with ?course_id=NUMBER in the web address.)
+
+  LOGIN & REGISTER PAGE
+  https://cta.techosuppglobal.com/login/
+  People log in or create a new account here.
+
+  MEMBERSHIPS & BUNDLES PAGE
+  https://cta.techosuppglobal.com/memberships-page/
+  Shows bundle deals and subscription plans (one-time and monthly).
+
+  SUPERVISION BOOKING PAGE
+  https://cta.techosuppglobal.com/supervision-booking/
+  Shows supervision plans, pricing, and the session booking calendar.
+
+  CE STUDENT DASHBOARD (private — login required)
+  Where licensed professionals see their enrolled courses and certificates.
+
+  SUPERVISION DASHBOARD (private — login required)
+  Where associates see booked sessions, documents, and subscription.
+
+  COURSE PLAYER PAGE (private — login + enrolled required)
+  Where students watch lesson videos one module at a time.
+
+  QUIZ PAGE (private — login + enrolled required)
+  Final quiz after all modules are finished.
+
+
+--------------------------------------------------------------------------------
+PART 3 — WHAT IS A "SHORTCODE"? (SIMPLE EXPLANATION)
+--------------------------------------------------------------------------------
+
+A shortcode is a small piece of text you place on a WordPress page. It tells
+the system what to show on that page — like a login form, course list, or
+booking calendar.
+
+Example:  [cta_login_form]
+
+You normally do NOT need to change shortcodes. They were set up when the site
+was built. If a page looks empty, check that the correct shortcode is on that
+page in WordPress → Pages → Edit.
+
+SHORTCODE CHEAT SHEET — WHICH CODE GOES ON WHICH PAGE
+------------------------------------------------------
+
+  Page purpose                    Shortcode to use
+  ------------------------------  ------------------------------------------
+  Login page                      [cta_login_form]
+  All courses catalog             [cta_course_catalog]
+  Home (featured courses only)    [cta_course_catalog limit="3"]
+  Single course detail            [cta_single_course]
+  Memberships & bundles           [cta_membership_pricing]
+  Supervision booking             [cta_supervision_booking]
+  CE student dashboard            [cta_student_dashboard]
+  Supervision associate dashboard [cta_supervision_dashboard]
+  Course video player             [cta_course_player]
+  Course quiz                     [cta_quiz]
+  Login / Dashboard button        [cta_auth_button]
+  (optional header/footer)        [cta_header]  and  [cta_footer]
+
+The full list is also inside WordPress:
+  WordPress Admin → CTA LMS → Shortcodes
+
+
+--------------------------------------------------------------------------------
+PART 4 — HOW TO LOG IN TO WORDPRESS (ADMIN)
+--------------------------------------------------------------------------------
+
+STEP 1: Open your browser and go to:
+        https://cta.techosuppglobal.com/wp-admin/
+
+STEP 2: Enter your WordPress username and password.
+
+STEP 3: After login you will see the WordPress dashboard on the left side.
+
+STEP 4: Click "CTA LMS" in the left menu. This is your main control area for
+        courses, users, bookings, and settings.
+
+CTA LMS ADMIN MENU — WHAT EACH SECTION DOES
+--------------------------------------------
+
+  Dashboard   — Overview: enrollments, revenue, recent activity
+  Courses     — Add, edit, and publish CE courses
+  Users       — See registered students and associates
+  Bookings    — Create supervision sessions for associates to book
+  Settings    — Stripe payments, page links, certificates, support email
+  Shortcodes  — Reference list of all shortcodes
+
+
+--------------------------------------------------------------------------------
+PART 5 — HOW TO ADD A NEW CE COURSE (STEP BY STEP)
+--------------------------------------------------------------------------------
+
+STEP 1: WordPress Admin → CTA LMS → Courses
+
+STEP 2: Click "Add New Course"
+
+STEP 3: Fill in the course details:
+        - Course Title          (name students will see)
+        - Category              (e.g. Ethics, Clinical Skills)
+        - CE Hours              (how many CE credits the course is worth)
+        - Price                 (use 0 for a free course)
+        - Description           (full course overview)
+        - Learning Objectives   (bullet points — click "Add Objective")
+        - Thumbnail URL         (course image link)
+        - Preview Video         (Vimeo, YouTube, or upload from Media Library)
+        - Status                — choose "Published" to show on the website
+                                  choose "Draft" to hide while you work on it
+
+STEP 4: Click "Save Course"
+
+STEP 5: After saving, scroll down on the same page to add MODULES (lessons).
+
+
+--------------------------------------------------------------------------------
+PART 6 — HOW TO ADD MODULES (VIDEO LESSONS) TO A COURSE
+--------------------------------------------------------------------------------
+
+Modules are the individual lessons inside a course. Students complete them in
+order (one after another).
+
+STEP 1: Open the course: CTA LMS → Courses → click Edit on the course
+
+STEP 2: Scroll to the "Course Modules" section
+
+STEP 3: For each module, enter:
+        - Module title
+        - Description (short text under the title)
+        - Video Source — Vimeo ID, YouTube link, WordPress Media, or MP4 link
+        - Duration (minutes)
+        - "Locked until previous complete" — leave checked so students must
+          finish lesson 1 before lesson 2 opens
+
+STEP 4: Click "Add Module"
+
+STEP 5: Repeat for every lesson in the course
+
+STEP 6: You can drag modules to change the order
+
+
+--------------------------------------------------------------------------------
+PART 7 — HOW TO ADD A QUIZ TO A COURSE
+--------------------------------------------------------------------------------
+
+Every CE course should have one final quiz. Students must pass it to get their
+certificate.
+
+STEP 1: On the same course edit page, scroll to "Course Quiz"
+
+STEP 2: Enter a Quiz Title (e.g. "Final Assessment")
+
+STEP 3: Click "+ Add Question" for each multiple-choice question:
+        - Type the question
+        - Add answer options (A, B, C, D)
+        - Mark which answer is correct
+
+STEP 4: Click "Create Quiz" or "Save Quiz"
+
+IMPORTANT: Students can only take the quiz AFTER they complete ALL modules.
+
+
+--------------------------------------------------------------------------------
+PART 8 — WHAT STUDENTS SEE: BUYING & TAKING A COURSE
+--------------------------------------------------------------------------------
+
+This is the journey for a LICENSED PROFESSIONAL:
+
+STEP 1 — BROWSE
+  Student visits the courses page or home page and sees available courses.
+
+STEP 2 — VIEW COURSE
+  Student clicks a course and sees the course detail page with price and
+  module list.
+  BEFORE buying: all modules show as LOCKED (lock icon). They cannot watch
+  videos yet.
+
+STEP 3 — CREATE ACCOUNT OR LOG IN
+  Student goes to the Login page and either logs in or clicks Register.
+  They must choose: "Licensed Professional (LMFT, LCSW, LPCC, LEP)"
+
+STEP 4 — ENROLL / PAY
+  On the course page they click "Enroll Now" (or similar).
+  - Paid course → Stripe checkout (credit card)
+  - Free course (price $0) → instant enrollment
+  - Bundle purchase on Memberships page can enroll them in multiple courses
+
+STEP 5 — CE DASHBOARD
+  After login, licensed professionals go to the CE Student Dashboard.
+  They ONLY see courses they have purchased or enrolled in.
+  Courses they did not buy do NOT appear here.
+
+STEP 6 — WATCH LESSONS
+  Student clicks "Continue Learning" → opens the Course Player.
+  They watch Module 1, mark it complete, then Module 2 unlocks, and so on.
+
+STEP 7 — TAKE QUIZ
+  After all modules are done, the final quiz unlocks.
+  They must reach the passing score (set in the quiz).
+
+STEP 8 — CERTIFICATE
+  After passing the quiz, a certificate is available in the dashboard under
+  "My Certificates". They can download it as a PDF.
+
+
+--------------------------------------------------------------------------------
+PART 9 — LOGIN & REGISTER PAGE EXPLAINED
+--------------------------------------------------------------------------------
+
+URL: https://cta.techosuppglobal.com/login/
+
+This page has TWO sides:
+
+  LEFT — LOG IN
+  Existing users enter email + password and click Log In.
+
+  RIGHT — CREATE ACCOUNT
+  New users fill in name, email, password, and choose account type:
+
+    • Licensed Professional (LMFT, LCSW, LPCC, LEP)
+      → After login, goes to CE Student Dashboard
+
+    • Registered Associate (AMFT, ASW, APCC)
+      → After login, goes to Supervision Dashboard
+
+FORGOT PASSWORD?
+  Click "Forgot Password?" on the login form. WordPress sends a reset email.
+
+ALREADY LOGGED IN?
+  The page shows a welcome message and a button to go to their dashboard.
+
+
+--------------------------------------------------------------------------------
+PART 10 — CE STUDENT DASHBOARD (LICENSED PROFESSIONALS)
+--------------------------------------------------------------------------------
+
+Shortcode on page: [cta_student_dashboard]
+
+SECTIONS IN THE SIDEBAR:
+
+  My Courses       — Courses in progress and completed
+  My Certificates  — Download earned certificates
+  Account Settings — Update name, license number, profile photo, password
+
+WHAT STUDENTS SEE:
+
+  - "Continue Learning" on courses they are taking
+  - Progress percentage per course
+  - Total CE hours earned
+  - If they have no enrollments: message to browse the course catalog
+
+SECURITY:
+  - Only enrolled courses appear
+  - If someone tries to open a course player without enrolling, they see
+    "Course locked" with a link to enroll
+
+
+--------------------------------------------------------------------------------
+PART 11 — MEMBERSHIPS & BUNDLES PAGE
+--------------------------------------------------------------------------------
+
+URL: https://cta.techosuppglobal.com/memberships-page/
+Shortcode: [cta_membership_pricing]
+
+This page shows your pre-built plans, for example:
+
+  • First Renewal Starter Bundle     (one-time payment, specific courses)
+  • Clinical Focus CE Bundle         (one-time payment)
+  • Crisis & Risk Management Bundle  (one-time payment)
+  • Annual All-Access CE Pass      (yearly — all published courses)
+  • Supervision + CE Hybrid Plan   (monthly — supervision + all CE courses)
+
+HOW IT WORKS FOR CUSTOMERS:
+
+STEP 1: Customer must be logged in (button says "Log In to Purchase" if not)
+
+STEP 2: Customer clicks purchase on a plan
+
+STEP 3: Stripe payment screen opens
+
+STEP 4: After successful payment:
+        - Bundle plans → customer is enrolled in the included courses
+        - Annual pass → access to all published CE courses
+        - Hybrid plan → CE access + supervision subscription
+
+NOTE: Bundle plans and prices are set in the database when the plugin was
+first installed. To change bundle names, prices, or which courses are included,
+contact your developer or support team.
+
+
+--------------------------------------------------------------------------------
+PART 12 — SUPERVISION BOOKING PAGE
+--------------------------------------------------------------------------------
+
+URL: https://cta.techosuppglobal.com/supervision-booking/
+Shortcode: [cta_supervision_booking]
+
+This page has three main parts:
+
+  1) SUPERVISION PLANS (pricing cards)
+     - Group Supervision: monthly subscription (~$260/month)
+       • 4 group sessions per month, 2 hours each
+       • Max 8 associates per group (California BBS rule — automatic)
+     - Individual 1-on-1: pay per session (~$120/session)
+       • 60-minute private session
+
+  2) HOW IT WORKS (4 steps shown on the page)
+     Choose plan → Create account → Book sessions → Attend & track hours
+
+  3) BOOKING CALENDAR
+     Shows available session dates and times
+
+CUSTOMER JOURNEY (ASSOCIATE):
+
+STEP 1: Register as "Registered Associate (AMFT, ASW, APCC)"
+
+STEP 2: Log in and visit Supervision Booking page
+
+STEP 3: For GROUP supervision:
+        Click Subscribe → pay monthly via Stripe → subscription becomes active
+
+STEP 4: For INDIVIDUAL session:
+        Pay per session when booking (no monthly subscription needed)
+
+STEP 5: Scroll to booking calendar and click an available session to book
+
+STEP 6: Confirmed sessions appear in their Supervision Dashboard
+
+IF NOT LOGGED IN:
+  Buttons say "Login to Book" and the calendar shows a login message.
+
+
+--------------------------------------------------------------------------------
+PART 13 — HOW YOU (ADMIN) ADD SUPERVISION SESSIONS
+--------------------------------------------------------------------------------
+
+Associates can only book sessions that YOU create first.
+
+STEP 1: WordPress Admin → CTA LMS → Bookings
+
+STEP 2: Make sure you are on the "Upcoming Sessions" tab
+
+STEP 3: Click "Add New Session"
+
+STEP 4: Fill in:
+        - Date
+        - Time
+        - Type: Group or Individual
+
+STEP 5: Save the session
+
+STEP 6: The session now appears on the Supervision Booking page calendar
+        for associates to book (if they have an active plan)
+
+STEP 7: Use "Session History" tab to see past sessions and who attended
+
+TIP: Create sessions several weeks in advance so associates always have
+dates to choose from.
+
+
+--------------------------------------------------------------------------------
+PART 14 — SUPERVISION DASHBOARD (ASSOCIATES)
+--------------------------------------------------------------------------------
+
+Shortcode on page: [cta_supervision_dashboard]
+
+Only for users who registered as Associates (AMFT, ASW, APCC).
+
+THREE POSSIBLE STATES:
+
+  A) NO ACTIVE PLAN
+     Dashboard shows plan options and "Subscribe Now" buttons.
+     They cannot book or upload documents yet.
+
+  B) ACTIVE PLAN
+     Full dashboard with:
+       • My Sessions      — upcoming booked sessions + book new session link
+       • Session History  — past sessions and status
+       • Documents & Logs — upload BBS agreements and supervision logs
+       • Subscription     — manage billing, see next payment date
+       • Account Settings — profile and password
+
+  C) LOCKED (payment failed)
+     Access is suspended until they update their payment method in Stripe.
+     They see a warning and "Update Payment Method" button.
+
+BBS FEATURES:
+  - Upload supervision documents
+  - Weekly hour tracking
+  - Group sessions automatically capped at 8 people
+
+
+--------------------------------------------------------------------------------
+PART 15 — PAYMENTS (STRIPE) — WHAT YOU NEED TO KNOW
+--------------------------------------------------------------------------------
+
+All online payments use Stripe (credit/debit cards).
+
+SETTINGS LOCATION:
+  WordPress Admin → CTA LMS → Settings → Stripe Configuration
+
+  - Test mode  = for trying purchases without real money
+  - Live mode  = real payments from customers
+
+BEFORE GOING LIVE:
+  1. Enter your Live Stripe keys in Settings
+  2. Turn OFF "Skip payments" (testing mode) in Settings
+  3. Do a test purchase with a real card for a small amount
+
+WHAT STRIPE HANDLES AUTOMATICALLY:
+  - Course enrollments after payment
+  - Supervision subscriptions (monthly billing)
+  - Bundle purchases
+  - Failed payment retries and subscription locking
+
+
+--------------------------------------------------------------------------------
+PART 16 — PAGE SETTINGS (LINKING PAGES TOGETHER)
+--------------------------------------------------------------------------------
+
+The plugin needs to know which WordPress page is which. This is set once in:
+
+  WordPress Admin → CTA LMS → Settings → Page Assignments
+
+  Login Page              → your Login page
+  Courses Page            → full course catalog page
+  Single Course Page      → course detail page
+  Supervision Page        → supervision booking page
+  Memberships Page        → memberships & bundles page
+  CE Dashboard            → student dashboard page
+  Supervision Dashboard   → associate dashboard page
+  Course Player Page      → lesson video player page
+  Quiz Page               → final quiz page
+
+If buttons or links go to the wrong place, check these assignments first.
+
+
+--------------------------------------------------------------------------------
+PART 17 — CERTIFICATES
+--------------------------------------------------------------------------------
+
+Certificates are created automatically when a student:
+  1. Completes all modules
+  2. Passes the final quiz
+
+Students download them from CE Dashboard → My Certificates.
+
+You can customize certificate text in:
+  WordPress Admin → CTA LMS → Settings → Certificate Settings
+
+  - Header text (e.g. "Certificate of Completion")
+  - Footer text (website name)
+  - Administrator signature name
+  - CAMFT provider number
+
+
+--------------------------------------------------------------------------------
+PART 18 — USERS ADMIN PANEL
+--------------------------------------------------------------------------------
+
+WordPress Admin → CTA LMS → Users
+
+Here you can see everyone who registered:
+  - Licensed professionals (CE students)
+  - Associates (supervision clients)
+
+Useful when a customer says "I can't see my course" — check if they are
+enrolled and which account type they chose at registration.
+
+
+--------------------------------------------------------------------------------
+PART 19 — COMMON QUESTIONS (FAQ FOR CLIENT)
+--------------------------------------------------------------------------------
+
+Q: I added a course but it does not show on the website.
+A: Make sure Status is set to "Published", not "Draft".
+
+Q: Student says modules are locked on the course page.
+A: That is normal before they enroll. After payment, modules unlock in the
+   Course Player (dashboard), not on the public course page preview list.
+
+Q: Student bought a course but dashboard is empty.
+A: Check they are logged into the correct email. Check CTA LMS → Users.
+   Payment may have failed — check Stripe dashboard.
+
+Q: Associate cannot book a session.
+A: They need an active supervision subscription (group) or must pay for
+   individual session. Also check that you created sessions in Bookings.
+
+Q: How do I change prices on the Memberships page?
+A: Contact your developer — bundle prices are managed in the system database.
+
+Q: How do I add courses to the home page?
+A: The home page uses [cta_course_catalog limit="3"] to show 3 featured
+   courses. Publish courses in WordPress admin and they appear automatically.
+
+Q: Can one person use both CE courses and supervision?
+A: Yes, but they should register with the account type that matches their
+   primary need. Associates get the Supervision Dashboard. Licensed
+   professionals get the CE Dashboard. Hybrid plan gives both types of access.
+
+
+--------------------------------------------------------------------------------
+PART 20 — QUICK DAILY CHECKLIST FOR SITE MANAGER
+--------------------------------------------------------------------------------
+
+  [ ] Publish new courses when ready (Status = Published)
+  [ ] Add all modules and quiz before announcing a new course
+  [ ] Create upcoming supervision sessions (2–4 weeks ahead)
+  [ ] Check CTA LMS Dashboard for new enrollments
+  [ ] Check Bookings for session fill rates
+  [ ] Respond to support emails (set in Settings → Support Email)
+  [ ] Before launch: Stripe Live mode ON, test payments OFF
+
+
+--------------------------------------------------------------------------------
+PART 21 — WHO TO CONTACT FOR HELP
+--------------------------------------------------------------------------------
+
+  Website / plugin technical issues  → Your developer or web team
+  Stripe / payment issues          → Stripe dashboard + developer
+  Course content questions         → Your program administrator
+  BBS / supervision compliance     → Your clinical director
+
+Support email on site (configurable):
+  WordPress Admin → CTA LMS → Settings → Support Email
+
+
+================================================================================
+  END OF GUIDE
+  Last updated: July 2026 | CTA LMS Plugin v1.0.26
+================================================================================
