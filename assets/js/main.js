@@ -2969,6 +2969,42 @@
       });
     }
 
+    var userTypeSelect = registerForm
+      ? registerForm.querySelector('[name="cta_user_type"]')
+      : null;
+    var associateFields = document.getElementById("cta-register-associate-fields");
+    var associateInputs = associateFields
+      ? associateFields.querySelectorAll("input")
+      : [];
+
+    function toggleAssociateFields() {
+      if (!associateFields || !userTypeSelect) return;
+
+      var isAssociate = userTypeSelect.value === "cta_associate";
+
+      if (isAssociate) {
+        associateFields.classList.remove("form-hidden");
+        associateFields.removeAttribute("hidden");
+        associateFields.setAttribute("aria-hidden", "false");
+        associateInputs.forEach(function (input) {
+          input.required = true;
+        });
+      } else {
+        associateFields.classList.add("form-hidden");
+        associateFields.setAttribute("hidden", "");
+        associateFields.setAttribute("aria-hidden", "true");
+        associateInputs.forEach(function (input) {
+          input.required = false;
+          input.value = "";
+        });
+      }
+    }
+
+    if (userTypeSelect) {
+      userTypeSelect.addEventListener("change", toggleAssociateFields);
+      toggleAssociateFields();
+    }
+
     if (registerBtn && registerForm) {
       registerBtn.addEventListener("click", function (e) {
         e.preventDefault();
@@ -2986,6 +3022,9 @@
         var confirmPassword = registerForm.querySelector('[name="cta_reg_confirm_password"]').value;
         var userType = registerForm.querySelector('[name="cta_user_type"]').value;
         var nonceField = registerForm.querySelector('[name="cta_register_nonce"]');
+        var employerAgencyName = "";
+        var agencyRepName = "";
+        var agencyRepEmail = "";
 
         if (password !== confirmPassword) {
           showMessage(registerError, "Passwords do not match.", false);
@@ -3002,20 +3041,43 @@
           return;
         }
 
+        if (userType === "cta_associate") {
+          var employerField = registerForm.querySelector('[name="cta_employer_agency_name"]');
+          var repNameField = registerForm.querySelector('[name="cta_agency_representative_name"]');
+          var repEmailField = registerForm.querySelector('[name="cta_agency_representative_email"]');
+
+          employerAgencyName = employerField ? employerField.value.trim() : "";
+          agencyRepName = repNameField ? repNameField.value.trim() : "";
+          agencyRepEmail = repEmailField ? repEmailField.value.trim() : "";
+
+          if (!employerAgencyName || !agencyRepName || !agencyRepEmail) {
+            showMessage(registerError, "Please fill in all agency fields.", false);
+            return;
+          }
+        }
+
         registerBtn.textContent = "Creating account...";
         registerBtn.disabled = true;
 
+        var registerPayload = {
+          action: "cta_register",
+          nonce: nonceField ? nonceField.value : "",
+          fullname: fullname,
+          email: email,
+          password: password,
+          confirm_password: confirmPassword,
+          user_type: userType
+        };
+
+        if (userType === "cta_associate") {
+          registerPayload.employer_agency_name = employerAgencyName;
+          registerPayload.agency_representative_name = agencyRepName;
+          registerPayload.agency_representative_email = agencyRepEmail;
+        }
+
         $.post(
           ctaAjax.ajaxUrl,
-          {
-            action: "cta_register",
-            nonce: nonceField ? nonceField.value : "",
-            fullname: fullname,
-            email: email,
-            password: password,
-            confirm_password: confirmPassword,
-            user_type: userType
-          }
+          registerPayload
         )
           .done(function (response) {
             if (response.success) {

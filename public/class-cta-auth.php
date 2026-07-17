@@ -120,6 +120,10 @@ class CTA_Auth {
 		$confirm   = wp_unslash( $_POST['confirm_password'] ?? '' );
 		$user_type = sanitize_text_field( wp_unslash( $_POST['user_type'] ?? '' ) );
 
+		$employer_agency_name         = sanitize_text_field( wp_unslash( $_POST['employer_agency_name'] ?? '' ) );
+		$agency_representative_name   = sanitize_text_field( wp_unslash( $_POST['agency_representative_name'] ?? '' ) );
+		$agency_representative_email  = sanitize_email( wp_unslash( $_POST['agency_representative_email'] ?? '' ) );
+
 		if ( empty( $fullname ) || empty( $email ) || empty( $password ) || empty( $user_type ) ) {
 			wp_send_json_error(
 				array(
@@ -157,6 +161,28 @@ class CTA_Auth {
 			);
 		}
 
+		if ( 'cta_associate' === $user_type ) {
+			if (
+				empty( $employer_agency_name ) ||
+				empty( $agency_representative_name ) ||
+				empty( $agency_representative_email )
+			) {
+				wp_send_json_error(
+					array(
+						'message' => __( 'Please fill in all agency fields.', 'cta-lms' ),
+					)
+				);
+			}
+
+			if ( ! is_email( $agency_representative_email ) ) {
+				wp_send_json_error(
+					array(
+						'message' => __( 'Please enter a valid agency representative email.', 'cta-lms' ),
+					)
+				);
+			}
+		}
+
 		if ( email_exists( $email ) ) {
 			wp_send_json_error(
 				array(
@@ -188,6 +214,12 @@ class CTA_Auth {
 				'role'         => $user_type,
 			)
 		);
+
+		if ( 'cta_associate' === $user_type ) {
+			update_user_meta( $user_id, 'cta_employer_agency_name', $employer_agency_name );
+			update_user_meta( $user_id, 'cta_agency_representative_name', $agency_representative_name );
+			update_user_meta( $user_id, 'cta_agency_representative_email', $agency_representative_email );
+		}
 
 		CTA_Emails::send( 'welcome', $user_id );
 

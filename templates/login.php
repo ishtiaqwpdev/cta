@@ -205,6 +205,52 @@ if ( ! defined( 'ABSPATH' ) ) {
 							</select>
 						</div>
 
+						<div
+							id="cta-register-associate-fields"
+							class="cta-register-associate-fields form-hidden"
+							hidden
+							aria-hidden="true"
+						>
+							<div class="form-group">
+								<label class="form-label" for="cta-register-employer-agency">
+									<?php echo esc_html__( 'Employer/Agency Name', 'cta-lms' ); ?>
+								</label>
+								<input
+									type="text"
+									id="cta-register-employer-agency"
+									name="cta_employer_agency_name"
+									class="form-input"
+									autocomplete="organization"
+								>
+							</div>
+
+							<div class="form-group">
+								<label class="form-label" for="cta-register-agency-rep-name">
+									<?php echo esc_html__( 'Agency Representative Name', 'cta-lms' ); ?>
+								</label>
+								<input
+									type="text"
+									id="cta-register-agency-rep-name"
+									name="cta_agency_representative_name"
+									class="form-input"
+									autocomplete="name"
+								>
+							</div>
+
+							<div class="form-group">
+								<label class="form-label" for="cta-register-agency-rep-email">
+									<?php echo esc_html__( 'Agency Representative Email', 'cta-lms' ); ?>
+								</label>
+								<input
+									type="email"
+									id="cta-register-agency-rep-email"
+									name="cta_agency_representative_email"
+									class="form-input"
+									autocomplete="email"
+								>
+							</div>
+						</div>
+
 						<button type="button" id="cta-register-btn" class="btn btn-primary btn--lg auth-form__submit">
 							<?php echo esc_html__( 'Create Account', 'cta-lms' ); ?>
 						</button>
