@@ -67,7 +67,16 @@ class CTA_Student_Dashboard {
 			return $redirect;
 		}
 
-		$user_id     = get_current_user_id();
+		$user_id = get_current_user_id();
+
+		if ( function_exists( 'cta_get_stripe' ) ) {
+			$stripe = cta_get_stripe();
+
+			if ( $stripe ) {
+				$stripe->maybe_finalize_user_pending_course_checkouts( $user_id );
+			}
+		}
+
 		$enrollments = CTA_Database::get_user_enrollments( $user_id );
 		$in_progress = array();
 		$completed   = array();

@@ -74,6 +74,7 @@ class CTA_Courses {
 	 */
 	public function render_single_course( $atts ) {
 		$course_id = absint( wp_unslash( $_GET['course_id'] ?? 0 ) );
+		$payment_success = isset( $_GET['payment'] ) && 'success' === sanitize_text_field( wp_unslash( $_GET['payment'] ) );
 
 		if ( ! $course_id ) {
 			return '<div class="cta-empty-state"><p>' . esc_html__( 'No course specified.', 'cta-lms' ) . '</p></div>';
@@ -100,6 +101,16 @@ class CTA_Courses {
 		if ( is_user_logged_in() ) {
 			global $wpdb;
 			$user_id     = get_current_user_id();
+
+			if ( $payment_success && function_exists( 'cta_get_stripe' ) ) {
+				$session_id = sanitize_text_field( wp_unslash( $_GET['session_id'] ?? '' ) );
+				$stripe     = cta_get_stripe();
+
+				if ( $session_id && $stripe ) {
+					$stripe->finalize_checkout_session( $session_id, $user_id );
+				}
+			}
+
 			$is_enrolled = (bool) $wpdb->get_var(
 				$wpdb->prepare(
 					"SELECT id FROM {$wpdb->prefix}cta_enrollments
@@ -125,7 +136,6 @@ class CTA_Courses {
 			$total_mins += (int) $module->duration_mins;
 		}
 
-		$payment_success = isset( $_GET['payment'] ) && 'success' === sanitize_text_field( wp_unslash( $_GET['payment'] ) );
 		$quiz            = CTA_Database::get_quiz_by_course( $course_id );
 		$quiz_questions  = $quiz ? CTA_Database::get_quiz_questions( (int) $quiz->id ) : array();
 		$preview_video   = $this->get_course_preview_video_markup( $course );

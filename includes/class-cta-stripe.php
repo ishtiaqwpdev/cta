@@ -1519,6 +1519,54 @@ class CTA_Stripe {
 	}
 
 	/**
+	 * Recover pending course checkout rows for a user.
+	 *
+	 * This keeps the student dashboard in sync when the Stripe webhook is
+	 * delayed or unavailable after a successful checkout.
+	 *
+	 * @param int $user_id User ID.
+	 * @return bool True when at least one session was finalized.
+	 */
+	public function maybe_finalize_user_pending_course_checkouts( $user_id ) {
+		global $wpdb;
+
+		$user_id = absint( $user_id );
+
+		if ( ! $user_id || ! $this->is_configured() ) {
+			return false;
+		}
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT stripe_payment_id
+				FROM {$wpdb->prefix}cta_payments
+				WHERE user_id = %d
+				AND product_type = 'course'
+				AND status = 'pending'
+				AND stripe_payment_id LIKE 'cs_%%'
+				ORDER BY id DESC
+				LIMIT 5",
+				$user_id
+			)
+		);
+
+		if ( empty( $rows ) ) {
+			return false;
+		}
+
+		$did_finalize = false;
+
+		foreach ( $rows as $row ) {
+			$session_id = sanitize_text_field( (string) $row->stripe_payment_id );
+			if ( $this->finalize_checkout_session( $session_id, $user_id ) ) {
+				$did_finalize = true;
+			}
+		}
+
+		return $did_finalize;
+	}
+
+	/**
 	 * Get permalink from plugin page option.
 	 *
 	 * @param string $option_name Option key.
