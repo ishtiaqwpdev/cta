@@ -27,16 +27,16 @@ $tabs     = array(
 );
 
 $empty_messages = array(
-	'all'              => __( 'No completed supervision purchases found.', 'cta-lms' ),
-	'pending_approval' => __( 'No purchased supervision plans are awaiting approval.', 'cta-lms' ),
-	'approved'         => __( 'No approved supervision purchases found.', 'cta-lms' ),
-	'rejected'         => __( 'No rejected supervision purchases found.', 'cta-lms' ),
+	'all'              => __( 'No Associates awaiting review yet.', 'cta-lms' ),
+	'pending_approval' => __( 'No Associates are currently pending approval.', 'cta-lms' ),
+	'approved'         => __( 'No approved Associates found.', 'cta-lms' ),
+	'rejected'         => __( 'No rejected Associates found.', 'cta-lms' ),
 );
 ?>
 <div class="wrap cta-admin-wrap">
 	<h1><?php esc_html_e( 'Supervision Approvals', 'cta-lms' ); ?></h1>
 	<p class="description">
-		<?php esc_html_e( 'Review completed supervision purchases. Approval unlocks the supervision dashboard, session booking, meeting links, and supervision materials.', 'cta-lms' ); ?>
+		<?php esc_html_e( 'Review Registered Associates and supervision purchases. Approval unlocks the supervision dashboard, session booking, meeting links, and supervision materials.', 'cta-lms' ); ?>
 	</p>
 
 	<?php if ( 'approved' === $flash ) : ?>
@@ -88,24 +88,33 @@ $empty_messages = array(
 				<?php foreach ( $purchase_records as $record ) : ?>
 					<?php
 					$user             = $record['user'];
-					$payment          = $record['payment'];
+					$payment          = ! empty( $record['payment'] ) ? $record['payment'] : null;
 					$approval_status  = $record['status'];
 					$status_label     = CTA_Associate_Access::get_status_label( $approval_status );
 					$is_approved      = CTA_Associate_Access::STATUS_APPROVED === $approval_status;
 					$is_rejected      = CTA_Associate_Access::STATUS_REJECTED === $approval_status;
-					$purchase_date    = ! empty( $payment->created_at )
+					$purchase_date    = ( $payment && ! empty( $payment->created_at ) )
 						? wp_date( 'M j, Y g:i a', strtotime( $payment->created_at ) )
-						: '—';
-					$plan_details     = $record['plan_details'];
+						: ( ! empty( $user->user_registered )
+							? wp_date( 'M j, Y', strtotime( $user->user_registered ) )
+							: '—' );
+					$plan_details     = is_array( $record['plan_details'] ) ? $record['plan_details'] : array();
 					$details_payload  = array(
 						'user_name'        => $user->display_name,
 						'user_email'       => $user->user_email,
 						'plan_name'        => $record['plan_name'],
-						'purchase_date'    => $purchase_date,
-						'amount'           => '$' . number_format( (float) $payment->amount, 2 ) . ' ' . strtoupper( (string) $payment->currency ),
-						'billing'          => sanitize_text_field( (string) ( $plan_details['billing'] ?? $payment->payment_type ) ),
+						'purchase_date'    => $payment ? $purchase_date : __( 'No purchase yet', 'cta-lms' ),
+						'registered_date'  => ! empty( $user->user_registered )
+							? wp_date( 'M j, Y g:i a', strtotime( $user->user_registered ) )
+							: '',
+						'amount'           => $payment
+							? ( '$' . number_format( (float) $payment->amount, 2 ) . ' ' . strtoupper( (string) $payment->currency ) )
+							: '',
+						'billing'          => $payment
+							? sanitize_text_field( (string) ( $plan_details['billing'] ?? $payment->payment_type ) )
+							: '',
 						'description'      => sanitize_text_field( (string) ( $plan_details['description'] ?? '' ) ),
-						'stripe_reference' => sanitize_text_field( (string) $payment->stripe_payment_id ),
+						'stripe_reference' => $payment ? sanitize_text_field( (string) $payment->stripe_payment_id ) : '',
 						'status'           => $status_label,
 						'rejection_reason' => $record['rejection_reason'],
 					);

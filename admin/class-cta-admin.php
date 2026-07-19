@@ -402,16 +402,45 @@ class CTA_Admin {
 	}
 
 	/**
-	 * Get the latest completed supervision purchase for each user.
+	 * Build Approvals queue rows.
 	 *
-	 * Includes direct supervision subscriptions and the supervision + CE hybrid
-	 * bundle. Each result contains the existing WordPress user and payment row.
+	 * Includes:
+	 * 1. Registered Associates with an approval status (even before purchase)
+	 * 2. Users with a completed supervision / hybrid purchase
 	 *
 	 * @return array<int,array<string,mixed>>
 	 */
 	private function get_supervision_purchase_records() {
 		global $wpdb;
 
+		$by_user = array();
+
+		// Registered Associates awaiting review (or already reviewed).
+		$associate_query = new WP_User_Query(
+			array(
+				'role'       => 'cta_associate',
+				'number'     => 500,
+				'orderby'    => 'registered',
+				'order'      => 'DESC',
+				'meta_query' => array(
+					array(
+						'key'     => 'cta_approval_status',
+						'value'   => array(
+							CTA_Associate_Access::STATUS_PENDING,
+							CTA_Associate_Access::STATUS_APPROVED,
+							CTA_Associate_Access::STATUS_REJECTED,
+						),
+						'compare' => 'IN',
+					),
+				),
+			)
+		);
+
+		foreach ( (array) $associate_query->get_results() as $user ) {
+			$by_user[ (int) $user->ID ] = $this->build_approval_record( $user, null );
+		}
+
+		// Completed supervision / hybrid purchases (may overlap associates above).
 		$table = $wpdb->prefix . 'cta_payments';
 		$rows  = $wpdb->get_results(
 			"SELECT payment.*
@@ -435,56 +464,94 @@ class CTA_Admin {
 			ORDER BY payment.created_at DESC, payment.id DESC"
 		);
 
-		$records = array();
-
 		foreach ( $rows as $payment ) {
-			$user = get_user_by( 'id', (int) $payment->user_id );
+			$user_id = (int) $payment->user_id;
+			$user    = isset( $by_user[ $user_id ] )
+				? $by_user[ $user_id ]['user']
+				: get_user_by( 'id', $user_id );
 
 			if ( ! $user ) {
 				continue;
 			}
 
-			$approval_status = CTA_Associate_Access::get_approval_status( $user->ID );
-
-			if ( ! in_array(
-				$approval_status,
-				array(
-					CTA_Associate_Access::STATUS_PENDING,
-					CTA_Associate_Access::STATUS_APPROVED,
-					CTA_Associate_Access::STATUS_REJECTED,
-				),
-				true
-			) ) {
-				$approval_status = 'active' === get_user_meta( $user->ID, 'cta_supervision_status', true )
-					? CTA_Associate_Access::STATUS_APPROVED
-					: CTA_Associate_Access::STATUS_PENDING;
-			}
-
-			$plan_details = json_decode( (string) ( $payment->plan_details ?? '' ), true );
-			if ( ! is_array( $plan_details ) ) {
-				$plan_details = array();
-			}
-
-			$plan_name = sanitize_text_field( (string) ( $payment->plan_name ?? '' ) );
-			if ( '' === $plan_name ) {
-				$plan_name = (string) get_user_meta( $user->ID, 'cta_supervision_plan_name', true );
-			}
-			if ( '' === $plan_name ) {
-				$plan_name = __( 'Group Supervision', 'cta-lms' );
-			}
-
-			$records[] = array(
-				'user'             => $user,
-				'payment'          => $payment,
-				'plan_name'        => $plan_name,
-				'plan_details'     => $plan_details,
-				'status'           => $approval_status,
-				'rejection_reason' => (string) get_user_meta( $user->ID, 'cta_approval_rejection_reason', true ),
-				'is_associate'     => CTA_Associate_Access::is_associate( $user->ID ),
-			);
+			$by_user[ $user_id ] = $this->build_approval_record( $user, $payment );
 		}
 
+		$records = array_values( $by_user );
+
+		usort(
+			$records,
+			static function ( $a, $b ) {
+				$a_time = ! empty( $a['payment']->created_at )
+					? strtotime( (string) $a['payment']->created_at )
+					: strtotime( (string) $a['user']->user_registered );
+				$b_time = ! empty( $b['payment']->created_at )
+					? strtotime( (string) $b['payment']->created_at )
+					: strtotime( (string) $b['user']->user_registered );
+
+				return $b_time <=> $a_time;
+			}
+		);
+
 		return $records;
+	}
+
+	/**
+	 * Normalize one Approvals table row.
+	 *
+	 * @param WP_User     $user    User object.
+	 * @param object|null $payment Optional payment row.
+	 * @return array<string,mixed>
+	 */
+	private function build_approval_record( $user, $payment = null ) {
+		$approval_status = CTA_Associate_Access::get_approval_status( $user->ID );
+
+		if ( ! in_array(
+			$approval_status,
+			array(
+				CTA_Associate_Access::STATUS_PENDING,
+				CTA_Associate_Access::STATUS_APPROVED,
+				CTA_Associate_Access::STATUS_REJECTED,
+			),
+			true
+		) ) {
+			$supervision_status = (string) get_user_meta( $user->ID, 'cta_supervision_status', true );
+			$approval_status    = 'active' === $supervision_status
+				? CTA_Associate_Access::STATUS_APPROVED
+				: CTA_Associate_Access::STATUS_PENDING;
+		}
+
+		$plan_details = array();
+		$plan_name    = '';
+
+		if ( $payment ) {
+			$decoded = json_decode( (string) ( $payment->plan_details ?? '' ), true );
+			if ( is_array( $decoded ) ) {
+				$plan_details = $decoded;
+			}
+			$plan_name = sanitize_text_field( (string) ( $payment->plan_name ?? '' ) );
+		}
+
+		if ( '' === $plan_name ) {
+			$plan_name = (string) get_user_meta( $user->ID, 'cta_supervision_plan_name', true );
+		}
+
+		if ( '' === $plan_name ) {
+			$plan_name = $payment
+				? __( 'Group Supervision', 'cta-lms' )
+				: __( 'No purchase yet', 'cta-lms' );
+		}
+
+		return array(
+			'user'             => $user,
+			'payment'          => $payment,
+			'plan_name'        => $plan_name,
+			'plan_details'     => $plan_details,
+			'status'           => $approval_status,
+			'rejection_reason' => (string) get_user_meta( $user->ID, 'cta_approval_rejection_reason', true ),
+			'is_associate'     => CTA_Associate_Access::is_associate( $user->ID ),
+			'registered_at'    => (string) $user->user_registered,
+		);
 	}
 
 	/**

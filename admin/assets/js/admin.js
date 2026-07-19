@@ -776,6 +776,7 @@
         ["Associate", details.user_name],
         ["Email", details.user_email],
         ["Plan", details.plan_name],
+        ["Registered", details.registered_date],
         ["Purchase Date", details.purchase_date],
         ["Amount", details.amount],
         ["Billing", details.billing],
