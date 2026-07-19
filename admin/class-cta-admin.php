@@ -21,8 +21,10 @@ class CTA_Admin {
 	 */
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'register_menus' ) );
+		add_action( 'admin_menu', array( $this, 'hide_course_edit_submenu' ), 999 );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		add_action( 'admin_head', array( $this, 'print_admin_menu_icon_styles' ) );
+		add_action( 'admin_init', array( $this, 'redirect_frontend_roles_from_admin' ) );
 
 		add_action( 'admin_post_cta_save_course', array( $this, 'save_course' ) );
 		add_action( 'admin_post_cta_delete_course', array( $this, 'delete_course' ) );
@@ -79,7 +81,7 @@ class CTA_Admin {
 		);
 
 		add_submenu_page(
-			null,
+			'cta-lms',
 			__( 'Edit Course', 'cta-lms' ),
 			__( 'Edit Course', 'cta-lms' ),
 			'manage_options',
@@ -131,6 +133,62 @@ class CTA_Admin {
 			'cta-lms-shortcodes',
 			array( $this, 'render_shortcodes' )
 		);
+	}
+
+	/**
+	 * Keep course edit registered under CTA LMS, but hide it from the sidebar.
+	 *
+	 * Registering with a null parent breaks access checks on some hosts/WP versions
+	 * ("Sorry, you are not allowed to access this page").
+	 */
+	public function hide_course_edit_submenu() {
+		remove_submenu_page( 'cta-lms', 'cta-lms-course-edit' );
+	}
+
+	/**
+	 * Send CTA learner/associate roles to their frontend dashboard instead of wp-admin.
+	 */
+	public function redirect_frontend_roles_from_admin() {
+		if ( ! is_user_logged_in() || wp_doing_ajax() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
+			return;
+		}
+
+		if ( current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$user  = wp_get_current_user();
+		$roles = (array) $user->roles;
+
+		$is_cta_frontend_role = in_array( 'cta_associate', $roles, true )
+			|| in_array( 'cta_licensed_professional', $roles, true );
+
+		if ( ! $is_cta_frontend_role ) {
+			return;
+		}
+
+		$redirect = home_url( '/' );
+
+		if ( in_array( 'cta_associate', $roles, true ) ) {
+			$page_id = absint( get_option( 'cta_supervision_dashboard_page_id', 0 ) );
+			if ( $page_id ) {
+				$url = get_permalink( $page_id );
+				if ( $url ) {
+					$redirect = $url;
+				}
+			}
+		} else {
+			$page_id = absint( get_option( 'cta_student_dashboard_page_id', 0 ) );
+			if ( $page_id ) {
+				$url = get_permalink( $page_id );
+				if ( $url ) {
+					$redirect = $url;
+				}
+			}
+		}
+
+		wp_safe_redirect( $redirect );
+		exit;
 	}
 
 	/**

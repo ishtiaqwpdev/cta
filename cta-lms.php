@@ -14,7 +14,7 @@ if ( ! defined( 'CTA_PLUGIN_FILE' ) ) {
 }
 
 if ( ! defined( 'CTA_VERSION' ) ) {
-	define( 'CTA_VERSION', '1.0.34' );
+	define( 'CTA_VERSION', '1.0.35' );
 }
 
 if ( ! defined( 'CTA_PLUGIN_DIR' ) ) {
