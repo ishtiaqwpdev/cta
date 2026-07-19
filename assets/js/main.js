@@ -1767,6 +1767,9 @@
                 (paymentAction === "cta_create_subscription"
                   ? ctaAjax.supervisionDashboardUrl
                   : "") ||
+                (paymentAction === "cta_create_checkout"
+                  ? ctaAjax.studentDashboardUrl
+                  : "") ||
                 (ctaAjax.isLoggedIn === "yes" ? ctaAjax.dashboardUrl : ctaAjax.loginUrl) ||
                 window.location.href;
 
@@ -1781,12 +1784,25 @@
                 ctaAjax.supervisionDashboardUrl
               ) {
                 redirectUrl = ctaAjax.supervisionDashboardUrl;
+              } else if (
+                paymentAction === "cta_create_checkout" &&
+                response.data &&
+                response.data.redirect_url
+              ) {
+                redirectUrl = response.data.redirect_url;
+              } else if (
+                paymentAction === "cta_create_checkout" &&
+                ctaAjax.studentDashboardUrl
+              ) {
+                redirectUrl = ctaAjax.studentDashboardUrl;
               }
 
-              if (redirectUrl && redirectUrl.indexOf("cta_paid=") === -1) {
+              if (redirectUrl && redirectUrl.indexOf("_cta=") === -1) {
                 redirectUrl +=
                   (redirectUrl.indexOf("?") === -1 ? "?" : "&") +
-                  "subscription=success&cta_paid=1&_cta=" +
+                  (paymentAction === "cta_create_subscription"
+                    ? "subscription=success&cta_paid=1&_cta="
+                    : "cta_enrolled=1&cta_paid=1&_cta=") +
                   Date.now();
               }
 
@@ -2117,7 +2133,12 @@
           if (dashboardUrl) {
             $btn.text("Booked! Redirecting...");
             window.setTimeout(function () {
-              window.location.href = dashboardUrl;
+              var separator = dashboardUrl.indexOf("?") === -1 ? "?" : "&";
+              window.location.href =
+                dashboardUrl +
+                separator +
+                "cta_booking=success&_cta=" +
+                Date.now();
             }, 500);
             return;
           }

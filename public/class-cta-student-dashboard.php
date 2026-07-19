@@ -73,7 +73,14 @@ class CTA_Student_Dashboard {
 			$stripe = cta_get_stripe();
 
 			if ( $stripe ) {
+				$session_id = sanitize_text_field( wp_unslash( $_GET['session_id'] ?? '' ) );
+
+				if ( $session_id ) {
+					$stripe->finalize_checkout_session( $session_id, $user_id );
+				}
+
 				$stripe->maybe_finalize_user_pending_course_checkouts( $user_id );
+				$stripe->maybe_sync_course_enrollments_from_payments( $user_id );
 			}
 		}
 

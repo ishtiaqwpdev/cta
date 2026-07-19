@@ -84,6 +84,7 @@ class CTA_Loader {
 	 */
 	public function run() {
 		$this->add_action( 'wp_enqueue_scripts', $this, 'enqueue_public_assets' );
+		$this->add_action( 'template_redirect', $this, 'nocache_dynamic_pages' );
 		$this->add_filter( 'body_class', $this, 'add_body_classes' );
 		$this->add_filter( 'show_admin_bar', $this, 'hide_admin_bar_on_cta_pages' );
 		$this->add_action( 'init', $this, 'register_shortcodes' );
@@ -105,6 +106,25 @@ class CTA_Loader {
 				$hook['accepted_args']
 			);
 		}
+	}
+
+	/**
+	 * Prevent caches from serving stale logged-in dashboard state.
+	 */
+	public function nocache_dynamic_pages() {
+		if ( ! self::is_dashboard_page() ) {
+			return;
+		}
+
+		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+			define( 'DONOTCACHEPAGE', true );
+		}
+
+		if ( ! defined( 'DONOTCACHEOBJECT' ) ) {
+			define( 'DONOTCACHEOBJECT', true );
+		}
+
+		nocache_headers();
 	}
 
 	/**

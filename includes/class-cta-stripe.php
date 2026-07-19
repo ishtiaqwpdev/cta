@@ -210,11 +210,15 @@ class CTA_Stripe {
 			$course_page = home_url( '/' );
 		}
 
+		$dashboard_page = $this->get_page_url( 'cta_student_dashboard_page_id' );
+		$success_base   = $dashboard_page ? $dashboard_page : $course_page;
+
 		$success_url = $this->build_checkout_success_url(
-			$course_page,
+			$success_base,
 			array(
-				'course_id' => $course_id,
-				'payment'   => 'success',
+				'course_id'    => $course_id,
+				'payment'      => 'success',
+				'cta_enrolled' => '1',
 			)
 		);
 
@@ -909,12 +913,49 @@ class CTA_Stripe {
 		$user_id = get_current_user_id();
 		$payment_id = 'bypass-' . time();
 
-		$this->create_enrollment( $user_id, $course_id, $payment_id );
+		$enrolled = $this->create_enrollment( $user_id, $course_id, $payment_id );
+
+		if ( ! $enrolled ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'Unable to create enrollment. Please try again.', 'cta-lms' ),
+				)
+			);
+		}
+
+		$wpdb->insert(
+			$wpdb->prefix . 'cta_payments',
+			array(
+				'user_id'           => $user_id,
+				'stripe_payment_id' => $payment_id,
+				'amount'            => (float) $course->price,
+				'currency'          => 'usd',
+				'payment_type'      => 'one_time',
+				'product_type'      => 'course',
+				'product_id'        => $course_id,
+				'status'            => 'completed',
+			),
+			array( '%d', '%s', '%f', '%s', '%s', '%s', '%d', '%s' )
+		);
+
+		$dashboard = $this->get_page_url( 'cta_student_dashboard_page_id' );
+		if ( ! $dashboard ) {
+			$dashboard = $this->get_course_player_url( $course_id );
+		} else {
+			$dashboard = add_query_arg(
+				array(
+					'cta_enrolled' => '1',
+					'course_id'    => $course_id,
+					'_cta'         => (string) time(),
+				),
+				$dashboard
+			);
+		}
 
 		wp_send_json_success(
 			array(
 				'enrolled'     => true,
-				'redirect_url' => $this->get_course_player_url( $course_id ),
+				'redirect_url' => $dashboard,
 				'message'      => __( 'Enrolled successfully (payment bypass mode).', 'cta-lms' ),
 			)
 		);
@@ -1258,23 +1299,57 @@ class CTA_Stripe {
 	 * @param int    $user_id    User ID.
 	 * @param int    $course_id  Course ID.
 	 * @param string $payment_id Stripe session/payment ID.
+	 * @return bool True when enrollment exists or was created.
 	 */
 	private function create_enrollment( $user_id, $course_id, $payment_id ) {
 		global $wpdb;
 
+		$user_id   = absint( $user_id );
+		$course_id = absint( $course_id );
+
+		if ( ! $user_id || ! $course_id ) {
+			return false;
+		}
+
 		$table = $wpdb->prefix . 'cta_enrollments';
 
-		$exists = $wpdb->get_var(
+		$existing = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT id FROM {$table}
-				WHERE user_id = %d AND course_id = %d AND status = 'active'",
+				"SELECT id, status FROM {$table}
+				WHERE user_id = %d AND course_id = %d
+				LIMIT 1",
 				$user_id,
 				$course_id
 			)
 		);
 
-		if ( $exists ) {
-			return;
+		if ( $existing ) {
+			if ( 'active' === $existing->status || 'completed' === $existing->status ) {
+				if ( $payment_id ) {
+					$wpdb->update(
+						$table,
+						array( 'payment_id' => sanitize_text_field( $payment_id ) ),
+						array( 'id' => (int) $existing->id ),
+						array( '%s' ),
+						array( '%d' )
+					);
+				}
+				return true;
+			}
+
+			$updated = $wpdb->update(
+				$table,
+				array(
+					'status'     => 'active',
+					'progress'   => 0,
+					'payment_id' => sanitize_text_field( $payment_id ),
+				),
+				array( 'id' => (int) $existing->id ),
+				array( '%s', '%d', '%s' ),
+				array( '%d' )
+			);
+
+			return false !== $updated;
 		}
 
 		$inserted = $wpdb->insert(
@@ -1284,13 +1359,24 @@ class CTA_Stripe {
 				'course_id'  => $course_id,
 				'status'     => 'active',
 				'progress'   => 0,
-				'payment_id' => $payment_id,
+				'payment_id' => sanitize_text_field( $payment_id ),
 			),
 			array( '%d', '%d', '%s', '%d', '%s' )
 		);
 
 		if ( ! $inserted ) {
-			return;
+			// Unique-key race: another request may have inserted first.
+			$retry = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT id FROM {$table}
+					WHERE user_id = %d AND course_id = %d
+					LIMIT 1",
+					$user_id,
+					$course_id
+				)
+			);
+
+			return (bool) $retry;
 		}
 
 		CTA_Emails::send(
@@ -1301,6 +1387,77 @@ class CTA_Stripe {
 				'payment_id' => $payment_id,
 			)
 		);
+
+		return true;
+	}
+
+	/**
+	 * Create enrollments for completed course payments that never got a row.
+	 *
+	 * @param int $user_id User ID.
+	 * @return bool True when at least one enrollment was created/restored.
+	 */
+	public function maybe_sync_course_enrollments_from_payments( $user_id ) {
+		global $wpdb;
+
+		$user_id = absint( $user_id );
+
+		if ( ! $user_id ) {
+			return false;
+		}
+
+		$payments = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, product_id, stripe_payment_id
+				FROM {$wpdb->prefix}cta_payments
+				WHERE user_id = %d
+				AND product_type = 'course'
+				AND status = 'completed'
+				AND product_id > 0
+				ORDER BY id DESC
+				LIMIT 20",
+				$user_id
+			)
+		);
+
+		if ( empty( $payments ) ) {
+			return false;
+		}
+
+		$did_sync = false;
+
+		foreach ( $payments as $payment ) {
+			$course_id = absint( $payment->product_id );
+			if ( ! $course_id ) {
+				continue;
+			}
+
+			$has_enrollment = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT id FROM {$wpdb->prefix}cta_enrollments
+					WHERE user_id = %d
+					AND course_id = %d
+					AND status IN ('active','completed')
+					LIMIT 1",
+					$user_id,
+					$course_id
+				)
+			);
+
+			if ( $has_enrollment ) {
+				continue;
+			}
+
+			$payment_ref = ! empty( $payment->stripe_payment_id )
+				? (string) $payment->stripe_payment_id
+				: ( 'payment-' . (int) $payment->id );
+
+			if ( $this->create_enrollment( $user_id, $course_id, $payment_ref ) ) {
+				$did_sync = true;
+			}
+		}
+
+		return $did_sync;
 	}
 
 	/**

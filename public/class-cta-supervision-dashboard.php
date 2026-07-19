@@ -173,6 +173,7 @@ class CTA_Supervision_Dashboard {
 		$upcoming_sessions = array();
 		$session_history   = array();
 		$documents         = array();
+		$today             = wp_date( 'Y-m-d' );
 
 		// Never load sessions / materials until supervision access is fully approved.
 		if ( $can_access_supervision ) {
@@ -181,9 +182,10 @@ class CTA_Supervision_Dashboard {
 					"SELECT * FROM {$wpdb->prefix}cta_bookings
 					WHERE user_id = %d
 					AND status = 'confirmed'
-					AND session_date >= CURDATE()
+					AND session_date >= %s
 					ORDER BY session_date ASC, session_time ASC",
-					$user_id
+					$user_id,
+					$today
 				)
 			);
 
@@ -196,12 +198,13 @@ class CTA_Supervision_Dashboard {
 					"SELECT * FROM {$wpdb->prefix}cta_bookings
 					WHERE user_id = %d
 					AND (
-						session_date < CURDATE()
+						session_date < %s
 						OR status IN ('cancelled', 'completed')
 					)
 					ORDER BY session_date DESC, session_time DESC
 					LIMIT 10",
-					$user_id
+					$user_id,
+					$today
 				)
 			);
 
