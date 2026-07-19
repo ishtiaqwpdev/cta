@@ -111,12 +111,22 @@ class CTA_Supervision_Dashboard {
 		$user_id = get_current_user_id();
 		$user    = wp_get_current_user();
 
+		// After Stripe Checkout return (or stuck pending payment), activate access now.
+		$this->maybe_finalize_returned_subscription( $user_id );
+
+		// Heal completed payments that never received supervision status meta.
+		$this->maybe_heal_completed_supervision_purchase( $user_id );
+
 		$supervision_status = (string) get_user_meta( $user_id, 'cta_supervision_status', true );
 		$subscription_id    = (string) get_user_meta( $user_id, 'cta_supervision_subscription_id', true );
 		$supervision_plan   = (string) get_user_meta( $user_id, 'cta_supervision_plan', true );
 		$plan_name_meta     = (string) get_user_meta( $user_id, 'cta_supervision_plan_name', true );
 		$supervision_payment = CTA_Database::get_user_supervision_payment( $user_id, 'completed' );
 		$has_supervision_purchase = (bool) $supervision_payment;
+
+		if ( ! $has_supervision_purchase && get_user_meta( $user_id, 'cta_hybrid_plan_active', true ) ) {
+			$has_supervision_purchase = true;
+		}
 
 		if ( empty( $supervision_plan ) ) {
 			$supervision_plan = get_user_meta( $user_id, 'cta_hybrid_plan_active', true ) ? 'hybrid' : 'group';
@@ -129,10 +139,13 @@ class CTA_Supervision_Dashboard {
 		$is_active         = ( 'active' === $supervision_status );
 		$is_locked         = in_array( $supervision_status, array( 'locked', 'past_due' ), true );
 		$is_pending_plan   = ( 'pending_approval' === $supervision_status );
-		$no_plan           = ! $is_active && ! $is_locked && ! $is_pending_plan;
 		$approval_status   = CTA_Associate_Access::get_approval_status( $user_id );
 		$can_access_supervision = CTA_Associate_Access::can_access_supervision_features( $user_id );
 		$is_supervision_pending = CTA_Associate_Access::is_supervision_pending( $user_id );
+		$is_pending_approval    = $is_supervision_pending || ( CTA_Associate_Access::is_associate( $user_id ) && ! CTA_Associate_Access::is_approved( $user_id ) );
+
+		// Paid / pending purchase should never fall through to "No active plan".
+		$no_plan = ! $is_active && ! $is_locked && ! $is_pending_plan && ! $has_supervision_purchase && ! $is_pending_approval;
 
 		if ( CTA_Associate_Access::STATUS_PENDING === $approval_status || $is_pending_plan || $is_supervision_pending ) {
 			$onboarding_status_label = __( 'Pending Approval', 'cta-lms' );
@@ -155,7 +168,6 @@ class CTA_Supervision_Dashboard {
 		$can_access_booking               = $can_access_supervision;
 		$can_access_meeting_links         = $can_access_supervision;
 		$can_access_supervision_resources = $can_access_supervision;
-		$is_pending_approval              = $is_supervision_pending || ( CTA_Associate_Access::is_associate( $user_id ) && ! CTA_Associate_Access::is_approved( $user_id ) );
 		$pending_approval_message         = CTA_Associate_Access::get_pending_message();
 
 		$upcoming_sessions = array();
@@ -708,6 +720,91 @@ class CTA_Supervision_Dashboard {
 	 *
 	 * @return string|null
 	 */
+	/**
+	 * Activate a supervision purchase when returning from Stripe Checkout.
+	 *
+	 * Also recovers stuck "pending" payment rows if the webhook never arrived.
+	 *
+	 * @param int $user_id User ID.
+	 */
+	private function maybe_finalize_returned_subscription( $user_id ) {
+		$user_id = absint( $user_id );
+		$stripe  = cta_get_stripe();
+
+		if ( ! $user_id || ! $stripe ) {
+			return;
+		}
+
+		$session_id = sanitize_text_field( wp_unslash( $_GET['session_id'] ?? '' ) );
+		$flag       = sanitize_text_field( wp_unslash( $_GET['subscription'] ?? '' ) );
+
+		if ( 'success' === $flag && $session_id ) {
+			$stripe->finalize_checkout_session( $session_id, $user_id );
+		}
+
+		$stripe->maybe_finalize_user_pending_checkouts( $user_id );
+
+		// Bypass / demo payments already wrote meta — still refresh caches.
+		if ( 'success' === $flag || ! empty( $_GET['cta_paid'] ) ) {
+			clean_user_cache( $user_id );
+		}
+	}
+
+	/**
+	 * If a completed supervision payment exists without plan status, activate it.
+	 *
+	 * Covers webhook/redirect failures where the payment row was marked completed
+	 * but user meta was never written.
+	 *
+	 * @param int $user_id User ID.
+	 */
+	private function maybe_heal_completed_supervision_purchase( $user_id ) {
+		$user_id = absint( $user_id );
+
+		if ( ! $user_id ) {
+			return;
+		}
+
+		$status = (string) get_user_meta( $user_id, 'cta_supervision_status', true );
+
+		if ( in_array( $status, array( 'active', 'pending_approval', 'locked', 'past_due', 'rejected' ), true ) ) {
+			return;
+		}
+
+		$payment = CTA_Database::get_user_supervision_payment( $user_id, 'completed' );
+
+		if ( ! $payment ) {
+			return;
+		}
+
+		$stripe = cta_get_stripe();
+
+		if ( ! $stripe ) {
+			update_user_meta( $user_id, 'cta_supervision_status', 'pending_approval' );
+			if ( ! empty( $payment->plan_name ) ) {
+				update_user_meta( $user_id, 'cta_supervision_plan_name', sanitize_text_field( (string) $payment->plan_name ) );
+			}
+			clean_user_cache( $user_id );
+			return;
+		}
+
+		$stripe->activate_supervision_purchase(
+			$user_id,
+			array(
+				'checkout_session_id' => (string) $payment->stripe_payment_id,
+				'subscription_id'     => (string) get_user_meta( $user_id, 'cta_supervision_subscription_id', true ),
+				'customer_id'         => (string) ( $payment->stripe_customer_id ?? '' ),
+				'amount'              => (float) $payment->amount,
+				'plan_name'           => (string) ( $payment->plan_name ?? '' ),
+				'create_payment_row'  => false,
+				'skip_payment_row'    => true,
+				'send_receipt'        => false,
+			)
+		);
+
+		clean_user_cache( $user_id );
+	}
+
 	private function check_associate_access() {
 		if ( ! is_user_logged_in() ) {
 			return $this->redirect_markup( $this->get_login_url() );

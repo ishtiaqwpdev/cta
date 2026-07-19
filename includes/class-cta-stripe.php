@@ -210,13 +210,12 @@ class CTA_Stripe {
 			$course_page = home_url( '/' );
 		}
 
-		$success_url = add_query_arg(
+		$success_url = $this->build_checkout_success_url(
+			$course_page,
 			array(
-				'course_id'  => $course_id,
-				'payment'    => 'success',
-				'session_id' => '{CHECKOUT_SESSION_ID}',
-			),
-			$course_page
+				'course_id' => $course_id,
+				'payment'   => 'success',
+			)
 		);
 
 		$cancel_url = add_query_arg( 'course_id', $course_id, $course_page );
@@ -382,12 +381,11 @@ class CTA_Stripe {
 			$product_desc = __( 'Monthly group supervision subscription', 'cta-lms' );
 		}
 
-		$success_url = add_query_arg(
+		$success_url = $this->build_checkout_success_url(
+			$supervision_page,
 			array(
 				'subscription' => 'success',
-				'session_id'   => '{CHECKOUT_SESSION_ID}',
-			),
-			$supervision_page
+			)
 		);
 
 		$cancel_url = add_query_arg( 'subscription', 'cancelled', $supervision_page );
@@ -673,13 +671,12 @@ class CTA_Stripe {
 			$memberships_page = home_url( '/' );
 		}
 
-		$success_url = add_query_arg(
+		$success_url = $this->build_checkout_success_url(
+			$memberships_page,
 			array(
 				'bundle_purchase' => 'success',
 				'bundle_id'       => (int) $bundle->id,
-				'session_id'      => '{CHECKOUT_SESSION_ID}',
-			),
-			$memberships_page
+			)
 		);
 
 		$cancel_url = $memberships_page;
@@ -972,6 +969,17 @@ class CTA_Stripe {
 		if ( ! $redirect ) {
 			$redirect = home_url( '/' );
 		}
+
+		$redirect = add_query_arg(
+			array(
+				'subscription' => 'success',
+				'cta_paid'     => '1',
+				'_cta'         => (string) time(),
+			),
+			$redirect
+		);
+
+		clean_user_cache( $user_id );
 
 		wp_send_json_success(
 			array(
@@ -1384,6 +1392,130 @@ class CTA_Stripe {
 		);
 
 		return ! empty( $users ) ? (int) $users[0] : 0;
+	}
+
+	/**
+	 * Build a Stripe Checkout success URL with an unencoded session placeholder.
+	 *
+	 * WordPress add_query_arg() encodes braces, which prevents Stripe from
+	 * replacing {CHECKOUT_SESSION_ID}. Append the placeholder literally.
+	 *
+	 * @param string $base_url Base return URL.
+	 * @param array  $args     Extra query args (without session_id).
+	 * @return string
+	 */
+	private function build_checkout_success_url( $base_url, $args = array() ) {
+		$url = $base_url ? $base_url : home_url( '/' );
+
+		if ( ! empty( $args ) ) {
+			$url = add_query_arg( $args, $url );
+		}
+
+		$separator = ( false === strpos( $url, '?' ) ) ? '?' : '&';
+
+		return $url . $separator . 'session_id={CHECKOUT_SESSION_ID}';
+	}
+
+	/**
+	 * Finalize a Stripe Checkout session after the buyer returns from Stripe.
+	 *
+	 * Webhooks can be delayed/missing; this activates access on success redirect.
+	 *
+	 * @param string $session_id Stripe Checkout Session ID (cs_...).
+	 * @param int    $user_id    Expected WordPress user ID (0 = use session metadata).
+	 * @return bool
+	 */
+	public function finalize_checkout_session( $session_id, $user_id = 0 ) {
+		$session_id = sanitize_text_field( $session_id );
+		$user_id    = absint( $user_id );
+
+		if ( '' === $session_id || 0 !== strpos( $session_id, 'cs_' ) ) {
+			return false;
+		}
+
+		if ( ! $this->is_configured() ) {
+			return false;
+		}
+
+		try {
+			$session = \Stripe\Checkout\Session::retrieve( $session_id );
+		} catch ( \Exception $e ) {
+			return false;
+		}
+
+		if ( ! $session || empty( $session->id ) ) {
+			return false;
+		}
+
+		$session_status  = sanitize_text_field( (string) ( $session->status ?? '' ) );
+		$payment_status  = sanitize_text_field( (string) ( $session->payment_status ?? '' ) );
+		$is_paid         = in_array( $payment_status, array( 'paid', 'no_payment_required' ), true );
+		$is_complete     = 'complete' === $session_status;
+
+		if ( ! $is_complete && ! $is_paid ) {
+			return false;
+		}
+
+		$metadata       = isset( $session->metadata ) ? (array) $session->metadata : array();
+		$session_user_id = absint( $metadata['user_id'] ?? 0 );
+
+		if ( $user_id && $session_user_id && (int) $user_id !== (int) $session_user_id ) {
+			return false;
+		}
+
+		$this->handle_checkout_completed( $session );
+
+		$final_user_id = $session_user_id ? $session_user_id : $user_id;
+		if ( $final_user_id ) {
+			clean_user_cache( $final_user_id );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Recover pending supervision checkout rows for the current user.
+	 *
+	 * @param int $user_id User ID.
+	 * @return bool True when at least one session was finalized.
+	 */
+	public function maybe_finalize_user_pending_checkouts( $user_id ) {
+		global $wpdb;
+
+		$user_id = absint( $user_id );
+
+		if ( ! $user_id || ! $this->is_configured() ) {
+			return false;
+		}
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT stripe_payment_id
+				FROM {$wpdb->prefix}cta_payments
+				WHERE user_id = %d
+				AND product_type = 'supervision'
+				AND status = 'pending'
+				AND stripe_payment_id LIKE 'cs_%%'
+				ORDER BY id DESC
+				LIMIT 5",
+				$user_id
+			)
+		);
+
+		if ( empty( $rows ) ) {
+			return false;
+		}
+
+		$did_finalize = false;
+
+		foreach ( $rows as $row ) {
+			$session_id = sanitize_text_field( (string) $row->stripe_payment_id );
+			if ( $this->finalize_checkout_session( $session_id, $user_id ) ) {
+				$did_finalize = true;
+			}
+		}
+
+		return $did_finalize;
 	}
 
 	/**

@@ -1764,8 +1764,32 @@
             setTimeout(function () {
               var redirectUrl =
                 (response.data && response.data.redirect_url) ||
+                (paymentAction === "cta_create_subscription"
+                  ? ctaAjax.supervisionDashboardUrl
+                  : "") ||
                 (ctaAjax.isLoggedIn === "yes" ? ctaAjax.dashboardUrl : ctaAjax.loginUrl) ||
                 window.location.href;
+
+              if (
+                paymentAction === "cta_create_subscription" &&
+                response.data &&
+                response.data.redirect_url
+              ) {
+                redirectUrl = response.data.redirect_url;
+              } else if (
+                paymentAction === "cta_create_subscription" &&
+                ctaAjax.supervisionDashboardUrl
+              ) {
+                redirectUrl = ctaAjax.supervisionDashboardUrl;
+              }
+
+              if (redirectUrl && redirectUrl.indexOf("cta_paid=") === -1) {
+                redirectUrl +=
+                  (redirectUrl.indexOf("?") === -1 ? "?" : "&") +
+                  "subscription=success&cta_paid=1&_cta=" +
+                  Date.now();
+              }
+
               window.location.href = redirectUrl;
             }, 2500);
           }, 1800);
@@ -1940,6 +1964,25 @@
 
           if (response.success && response.data && response.data.checkout_url) {
             window.location.href = response.data.checkout_url;
+            return;
+          }
+
+          if (
+            response.success &&
+            action === "cta_create_subscription"
+          ) {
+            var dashUrl =
+              (response.data && response.data.redirect_url) ||
+              ctaAjax.supervisionDashboardUrl ||
+              ctaAjax.dashboardUrl ||
+              window.location.href;
+            if (dashUrl.indexOf("cta_paid=") === -1) {
+              dashUrl +=
+                (dashUrl.indexOf("?") === -1 ? "?" : "&") +
+                "subscription=success&cta_paid=1&_cta=" +
+                Date.now();
+            }
+            window.location.href = dashUrl;
             return;
           }
 
