@@ -790,13 +790,19 @@ class CTA_Student_Dashboard {
 	 * @return string
 	 */
 	private function get_courses_url() {
-		$page_id = absint( get_option( 'cta_courses_page_id', 0 ) );
+		$page_id       = absint( get_option( 'cta_courses_page_id', 0 ) );
+		$login_page_id = absint( get_option( 'cta_login_page_id', 0 ) );
+
+		// Never send users to the login page from a "browse courses" CTA.
+		if ( $page_id && $login_page_id && (int) $page_id === (int) $login_page_id ) {
+			$page_id = 0;
+		}
 
 		if ( ! $page_id && function_exists( 'cta_lms_find_page_id_by_shortcode' ) ) {
 			$page_id = cta_lms_find_page_id_by_shortcode( 'cta_course_catalog' );
 		}
 
-		if ( $page_id ) {
+		if ( $page_id && ( ! $login_page_id || (int) $page_id !== (int) $login_page_id ) ) {
 			$url = get_permalink( $page_id );
 
 			if ( $url ) {

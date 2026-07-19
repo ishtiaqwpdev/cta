@@ -116,7 +116,7 @@ $completed_count   = count( $completed );
 				<div class="cta-empty-state">
 					<h3><?php echo esc_html__( "You haven't enrolled in any courses yet", 'cta-lms' ); ?></h3>
 					<p><?php echo esc_html__( 'Browse our CE catalog to get started.', 'cta-lms' ); ?></p>
-					<a href="<?php echo esc_url( $courses_url ); ?>" class="btn btn-primary btn--lg cta-empty-state__cta">
+					<a href="<?php echo esc_url( ! empty( $home_url ) ? $home_url : home_url( '/' ) ); ?>" class="btn btn-primary btn--lg cta-empty-state__cta">
 						<?php echo esc_html__( 'View All Courses', 'cta-lms' ); ?>
 					</a>
 				</div>
