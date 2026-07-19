@@ -1,0 +1,141 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Arial;}{\f1 Arial;}}
+{\colortbl;\red0\green0\blue0;\red26\green55\blue94;}
+\paperw12240\paperh15840\margl1440\margr1440\margt1440\margb1440
+\f0\fs22
+
+{\b\fs32\cf2 CTA LMS \endash  Client Update}\par
+{\fs20 Date: July 17, 2026}\par
+{\fs20 Subject: New Associate Approval Workflow & Related Updates}\par
+\par
+Dear Client,\par
+\par
+Today we completed and deployed a full {\b Associate Pending Approval} workflow inside your existing CTA LMS plugin, along with related UX and design improvements. Below is a clear summary of what was built and how the workflow works end to end.\par
+\par
+
+{\b\fs26 1. What Was Delivered}\par
+\par
+{\b A. Associate Registration \endash  Agency Fields}\par
+When a user registers and selects {\b Associate}, three new required fields now appear:\par
+\bullet  Employer / Agency Name\par
+\bullet  Agency Representative Name\par
+\bullet  Agency Representative Email\par
+\par
+These fields appear {\b only for Associates}. Licensed Professional (CE-only) users do {\b not} see them.\par
+\par
+
+{\b B. Automatic \ldblquote Pending Approval\rdblquote  Status}\par
+When an Associate completes registration, their account is automatically set to {\b Pending Approval}.\par
+This status applies {\b only to Associates}. Licensed Professionals are not affected and continue as before.\par
+\par
+
+{\b C. Agency Representative Email + Documents}\par
+When an Associate registers with Pending Approval status, the system automatically emails the Agency Representative they entered on the form.\par
+\par
+The email includes both documents for signature:\par
+\bullet  Associate Intake & Regulatory Clearance Packet\par
+\bullet  CTA Employer Oversight Agreement\par
+\par
+
+{\b D. Access Locked Until Approved}\par
+Until CTA staff marks an Associate as {\b Approved}, that Associate {\b cannot} access:\par
+\bullet  Supervision booking / scheduling\par
+\bullet  Meeting / join session links\par
+\bullet  Supervision resources (documents & logs)\par
+\par
+These checks are applied across the system (not only on one page).\par
+\par
+
+{\b E. Admin Approvals Screen}\par
+A new menu was added under {\b CTA LMS \to Approvals}.\par
+\par
+Staff can review Associate registrations with:\par
+\bullet  Associate name & email\par
+\bullet  Employer / Agency details\par
+\bullet  Agency Representative name & email\par
+\bullet  Registration date\par
+\bullet  Review date (after decision)\par
+\bullet  Current status\par
+\par
+Tabs available:\par
+\bullet  {\b All} \endash  Pending + Approved\par
+\bullet  {\b Pending} \endash  waiting for review\par
+\bullet  {\b Approved} \endash  approved Associates remain listed\par
+\par
+{\b Approve} = status becomes Approved and supervision access is unlocked.\par
+{\b Reject} = access stays locked, and the Associate is {\b removed from this list} (rejected records are not shown).\par
+{\b Revoke} (on an Approved Associate) = locks access again and removes them from the visible Approved list.\par
+\par
+
+{\b\fs26 2. Complete Workflow (Step by Step)}\par
+\par
+{\b Step 1 \endash  Associate Signs Up}\par
+User chooses Associate account type \to fills agency fields \to submits registration.\par
+\par
+{\b Step 2 \endash  System Sets Pending Approval}\par
+Account is created with status {\b Pending Approval}.\par
+Supervision booking, meeting links, and resources stay locked.\par
+\par
+{\b Step 3 \endash  Agency Representative Is Notified}\par
+System emails the Agency Representative with both required PDF documents for signature.\par
+\par
+{\b Step 4 \endash  CTA Staff Reviews in Admin}\par
+Staff opens {\b CTA LMS \to Approvals} and reviews the pending Associate.\par
+\par
+{\b Step 5A \endash  Approve}\par
+Staff clicks {\b Approve}.\par
+\bullet  Status changes to Approved\par
+\bullet  Associate remains visible under Approved\par
+\bullet  Booking, meeting links, and supervision resources unlock\par
+\par
+{\b Step 5B \endash  Reject}\par
+Staff clicks {\b Reject}.\par
+\bullet  Status changes to Rejected\par
+\bullet  Access remains locked\par
+\bullet  Associate is removed from the Approvals list\par
+\par
+
+{\b\fs26 3. Additional Fixes & Improvements Delivered Today}\par
+\par
+{\b Go to Dashboard button}\par
+Fixed so clients are taken to their {\b frontend dashboard} (CE / Supervision), not the WordPress admin dashboard.\par
+\par
+{\b Login & Dashboard chrome}\par
+Header and footer are now hidden on login and dashboard pages for a cleaner client experience.\par
+\par
+{\b Signup / approval email delivery}\par
+Fixed issues that could prevent signup-related emails from sending correctly (including when HTML emails include attachments).\par
+\par
+{\b Approve button reliability}\par
+Admin Approve / Reject actions were strengthened so status updates work reliably.\par
+\par
+{\b Typography update (plugin-wide)}\par
+Applied consistent branding fonts across the plugin:\par
+\bullet  Headings: {\b Playfair Display} (Bold 700)\par
+\bullet  Body / forms / buttons: {\b Montserrat} (Regular 400+)\par
+\par
+Applied on frontend pages, forms, dashboards, admin screens, emails, and design templates.\par
+\par
+
+{\b\fs26 4. How Staff Should Use This Daily}\par
+\par
+1. Open {\b WordPress Admin \to CTA LMS \to Approvals}.\par
+2. Check the {\b Pending} tab for new Associate signups.\par
+3. Confirm agency details and that the Agency Representative received the documents.\par
+4. Click {\b Approve} to unlock supervision access, or {\b Reject} to keep the account locked and clear it from the list.\par
+5. Use the {\b Approved} tab anytime to review who currently has access.\par
+\par
+
+{\b\fs26 5. Notes}\par
+\par
+\bullet  Licensed Professionals are unchanged by this approval workflow.\par
+\bullet  Older Associate accounts created before this feature (with no approval status) continue to work as approved for compatibility.\par
+\bullet  Please replace placeholder agency PDF files with your final official documents when ready.\par
+\bullet  After updating the plugin on the live site, hard-refresh the browser (Ctrl+F5) so new styles/fonts load correctly.\par
+\par
+
+Thank you.\par
+Please review the workflow on the live site and let us know if any wording, email copy, or document attachments need adjustment.\par
+\par
+{\i CTA LMS Development Update \endash  July 17, 2026}\par
+}
