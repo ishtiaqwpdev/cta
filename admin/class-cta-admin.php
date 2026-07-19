@@ -415,29 +415,61 @@ class CTA_Admin {
 
 		$by_user = array();
 
-		// Registered Associates awaiting review (or already reviewed).
+		// All Registered Associates (purchase optional — registration alone can be Pending Approval).
 		$associate_query = new WP_User_Query(
 			array(
-				'role'       => 'cta_associate',
-				'number'     => 500,
-				'orderby'    => 'registered',
-				'order'      => 'DESC',
-				'meta_query' => array(
-					array(
-						'key'     => 'cta_approval_status',
-						'value'   => array(
-							CTA_Associate_Access::STATUS_PENDING,
-							CTA_Associate_Access::STATUS_APPROVED,
-							CTA_Associate_Access::STATUS_REJECTED,
-						),
-						'compare' => 'IN',
-					),
-				),
+				'role'    => 'cta_associate',
+				'number'  => 500,
+				'orderby' => 'registered',
+				'order'   => 'DESC',
 			)
 		);
 
 		foreach ( (array) $associate_query->get_results() as $user ) {
 			$by_user[ (int) $user->ID ] = $this->build_approval_record( $user, null );
+		}
+
+		// Also catch anyone flagged pending/rejected/approved via meta even if role lookup missed them.
+		$meta_statuses = array(
+			CTA_Associate_Access::STATUS_PENDING,
+			CTA_Associate_Access::STATUS_APPROVED,
+			CTA_Associate_Access::STATUS_REJECTED,
+		);
+
+		foreach ( $meta_statuses as $meta_status ) {
+			$meta_query = new WP_User_Query(
+				array(
+					'number'     => 500,
+					'fields'     => 'all',
+					'meta_key'   => 'cta_approval_status',
+					'meta_value' => $meta_status,
+				)
+			);
+
+			foreach ( (array) $meta_query->get_results() as $user ) {
+				$user_id = (int) $user->ID;
+				if ( isset( $by_user[ $user_id ] ) ) {
+					continue;
+				}
+				$by_user[ $user_id ] = $this->build_approval_record( $user, null );
+			}
+		}
+
+		// Pending supervision plan without a completed payment row yet.
+		$pending_plan_users = new WP_User_Query(
+			array(
+				'number'     => 500,
+				'meta_key'   => 'cta_supervision_status',
+				'meta_value' => 'pending_approval',
+			)
+		);
+
+		foreach ( (array) $pending_plan_users->get_results() as $user ) {
+			$user_id = (int) $user->ID;
+			if ( isset( $by_user[ $user_id ] ) ) {
+				continue;
+			}
+			$by_user[ $user_id ] = $this->build_approval_record( $user, null );
 		}
 
 		// Completed supervision / hybrid purchases (may overlap associates above).
@@ -448,7 +480,7 @@ class CTA_Admin {
 			INNER JOIN (
 				SELECT user_id, MAX(id) AS latest_id
 				FROM {$table}
-				WHERE status = 'completed'
+				WHERE status IN ('completed', 'pending')
 				AND (
 					product_type = 'supervision'
 					OR (
@@ -456,6 +488,7 @@ class CTA_Admin {
 						AND (
 							plan_details LIKE '%\"plan_slug\":\"hybrid\"%'
 							OR plan_name LIKE '%Hybrid%'
+							OR plan_name LIKE '%Supervision%'
 						)
 					)
 				)
@@ -516,9 +549,17 @@ class CTA_Admin {
 			true
 		) ) {
 			$supervision_status = (string) get_user_meta( $user->ID, 'cta_supervision_status', true );
-			$approval_status    = 'active' === $supervision_status
-				? CTA_Associate_Access::STATUS_APPROVED
-				: CTA_Associate_Access::STATUS_PENDING;
+
+			if ( 'pending_approval' === $supervision_status || 'rejected' === $supervision_status ) {
+				$approval_status = 'rejected' === $supervision_status
+					? CTA_Associate_Access::STATUS_REJECTED
+					: CTA_Associate_Access::STATUS_PENDING;
+			} elseif ( 'active' === $supervision_status || '' === $approval_status ) {
+				// Legacy associates with no approval meta are treated as approved.
+				$approval_status = CTA_Associate_Access::STATUS_APPROVED;
+			} else {
+				$approval_status = CTA_Associate_Access::STATUS_PENDING;
+			}
 		}
 
 		$plan_details = array();
