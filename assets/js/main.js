@@ -3007,6 +3007,78 @@
       });
     });
 
+    function fetchAuthNonce(kind) {
+      var deferred = $.Deferred();
+
+      if (typeof ctaAjax === "undefined" || !ctaAjax.ajaxUrl) {
+        deferred.reject();
+        return deferred.promise();
+      }
+
+      $.post(ctaAjax.ajaxUrl, { action: "cta_auth_nonce" })
+        .done(function (response) {
+          if (
+            response &&
+            response.success &&
+            response.data &&
+            ((kind === "login" && response.data.login_nonce) ||
+              (kind === "register" && response.data.register_nonce))
+          ) {
+            deferred.resolve(
+              kind === "login"
+                ? response.data.login_nonce
+                : response.data.register_nonce
+            );
+            return;
+          }
+          deferred.reject();
+        })
+        .fail(function () {
+          deferred.reject();
+        });
+
+      return deferred.promise();
+    }
+
+    function resolveAuthNonce(kind, fallbackNonce) {
+      var deferred = $.Deferred();
+
+      fetchAuthNonce(kind)
+        .done(function (freshNonce) {
+          deferred.resolve(freshNonce || fallbackNonce || "");
+        })
+        .fail(function () {
+          deferred.resolve(fallbackNonce || "");
+        });
+
+      return deferred.promise();
+    }
+
+    function authFailMessage(xhr) {
+      var fallback = "Something went wrong. Please try again.";
+
+      if (!xhr) {
+        return fallback;
+      }
+
+      if (xhr.status === 0) {
+        return "Network error. Please check your connection and try again.";
+      }
+
+      try {
+        var parsed = xhr.responseJSON || JSON.parse(xhr.responseText || "");
+        if (parsed && parsed.data && parsed.data.message) {
+          return parsed.data.message;
+        }
+      } catch (e) {}
+
+      if (xhr.responseText === "0" || xhr.responseText === "-1") {
+        return "Your session expired. Please refresh the page and try again.";
+      }
+
+      return fallback;
+    }
+
     if (loginBtn && loginForm) {
       loginBtn.addEventListener("click", function (e) {
         e.preventDefault();
@@ -3020,21 +3092,22 @@
         var email = loginForm.querySelector('[name="cta_email"]').value.trim();
         var password = loginForm.querySelector('[name="cta_password"]').value;
         var nonceField = loginForm.querySelector('[name="cta_login_nonce"]');
+        var fallbackNonce = nonceField ? nonceField.value : "";
 
         loginBtn.textContent = "Logging in...";
         loginBtn.disabled = true;
 
-        $.post(
-          ctaAjax.ajaxUrl,
-          {
-            action: "cta_login",
-            nonce: nonceField ? nonceField.value : "",
-            email: email,
-            password: password
-          }
-        )
+        resolveAuthNonce("login", fallbackNonce)
+          .then(function (nonce) {
+            return $.post(ctaAjax.ajaxUrl, {
+              action: "cta_login",
+              nonce: nonce,
+              email: email,
+              password: password
+            });
+          })
           .done(function (response) {
-            if (response.success) {
+            if (response && response.success) {
               showMessage(
                 loginError,
                 response.data && response.data.message
@@ -3054,7 +3127,7 @@
 
             showMessage(
               loginError,
-              response.data && response.data.message
+              response && response.data && response.data.message
                 ? response.data.message
                 : "Login failed. Please try again.",
               false
@@ -3062,8 +3135,8 @@
             loginBtn.textContent = loginBtnText;
             loginBtn.disabled = false;
           })
-          .fail(function () {
-            showMessage(loginError, "Something went wrong. Please try again.", false);
+          .fail(function (xhr) {
+            showMessage(loginError, authFailMessage(xhr), false);
             loginBtn.textContent = loginBtnText;
             loginBtn.disabled = false;
           });
@@ -3171,9 +3244,10 @@
         registerBtn.textContent = "Creating account...";
         registerBtn.disabled = true;
 
-        var registerPayload = {
+        var fallbackNonce = nonceField ? nonceField.value : "";
+
+        var registerPayloadBase = {
           action: "cta_register",
-          nonce: nonceField ? nonceField.value : "",
           fullname: fullname,
           email: email,
           password: password,
@@ -3182,17 +3256,20 @@
         };
 
         if (userType === "cta_associate") {
-          registerPayload.employer_agency_name = employerAgencyName;
-          registerPayload.agency_representative_name = agencyRepName;
-          registerPayload.agency_representative_email = agencyRepEmail;
+          registerPayloadBase.employer_agency_name = employerAgencyName;
+          registerPayloadBase.agency_representative_name = agencyRepName;
+          registerPayloadBase.agency_representative_email = agencyRepEmail;
         }
 
-        $.post(
-          ctaAjax.ajaxUrl,
-          registerPayload
-        )
+        resolveAuthNonce("register", fallbackNonce)
+          .then(function (nonce) {
+            return $.post(
+              ctaAjax.ajaxUrl,
+              $.extend({}, registerPayloadBase, { nonce: nonce })
+            );
+          })
           .done(function (response) {
-            if (response.success) {
+            if (response && response.success) {
               showMessage(
                 registerSuccess,
                 response.data && response.data.message
@@ -3212,7 +3289,7 @@
 
             showMessage(
               registerError,
-              response.data && response.data.message
+              response && response.data && response.data.message
                 ? response.data.message
                 : "Registration failed. Please try again.",
               false
@@ -3220,8 +3297,8 @@
             registerBtn.textContent = registerBtnText;
             registerBtn.disabled = false;
           })
-          .fail(function () {
-            showMessage(registerError, "Something went wrong. Please try again.", false);
+          .fail(function (xhr) {
+            showMessage(registerError, authFailMessage(xhr), false);
             registerBtn.textContent = registerBtnText;
             registerBtn.disabled = false;
           });

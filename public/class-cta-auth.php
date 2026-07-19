@@ -26,7 +26,57 @@ class CTA_Auth {
 		add_action( 'wp_ajax_cta_register', array( $this, 'handle_register' ) );
 		add_action( 'wp_ajax_nopriv_cta_register', array( $this, 'handle_register' ) );
 
+		add_action( 'wp_ajax_cta_auth_nonce', array( $this, 'handle_auth_nonce' ) );
+		add_action( 'wp_ajax_nopriv_cta_auth_nonce', array( $this, 'handle_auth_nonce' ) );
+
+		add_action( 'template_redirect', array( $this, 'nocache_login_page' ) );
+
 		add_shortcode( 'cta_login_form', array( $this, 'render_login_form' ) );
+	}
+
+	/**
+	 * Prevent page/object caches from serving stale auth nonces.
+	 */
+	public function nocache_login_page() {
+		if ( ! class_exists( 'CTA_Loader' ) || ! CTA_Loader::is_login_page() ) {
+			return;
+		}
+
+		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+			define( 'DONOTCACHEPAGE', true );
+		}
+
+		nocache_headers();
+	}
+
+	/**
+	 * Return fresh login/register nonces (bypasses cached page HTML).
+	 */
+	public function handle_auth_nonce() {
+		wp_send_json_success(
+			array(
+				'login_nonce'    => wp_create_nonce( 'cta_login_action' ),
+				'register_nonce' => wp_create_nonce( 'cta_register_action' ),
+			)
+		);
+	}
+
+	/**
+	 * Verify auth nonce without dying (so the UI gets a JSON error).
+	 *
+	 * @param string $action Nonce action.
+	 */
+	private function verify_auth_nonce( $action ) {
+		$nonce = sanitize_text_field( wp_unslash( $_REQUEST['nonce'] ?? '' ) );
+
+		if ( ! $nonce || ! wp_verify_nonce( $nonce, $action ) ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'Your session expired. Please refresh the page and try again.', 'cta-lms' ),
+					'code'    => 'invalid_nonce',
+				)
+			);
+		}
 	}
 
 	/**
@@ -59,7 +109,7 @@ class CTA_Auth {
 	 * Handle login AJAX request.
 	 */
 	public function handle_login() {
-		check_ajax_referer( 'cta_login_action', 'nonce' );
+		$this->verify_auth_nonce( 'cta_login_action' );
 
 		$email    = sanitize_email( wp_unslash( $_POST['email'] ?? '' ) );
 		$password = wp_unslash( $_POST['password'] ?? '' );
@@ -112,7 +162,7 @@ class CTA_Auth {
 	 * Handle registration AJAX request.
 	 */
 	public function handle_register() {
-		check_ajax_referer( 'cta_register_action', 'nonce' );
+		$this->verify_auth_nonce( 'cta_register_action' );
 
 		$fullname  = sanitize_text_field( wp_unslash( $_POST['fullname'] ?? '' ) );
 		$email     = sanitize_email( wp_unslash( $_POST['email'] ?? '' ) );
@@ -120,14 +170,22 @@ class CTA_Auth {
 		$confirm   = wp_unslash( $_POST['confirm_password'] ?? '' );
 		$user_type = sanitize_text_field( wp_unslash( $_POST['user_type'] ?? '' ) );
 
-		$employer_agency_name         = sanitize_text_field( wp_unslash( $_POST['employer_agency_name'] ?? '' ) );
-		$agency_representative_name   = sanitize_text_field( wp_unslash( $_POST['agency_representative_name'] ?? '' ) );
-		$agency_representative_email  = sanitize_email( wp_unslash( $_POST['agency_representative_email'] ?? '' ) );
+		$employer_agency_name        = sanitize_text_field( wp_unslash( $_POST['employer_agency_name'] ?? '' ) );
+		$agency_representative_name  = sanitize_text_field( wp_unslash( $_POST['agency_representative_name'] ?? '' ) );
+		$agency_representative_email = sanitize_email( wp_unslash( $_POST['agency_representative_email'] ?? '' ) );
 
 		if ( empty( $fullname ) || empty( $email ) || empty( $password ) || empty( $user_type ) ) {
 			wp_send_json_error(
 				array(
 					'message' => __( 'Please fill in all required fields.', 'cta-lms' ),
+				)
+			);
+		}
+
+		if ( ! is_email( $email ) ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'Please enter a valid email address.', 'cta-lms' ),
 				)
 			);
 		}
@@ -191,7 +249,11 @@ class CTA_Auth {
 			);
 		}
 
-		$username = sanitize_user( strstr( $email, '@', true ), true );
+		$username = sanitize_user( (string) strstr( $email, '@', true ), true );
+
+		if ( '' === $username ) {
+			$username = 'cta_user_' . time();
+		}
 
 		if ( username_exists( $username ) ) {
 			$username = $username . '_' . time();
@@ -202,7 +264,9 @@ class CTA_Auth {
 		if ( is_wp_error( $user_id ) ) {
 			wp_send_json_error(
 				array(
-					'message' => __( 'Registration failed. Please try again.', 'cta-lms' ),
+					'message' => $user_id->get_error_message()
+						? $user_id->get_error_message()
+						: __( 'Registration failed. Please try again.', 'cta-lms' ),
 				)
 			);
 		}
@@ -213,6 +277,10 @@ class CTA_Auth {
 				'display_name' => $fullname,
 			)
 		);
+
+		if ( class_exists( 'CTA_Roles' ) ) {
+			CTA_Roles::create_roles();
+		}
 
 		$user_obj = new WP_User( $user_id );
 		$user_obj->set_role( $user_type );
@@ -228,24 +296,32 @@ class CTA_Auth {
 		clean_user_cache( $user_id );
 		$user = get_user_by( 'id', $user_id );
 
-		CTA_Emails::send( 'welcome', $user_id );
+		// Never let email delivery break account creation / JSON response.
+		try {
+			CTA_Emails::send( 'welcome', $user_id );
 
-		if ( 'cta_associate' === $user_type ) {
-			CTA_Emails::send(
-				'agency_representative_approval',
-				$user_id,
-				array(
-					'employer_agency_name'        => $employer_agency_name,
-					'agency_representative_name'  => $agency_representative_name,
-					'agency_representative_email' => $agency_representative_email,
-				)
-			);
+			if ( 'cta_associate' === $user_type ) {
+				CTA_Emails::send(
+					'agency_representative_approval',
+					$user_id,
+					array(
+						'employer_agency_name'        => $employer_agency_name,
+						'agency_representative_name'  => $agency_representative_name,
+						'agency_representative_email' => $agency_representative_email,
+					)
+				);
+			}
+		} catch ( Exception $e ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+				error_log( 'CTA_Auth: registration email failed — ' . $e->getMessage() );
+			}
 		}
 
 		wp_set_current_user( $user_id );
-		wp_set_auth_cookie( $user_id );
+		wp_set_auth_cookie( $user_id, true );
 
-		$redirect_url = $this->get_dashboard_url( $user );
+		$redirect_url = $this->get_dashboard_url( $user ? $user : $user_obj );
 
 		wp_send_json_success(
 			array(
