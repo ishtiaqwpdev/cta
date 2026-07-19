@@ -50,32 +50,37 @@ class CTA_Supervision {
 
 		if ( $is_logged_in ) {
 			$user_id     = get_current_user_id();
-			$meta_status = (string) get_user_meta( $user_id, 'cta_supervision_status', true );
+			$meta_status = CTA_Associate_Access::get_supervision_status( $user_id );
 
-			if ( ! CTA_Associate_Access::can_access_booking( $user_id ) ) {
-				$user_status = 'pending_approval';
-			} elseif ( 'active' === $meta_status ) {
-				$user_status = 'active';
-			} elseif ( 'locked' === $meta_status ) {
-				$user_status = 'locked';
+			if ( ! CTA_Associate_Access::can_access_supervision_features( $user_id ) ) {
+				if ( CTA_Associate_Access::is_supervision_pending( $user_id ) || 'pending_approval' === $meta_status ) {
+					$user_status = 'pending_approval';
+				} elseif ( 'locked' === $meta_status || 'past_due' === $meta_status ) {
+					$user_status = 'locked';
+				} else {
+					$user_status = 'inactive';
+				}
 			} else {
-				$user_status = 'inactive';
+				$user_status = 'active';
 			}
 
-			$bookings = $wpdb->get_results(
-				$wpdb->prepare(
-					"SELECT session_date, session_time, session_type, id
-					FROM {$wpdb->prefix}cta_bookings
-					WHERE user_id = %d
-					AND status = 'confirmed'
-					AND session_date >= CURDATE()",
-					$user_id
-				)
-			);
+			// Only expose existing bookings once supervision access is fully approved.
+			if ( 'active' === $user_status ) {
+				$bookings = $wpdb->get_results(
+					$wpdb->prepare(
+						"SELECT session_date, session_time, session_type, id
+						FROM {$wpdb->prefix}cta_bookings
+						WHERE user_id = %d
+						AND status = 'confirmed'
+						AND session_date >= CURDATE()",
+						$user_id
+					)
+				);
 
-			foreach ( $bookings as $booking ) {
-				$key = $this->get_session_key( $booking->session_date, $booking->session_time, $booking->session_type );
-				$user_bookings[ $key ] = (int) $booking->id;
+				foreach ( $bookings as $booking ) {
+					$key = $this->get_session_key( $booking->session_date, $booking->session_time, $booking->session_type );
+					$user_bookings[ $key ] = (int) $booking->id;
+				}
 			}
 		}
 
@@ -102,6 +107,8 @@ class CTA_Supervision {
 		$monthly_price       = $stripe ? $stripe->get_supervision_monthly_price() : (float) get_option( 'cta_supervision_monthly_price', 260.0 );
 		$individual_price    = (float) get_option( 'cta_individual_session_price', 120.0 );
 		$login_url           = $this->get_login_url();
+		$register_url        = CTA_Associate_Access::get_associate_registration_url();
+		$can_purchase_supervision = ! $is_logged_in || CTA_Associate_Access::can_purchase_supervision();
 		$calendar_month      = gmdate( 'Y-m-01' );
 		$session_dates       = array();
 
@@ -133,20 +140,15 @@ class CTA_Supervision {
 
 		$user_id = get_current_user_id();
 
-		if ( ! CTA_Associate_Access::can_access_booking( $user_id ) ) {
-			wp_send_json_error(
-				array(
-					'message' => CTA_Associate_Access::get_pending_message(),
-				)
-			);
-		}
+		CTA_Associate_Access::require_supervision_access( $user_id );
 
 		$status = (string) get_user_meta( $user_id, 'cta_supervision_status', true );
 
 		if ( 'active' !== $status ) {
 			wp_send_json_error(
 				array(
-					'message' => __( 'An active supervision subscription is required to book sessions.', 'cta-lms' ),
+					'message' => CTA_Associate_Access::get_pending_message(),
+					'code'    => 'supervision_pending_approval',
 				)
 			);
 		}
@@ -329,6 +331,8 @@ class CTA_Supervision {
 
 		$booking_id = absint( wp_unslash( $_POST['booking_id'] ?? 0 ) );
 		$user_id    = get_current_user_id();
+
+		CTA_Associate_Access::require_supervision_access( $user_id );
 
 		if ( ! $booking_id ) {
 			wp_send_json_error(

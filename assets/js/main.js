@@ -520,6 +520,48 @@
   }
 
   /**
+   * Refresh an open Pending Approval dashboard as soon as an admin approves it.
+   */
+  function initCtaSupervisionApprovalWatcher() {
+    var pending = document.querySelector(
+      ".cta-supervision-dashboard .cta-supervision-pending-approval"
+    );
+
+    if (!pending || typeof jQuery === "undefined" || typeof ctaAjax === "undefined") {
+      return;
+    }
+
+    var stopped = false;
+
+    function checkAccess() {
+      if (stopped) return;
+
+      jQuery
+        .post(ctaAjax.ajaxUrl, {
+          action: "cta_get_supervision_access_status",
+          nonce: ctaAjax.nonce
+        })
+        .done(function (response) {
+          if (
+            response.success &&
+            response.data &&
+            response.data.access_granted
+          ) {
+            stopped = true;
+            window.location.reload();
+          }
+        })
+        .always(function () {
+          if (!stopped) {
+            window.setTimeout(checkAccess, 5000);
+          }
+        });
+    }
+
+    window.setTimeout(checkAccess, 2000);
+  }
+
+  /**
    * Mobile menu toggle
    * Toggles .site-header__nav visibility and hamburger animation
    */
@@ -1902,11 +1944,27 @@
           }
 
           if (!response.success) {
-            window.alert(
+            var errorMessage =
               response.data && response.data.message
                 ? response.data.message
-                : "Something went wrong."
-            );
+                : "Something went wrong.";
+            var registerUrl =
+              response.data && response.data.register_url
+                ? response.data.register_url
+                : "";
+
+            if (
+              response.data &&
+              response.data.code === "associate_required" &&
+              registerUrl
+            ) {
+              if (window.confirm(errorMessage + "\n\nGo to Associate registration?")) {
+                window.location.href = registerUrl;
+              }
+              return;
+            }
+
+            window.alert(errorMessage);
           }
         },
         error: function () {
@@ -3005,6 +3063,17 @@
       toggleAssociateFields();
     }
 
+    try {
+      var authParams = new URLSearchParams(window.location.search);
+      if (authParams.get("cta_auth") === "register") {
+        toggleAuthForm("register");
+        if (userTypeSelect) {
+          userTypeSelect.value = "cta_associate";
+          toggleAssociateFields();
+        }
+      }
+    } catch (e) {}
+
     if (registerBtn && registerForm) {
       registerBtn.addEventListener("click", function (e) {
         e.preventDefault();
@@ -3316,6 +3385,7 @@
     initCtaDashboardSettings();
     initCtaCertificateDownload();
     initCtaSupervisionDashboard();
+    initCtaSupervisionApprovalWatcher();
     initCtaBundlePurchase();
     initAuthForms();
     initDashboardUser();

@@ -69,6 +69,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 						)
 					);
 					$supervision_status = (string) get_user_meta( $user->ID, 'cta_supervision_status', true );
+					$supervision_label  = $supervision_status
+						? ( 'pending_approval' === $supervision_status
+							? __( 'Pending Approval', 'cta-lms' )
+							: ucwords( str_replace( '_', ' ', $supervision_status ) ) )
+						: '—';
 					?>
 					<tr>
 						<td><strong><?php echo esc_html( $user->display_name ); ?></strong></td>
@@ -76,7 +81,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 						<td><?php echo esc_html( $role_label ); ?></td>
 						<td><?php echo esc_html( wp_date( 'M j, Y', strtotime( $user->user_registered ) ) ); ?></td>
 						<td><?php echo esc_html( (string) $enrolled_count ); ?></td>
-						<td><?php echo esc_html( $supervision_status ? ucfirst( $supervision_status ) : '—' ); ?></td>
+						<td><?php echo esc_html( $supervision_label ); ?></td>
 						<td class="cta-table-actions">
 							<a class="button button-small" href="<?php echo esc_url( get_edit_user_link( $user->ID ) ); ?>"><?php esc_html_e( 'View Profile', 'cta-lms' ); ?></a>
 							<button type="button" class="button button-small cta-view-user-stats" data-user-id="<?php echo esc_attr( $user->ID ); ?>"><?php esc_html_e( 'Stats', 'cta-lms' ); ?></button>

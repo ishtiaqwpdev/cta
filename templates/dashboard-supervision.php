@@ -6,6 +6,9 @@
  *
  * @var bool   $is_active
  * @var bool   $is_locked
+ * @var bool   $is_pending_plan
+ * @var bool   $has_supervision_purchase
+ * @var bool   $can_access_supervision
  * @var bool   $no_plan
  * @var bool   $is_pending_approval
  * @var bool   $can_access_booking
@@ -15,6 +18,9 @@
  * @var string $supervision_status
  * @var string $supervision_plan
  * @var string $plan_label
+ * @var string $onboarding_status_label
+ * @var string $onboarding_status_class
+ * @var string $onboarding_message
  * @var string $associate_number
  * @var array  $upcoming_sessions
  * @var array  $session_history
@@ -43,19 +49,7 @@ $document_count     = count( $documents );
 <div class="cta-plugin-wrapper">
 <div class="cta-lms cta-supervision-dashboard dashboard-layout" data-dashboard data-dashboard-user="<?php echo esc_attr( wp_json_encode( $dashboard_user ) ); ?>">
 
-	<?php if ( ! empty( $is_pending_approval ) ) : ?>
-		<div class="dashboard-main dashboard-main--full">
-			<?php if ( ! empty( $home_url ) ) : ?>
-				<p class="dashboard-home-link"><a href="<?php echo esc_url( $home_url ); ?>">&larr; <?php echo esc_html__( 'Back to Home', 'cta-lms' ); ?></a></p>
-			<?php endif; ?>
-			<div class="cta-empty-state cta-supervision-pending-approval">
-				<h1><?php echo esc_html__( 'Account pending approval', 'cta-lms' ); ?></h1>
-				<p><?php echo esc_html( $pending_approval_message ); ?></p>
-				<p><?php echo esc_html__( 'You will gain access to session booking, meeting links, and supervision resources after your agency documents are approved.', 'cta-lms' ); ?></p>
-			</div>
-		</div>
-
-	<?php elseif ( $no_plan ) : ?>
+	<?php if ( $no_plan && empty( $is_pending_approval ) ) : ?>
 		<div class="dashboard-main dashboard-main--full">
 			<?php if ( ! empty( $home_url ) ) : ?>
 				<p class="dashboard-home-link"><a href="<?php echo esc_url( $home_url ); ?>">&larr; <?php echo esc_html__( 'Back to Home', 'cta-lms' ); ?></a></p>
@@ -94,7 +88,7 @@ $document_count     = count( $documents );
 			</div>
 		</div>
 
-	<?php elseif ( $is_locked ) : ?>
+	<?php elseif ( $is_locked && empty( $is_pending_approval ) ) : ?>
 		<div class="dashboard-main dashboard-main--full">
 			<?php if ( ! empty( $home_url ) ) : ?>
 				<p class="dashboard-home-link"><a href="<?php echo esc_url( $home_url ); ?>">&larr; <?php echo esc_html__( 'Back to Home', 'cta-lms' ); ?></a></p>
@@ -116,6 +110,24 @@ $document_count     = count( $documents );
 					</div>
 				</div>
 			</div>
+			<?php if ( ! empty( $has_supervision_purchase ) ) : ?>
+				<?php include CTA_PLUGIN_DIR . 'templates/partials/supervision-onboarding-status.php'; ?>
+			<?php endif; ?>
+		</div>
+
+	<?php elseif ( empty( $can_access_supervision ) ) : ?>
+		<div class="dashboard-main dashboard-main--full">
+			<?php if ( ! empty( $home_url ) ) : ?>
+				<p class="dashboard-home-link"><a href="<?php echo esc_url( $home_url ); ?>">&larr; <?php echo esc_html__( 'Back to Home', 'cta-lms' ); ?></a></p>
+			<?php endif; ?>
+			<div class="cta-empty-state cta-supervision-pending-approval">
+				<h1><?php echo esc_html__( 'Pending Approval', 'cta-lms' ); ?></h1>
+				<p><?php echo esc_html( $pending_approval_message ); ?></p>
+				<p><?php echo esc_html__( 'Supervision dashboard features, session booking, and materials stay locked until your application is approved.', 'cta-lms' ); ?></p>
+			</div>
+			<?php if ( ! empty( $has_supervision_purchase ) ) : ?>
+				<?php include CTA_PLUGIN_DIR . 'templates/partials/supervision-onboarding-status.php'; ?>
+			<?php endif; ?>
 		</div>
 
 	<?php else : ?>
@@ -193,6 +205,10 @@ $document_count     = count( $documents );
 						</span>
 					</div>
 				</header>
+
+				<?php if ( ! empty( $has_supervision_purchase ) ) : ?>
+					<?php include CTA_PLUGIN_DIR . 'templates/partials/supervision-onboarding-status.php'; ?>
+				<?php endif; ?>
 
 				<section class="dashboard-section" aria-labelledby="subscription-status-title">
 					<h2 class="dashboard-section__title" id="subscription-status-title"><?php echo esc_html__( 'Subscription Status', 'cta-lms' ); ?></h2>

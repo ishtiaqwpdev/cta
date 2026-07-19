@@ -163,6 +163,12 @@ if ( $page_id ) {
 							</div>
 
 							<div class="cta-pricing-card__footer pricing-card__cta">
+								<?php
+								$requires_associate = ( 'subscription' === $bundle->plan_type )
+									|| false !== stripos( (string) $bundle->slug, 'supervision' )
+									|| false !== stripos( (string) $bundle->slug, 'hybrid' )
+									|| false !== stripos( (string) $bundle->name, 'supervision' );
+								?>
 								<?php if ( $is_owned ) : ?>
 									<button type="button" class="btn btn-primary btn--full" disabled>
 										<?php echo esc_html__( 'Already Purchased', 'cta-lms' ); ?>
@@ -170,6 +176,11 @@ if ( $page_id ) {
 								<?php elseif ( ! is_user_logged_in() ) : ?>
 									<a href="<?php echo esc_url( $login_url ); ?>" class="btn btn-primary btn--full">
 										<?php echo esc_html__( 'Log In to Purchase', 'cta-lms' ); ?>
+									</a>
+								<?php elseif ( $requires_associate && empty( $can_purchase_supervision ) ) : ?>
+									<p class="pricing-card__note"><?php echo esc_html( $associate_required_message ); ?></p>
+									<a href="<?php echo esc_url( $register_url ); ?>" class="btn btn-primary btn--full">
+										<?php echo esc_html__( 'Register as Associate', 'cta-lms' ); ?>
 									</a>
 								<?php else : ?>
 									<button

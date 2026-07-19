@@ -4324,6 +4324,14 @@ button.pagination__item:disabled {
   margin-bottom: var(--space-lg);
 }
 
+.cta-plugin-wrapper .service-card__note,
+.cta-plugin-wrapper .pricing-card__note {
+  margin: 0 0 var(--space-md);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+  color: var(--color-text-gray);
+}
+
 .cta-plugin-wrapper .service-card__features {
   flex: 1;
   margin-bottom: var(--space-xl);

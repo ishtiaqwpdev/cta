@@ -127,6 +127,8 @@ class CTA_Database {
   payment_type varchar(20) DEFAULT NULL,
   product_type varchar(20) DEFAULT NULL,
   product_id bigint(20) unsigned DEFAULT NULL,
+  plan_name varchar(255) DEFAULT NULL,
+  plan_details longtext,
   status varchar(20) DEFAULT 'pending',
   created_at datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY  (id),
@@ -391,6 +393,50 @@ class CTA_Database {
 				array( '%s', '%s', '%s', '%s', '%f', '%s', '%s', '%d', '%d' )
 			);
 		}
+	}
+
+	/**
+	 * Fetch the latest supervision payment for a user.
+	 *
+	 * @param int         $user_id WordPress user ID.
+	 * @param string|null $status  Optional payment status filter.
+	 * @return object|null
+	 */
+	public static function get_user_supervision_payment( $user_id, $status = null ) {
+		global $wpdb;
+
+		$table   = $wpdb->prefix . 'cta_payments';
+		$user_id = absint( $user_id );
+
+		if ( ! $user_id ) {
+			return null;
+		}
+
+		if ( $status ) {
+			return $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT * FROM {$table}
+					WHERE user_id = %d
+					AND product_type = 'supervision'
+					AND status = %s
+					ORDER BY created_at DESC, id DESC
+					LIMIT 1",
+					$user_id,
+					sanitize_text_field( $status )
+				)
+			);
+		}
+
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM {$table}
+				WHERE user_id = %d
+				AND product_type = 'supervision'
+				ORDER BY created_at DESC, id DESC
+				LIMIT 1",
+				$user_id
+			)
+		);
 	}
 
 	/**

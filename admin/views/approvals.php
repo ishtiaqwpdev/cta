@@ -1,46 +1,48 @@
 <?php
 /**
- * Admin Associate approvals view (pending + approved only).
+ * Admin supervision purchase approvals.
  *
  * @package CTA_LMS
  *
- * @var WP_User[] $associates     Associates matching the current filter.
- * @var string    $current_status Filter: all|pending_approval|approved.
- * @var array     $status_counts  Counts keyed by status.
+ * @var array  $purchase_records Supervision purchase/user records.
+ * @var string $current_status   Filter: all|pending_approval|approved|rejected.
+ * @var array  $status_counts    Counts keyed by status.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$flash          = sanitize_text_field( wp_unslash( $_GET['cta_approval'] ?? '' ) );
-$current_status = isset( $current_status ) ? $current_status : 'all';
-$status_counts  = isset( $status_counts ) && is_array( $status_counts ) ? $status_counts : array();
-$associates     = isset( $associates ) && is_array( $associates ) ? $associates : array();
+$flash            = sanitize_text_field( wp_unslash( $_GET['cta_approval'] ?? '' ) );
+$current_status   = isset( $current_status ) ? $current_status : 'all';
+$status_counts    = isset( $status_counts ) && is_array( $status_counts ) ? $status_counts : array();
+$purchase_records = isset( $purchase_records ) && is_array( $purchase_records ) ? $purchase_records : array();
 
 $base_url = admin_url( 'admin.php?page=cta-lms-approvals' );
 $tabs     = array(
 	'all'              => __( 'All', 'cta-lms' ),
-	'pending_approval' => __( 'Pending', 'cta-lms' ),
+	'pending_approval' => __( 'Pending Approval', 'cta-lms' ),
 	'approved'         => __( 'Approved', 'cta-lms' ),
+	'rejected'         => __( 'Rejected', 'cta-lms' ),
 );
 
 $empty_messages = array(
-	'all'              => __( 'No pending or approved Associates yet.', 'cta-lms' ),
-	'pending_approval' => __( 'No Associates are currently pending approval.', 'cta-lms' ),
-	'approved'         => __( 'No approved Associates yet.', 'cta-lms' ),
+	'all'              => __( 'No completed supervision purchases found.', 'cta-lms' ),
+	'pending_approval' => __( 'No purchased supervision plans are awaiting approval.', 'cta-lms' ),
+	'approved'         => __( 'No approved supervision purchases found.', 'cta-lms' ),
+	'rejected'         => __( 'No rejected supervision purchases found.', 'cta-lms' ),
 );
 ?>
 <div class="wrap cta-admin-wrap">
-	<h1><?php esc_html_e( 'Approvals', 'cta-lms' ); ?></h1>
+	<h1><?php esc_html_e( 'Supervision Approvals', 'cta-lms' ); ?></h1>
 	<p class="description">
-		<?php esc_html_e( 'Review Associate registrations. Approving unlocks booking, meeting links, and supervision resources. Rejected Associates are removed from this list; only Pending and Approved remain visible.', 'cta-lms' ); ?>
+		<?php esc_html_e( 'Review completed supervision purchases. Approval unlocks the supervision dashboard, session booking, meeting links, and supervision materials.', 'cta-lms' ); ?>
 	</p>
 
 	<?php if ( 'approved' === $flash ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Associate approved. Supervision access is now unlocked.', 'cta-lms' ); ?></p></div>
 	<?php elseif ( 'rejected' === $flash ) : ?>
-		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Associate rejected and removed from this list. Access remains locked.', 'cta-lms' ); ?></p></div>
+		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Associate rejected. Supervision access remains locked.', 'cta-lms' ); ?></p></div>
 	<?php elseif ( 'error' === $flash ) : ?>
 		<div class="notice notice-error is-dismissible"><p><?php esc_html_e( 'Unable to update approval status. Please try again.', 'cta-lms' ); ?></p></div>
 	<?php endif; ?>
@@ -49,8 +51,8 @@ $empty_messages = array(
 
 	<ul class="subsubsub cta-approvals-tabs">
 		<?php
-		$tab_keys  = array_keys( $tabs );
-		$last_key  = end( $tab_keys );
+		$tab_keys = array_keys( $tabs );
+		$last_key = end( $tab_keys );
 		foreach ( $tabs as $slug => $label ) :
 			$count = isset( $status_counts[ $slug ] ) ? (int) $status_counts[ $slug ] : 0;
 			$url   = 'all' === $slug ? $base_url : add_query_arg( 'status', $slug, $base_url );
@@ -71,109 +73,89 @@ $empty_messages = array(
 			<tr>
 				<th><?php esc_html_e( 'Associate', 'cta-lms' ); ?></th>
 				<th><?php esc_html_e( 'Email', 'cta-lms' ); ?></th>
-				<th><?php esc_html_e( 'Employer/Agency', 'cta-lms' ); ?></th>
-				<th><?php esc_html_e( 'Agency Representative', 'cta-lms' ); ?></th>
-				<th><?php esc_html_e( 'Registered', 'cta-lms' ); ?></th>
-				<th><?php esc_html_e( 'Reviewed', 'cta-lms' ); ?></th>
+				<th><?php esc_html_e( 'Purchased Plan', 'cta-lms' ); ?></th>
+				<th><?php esc_html_e( 'Purchase Date', 'cta-lms' ); ?></th>
 				<th><?php esc_html_e( 'Status', 'cta-lms' ); ?></th>
 				<th><?php esc_html_e( 'Actions', 'cta-lms' ); ?></th>
 			</tr>
 		</thead>
 		<tbody>
-			<?php if ( empty( $associates ) ) : ?>
+			<?php if ( empty( $purchase_records ) ) : ?>
 				<tr class="cta-approvals-empty">
-					<td colspan="8"><?php echo esc_html( $empty_messages[ $current_status ] ?? $empty_messages['all'] ); ?></td>
+					<td colspan="6"><?php echo esc_html( $empty_messages[ $current_status ] ?? $empty_messages['all'] ); ?></td>
 				</tr>
 			<?php else : ?>
-				<?php foreach ( $associates as $user ) : ?>
+				<?php foreach ( $purchase_records as $record ) : ?>
 					<?php
-					$agency_name     = (string) get_user_meta( $user->ID, 'cta_employer_agency_name', true );
-					$rep_name        = (string) get_user_meta( $user->ID, 'cta_agency_representative_name', true );
-					$rep_email       = (string) get_user_meta( $user->ID, 'cta_agency_representative_email', true );
-					$approval_status = (string) get_user_meta( $user->ID, 'cta_approval_status', true );
-					$reviewed_at     = (string) get_user_meta( $user->ID, 'cta_approval_reviewed_at', true );
-					$status_label    = class_exists( 'CTA_Associate_Access' )
-						? CTA_Associate_Access::get_status_label( $approval_status )
-						: $approval_status;
-					$is_approved     = 'approved' === $approval_status;
+					$user             = $record['user'];
+					$payment          = $record['payment'];
+					$approval_status  = $record['status'];
+					$status_label     = CTA_Associate_Access::get_status_label( $approval_status );
+					$is_approved      = CTA_Associate_Access::STATUS_APPROVED === $approval_status;
+					$is_rejected      = CTA_Associate_Access::STATUS_REJECTED === $approval_status;
+					$purchase_date    = ! empty( $payment->created_at )
+						? wp_date( 'M j, Y g:i a', strtotime( $payment->created_at ) )
+						: '—';
+					$plan_details     = $record['plan_details'];
+					$details_payload  = array(
+						'user_name'        => $user->display_name,
+						'user_email'       => $user->user_email,
+						'plan_name'        => $record['plan_name'],
+						'purchase_date'    => $purchase_date,
+						'amount'           => '$' . number_format( (float) $payment->amount, 2 ) . ' ' . strtoupper( (string) $payment->currency ),
+						'billing'          => sanitize_text_field( (string) ( $plan_details['billing'] ?? $payment->payment_type ) ),
+						'description'      => sanitize_text_field( (string) ( $plan_details['description'] ?? '' ) ),
+						'stripe_reference' => sanitize_text_field( (string) $payment->stripe_payment_id ),
+						'status'           => $status_label,
+						'rejection_reason' => $record['rejection_reason'],
+					);
 					?>
 					<tr
 						class="cta-approval-row"
 						data-user-id="<?php echo esc_attr( $user->ID ); ?>"
 						data-status="<?php echo esc_attr( $approval_status ); ?>"
 					>
-						<td>
-							<strong><?php echo esc_html( $user->display_name ); ?></strong>
-						</td>
-						<td><?php echo esc_html( $user->user_email ); ?></td>
-						<td><?php echo esc_html( $agency_name ? $agency_name : '—' ); ?></td>
-						<td>
-							<?php if ( $rep_name || $rep_email ) : ?>
-								<?php if ( $rep_name ) : ?>
-									<div><?php echo esc_html( $rep_name ); ?></div>
-								<?php endif; ?>
-								<?php if ( $rep_email ) : ?>
-									<div><a href="mailto:<?php echo esc_attr( $rep_email ); ?>"><?php echo esc_html( $rep_email ); ?></a></div>
-								<?php endif; ?>
-							<?php else : ?>
-								—
-							<?php endif; ?>
-						</td>
-						<td><?php echo esc_html( wp_date( 'M j, Y', strtotime( $user->user_registered ) ) ); ?></td>
-						<td>
-							<?php
-							if ( $reviewed_at && $is_approved ) {
-								echo esc_html( wp_date( 'M j, Y g:i a', strtotime( $reviewed_at ) ) );
-							} else {
-								echo '—';
-							}
-							?>
-						</td>
+						<td><strong><?php echo esc_html( $user->display_name ); ?></strong></td>
+						<td><a href="mailto:<?php echo esc_attr( $user->user_email ); ?>"><?php echo esc_html( $user->user_email ); ?></a></td>
+						<td><?php echo esc_html( $record['plan_name'] ); ?></td>
+						<td><?php echo esc_html( $purchase_date ); ?></td>
 						<td>
 							<span class="cta-approval-status-badge cta-approval-status-badge--<?php echo esc_attr( $approval_status ); ?>">
 								<?php echo esc_html( $status_label ); ?>
 							</span>
 						</td>
 						<td class="cta-table-actions">
-							<?php if ( ! $is_approved ) : ?>
+							<button
+								type="button"
+								class="button cta-view-supervision-purchase"
+								data-purchase-details="<?php echo esc_attr( wp_json_encode( $details_payload ) ); ?>"
+							>
+								<?php esc_html_e( 'View Details', 'cta-lms' ); ?>
+							</button>
+
+							<?php if ( ! empty( $record['is_associate'] ) && ! $is_approved ) : ?>
 								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="cta-approval-form cta-approval-form--approve">
 									<input type="hidden" name="action" value="cta_approve_associate">
 									<input type="hidden" name="user_id" value="<?php echo esc_attr( $user->ID ); ?>">
 									<?php wp_nonce_field( 'cta_review_associate_' . $user->ID, 'cta_approval_nonce' ); ?>
-									<button
-										type="submit"
-										class="button button-primary cta-approve-associate"
-										data-user-id="<?php echo esc_attr( $user->ID ); ?>"
-									>
+									<button type="submit" class="button button-primary cta-approve-associate">
 										<?php esc_html_e( 'Approve', 'cta-lms' ); ?>
 									</button>
 								</form>
-								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="cta-approval-form cta-approval-form--reject">
-									<input type="hidden" name="action" value="cta_reject_associate">
-									<input type="hidden" name="user_id" value="<?php echo esc_attr( $user->ID ); ?>">
-									<?php wp_nonce_field( 'cta_review_associate_' . $user->ID, 'cta_approval_nonce' ); ?>
-									<button
-										type="submit"
-										class="button cta-reject-associate"
-										data-user-id="<?php echo esc_attr( $user->ID ); ?>"
-									>
-										<?php esc_html_e( 'Reject', 'cta-lms' ); ?>
-									</button>
-								</form>
-							<?php else : ?>
-								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="cta-approval-form cta-approval-form--reject">
-									<input type="hidden" name="action" value="cta_reject_associate">
-									<input type="hidden" name="user_id" value="<?php echo esc_attr( $user->ID ); ?>">
-									<?php wp_nonce_field( 'cta_review_associate_' . $user->ID, 'cta_approval_nonce' ); ?>
-									<button
-										type="submit"
-										class="button cta-reject-associate"
-										data-user-id="<?php echo esc_attr( $user->ID ); ?>"
-									>
-										<?php esc_html_e( 'Revoke', 'cta-lms' ); ?>
-									</button>
-								</form>
-								<span class="cta-approval-action-note"><?php esc_html_e( 'Access unlocked', 'cta-lms' ); ?></span>
+							<?php endif; ?>
+
+							<?php if ( ! empty( $record['is_associate'] ) && ! $is_rejected ) : ?>
+								<button
+									type="button"
+									class="button cta-open-reject-associate"
+									data-user-id="<?php echo esc_attr( $user->ID ); ?>"
+									data-user-name="<?php echo esc_attr( $user->display_name ); ?>"
+									data-review-nonce="<?php echo esc_attr( wp_create_nonce( 'cta_review_associate_' . $user->ID ) ); ?>"
+								>
+									<?php echo esc_html( $is_approved ? __( 'Revoke / Reject', 'cta-lms' ) : __( 'Reject', 'cta-lms' ) ); ?>
+								</button>
+							<?php elseif ( empty( $record['is_associate'] ) ) : ?>
+								<span class="cta-approval-action-note"><?php esc_html_e( 'Not an Associate account', 'cta-lms' ); ?></span>
 							<?php endif; ?>
 						</td>
 					</tr>
@@ -181,4 +163,33 @@ $empty_messages = array(
 			<?php endif; ?>
 		</tbody>
 	</table>
+
+	<div id="cta-purchase-details-modal" class="cta-admin-modal" hidden>
+		<div class="cta-admin-modal__content">
+			<button type="button" class="cta-admin-modal__close" aria-label="<?php esc_attr_e( 'Close', 'cta-lms' ); ?>">&times;</button>
+			<h2><?php esc_html_e( 'Supervision Purchase Details', 'cta-lms' ); ?></h2>
+			<dl id="cta-purchase-details-list" class="cta-purchase-details-list"></dl>
+		</div>
+	</div>
+
+	<div id="cta-reject-associate-modal" class="cta-admin-modal" hidden>
+		<div class="cta-admin-modal__content">
+			<button type="button" class="cta-admin-modal__close" aria-label="<?php esc_attr_e( 'Close', 'cta-lms' ); ?>">&times;</button>
+			<h2><?php esc_html_e( 'Reject Associate', 'cta-lms' ); ?></h2>
+			<p id="cta-reject-associate-name"></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="cta-approval-form cta-approval-form--reject">
+				<input type="hidden" name="action" value="cta_reject_associate">
+				<input type="hidden" name="user_id" id="cta-reject-user-id" value="">
+				<input type="hidden" name="cta_approval_nonce" id="cta-reject-nonce" value="">
+				<p>
+					<label for="cta-rejection-reason"><strong><?php esc_html_e( 'Reason (optional)', 'cta-lms' ); ?></strong></label>
+				</p>
+				<textarea id="cta-rejection-reason" name="reason" rows="5" class="large-text" placeholder="<?php echo esc_attr__( 'Add an internal reason for rejecting this supervision application.', 'cta-lms' ); ?>"></textarea>
+				<p class="submit">
+					<button type="submit" class="button button-primary"><?php esc_html_e( 'Confirm Rejection', 'cta-lms' ); ?></button>
+					<button type="button" class="button cta-admin-modal__close"><?php esc_html_e( 'Cancel', 'cta-lms' ); ?></button>
+				</p>
+			</form>
+		</div>
+	</div>
 </div>

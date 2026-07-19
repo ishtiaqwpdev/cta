@@ -303,6 +303,8 @@ class CTA_Stripe {
 			);
 		}
 
+		CTA_Associate_Access::require_associate_for_purchase( get_current_user_id() );
+
 		if ( ! $this->is_stripe_configured() ) {
 			if ( ! empty( $_POST['demo_confirm'] ) ) {
 				$this->bypass_supervision_subscription();
@@ -431,9 +433,21 @@ class CTA_Stripe {
 					'payment_type'      => 'subscription',
 					'product_type'      => 'supervision',
 					'product_id'        => 0,
+					'plan_name'         => $product_name,
+					'plan_details'      => wp_json_encode(
+						array(
+							'plan_slug'    => 'group',
+							'plan_name'    => $product_name,
+							'billing'      => 'monthly',
+							'price'        => $price,
+							'currency'     => 'usd',
+							'product_type' => 'supervision',
+							'description'  => $product_desc,
+						)
+					),
 					'status'            => 'pending',
 				),
-				array( '%d', '%s', '%f', '%s', '%s', '%s', '%d', '%s' )
+				array( '%d', '%s', '%f', '%s', '%s', '%s', '%d', '%s', '%s', '%s' )
 			);
 
 			wp_send_json_success(
@@ -568,37 +582,20 @@ class CTA_Stripe {
 
 		if ( 'supervision' === $type && $user_id ) {
 			$subscription_id = sanitize_text_field( $session->subscription ?? '' );
-			$customer_id       = sanitize_text_field( $session->customer ?? '' );
+			$customer_id     = sanitize_text_field( $session->customer ?? '' );
+			$session_id      = sanitize_text_field( $session->id ?? '' );
 
-			if ( $customer_id ) {
-				update_user_meta( $user_id, 'cta_stripe_customer_id', $customer_id );
-			}
-
-			if ( $subscription_id ) {
-				$wpdb->update(
-					$wpdb->prefix . 'cta_payments',
-					array(
-						'stripe_payment_id' => $subscription_id,
-						'status'            => 'completed',
-					),
-					array( 'stripe_payment_id' => sanitize_text_field( $session->id ) ),
-					array( '%s', '%s' ),
-					array( '%s' )
-				);
-
-				update_user_meta( $user_id, 'cta_supervision_subscription_id', $subscription_id );
-				update_user_meta( $user_id, 'cta_supervision_status', 'active' );
-				update_user_meta( $user_id, 'cta_supervision_plan', 'group' );
-
-				CTA_Emails::send(
-					'payment_receipt',
-					$user_id,
-					array(
-						'payment_id'   => sanitize_text_field( $session->id ),
-						'product_name' => __( 'Group Supervision', 'cta-lms' ),
-					)
-				);
-			}
+			$this->activate_supervision_purchase(
+				$user_id,
+				array(
+					'checkout_session_id' => $session_id,
+					'subscription_id'     => $subscription_id,
+					'customer_id'         => $customer_id,
+					'amount'              => $this->get_supervision_monthly_price(),
+					'send_receipt'        => true,
+					'receipt_payment_id'  => $session_id,
+				)
+			);
 		}
 
 		if ( 'bundle' === $type && $user_id ) {
@@ -825,7 +822,51 @@ class CTA_Stripe {
 		}
 
 		if ( 'subscription' === $bundle->plan_type ) {
-			update_user_meta( $user_id, 'cta_supervision_status', 'active' );
+			$wpdb->update(
+				$wpdb->prefix . 'cta_payments',
+				array(
+					'plan_name'    => $bundle->name,
+					'plan_details' => wp_json_encode(
+						array(
+							'plan_slug'    => 'hybrid',
+							'bundle_id'    => (int) $bundle->id,
+							'billing'      => sanitize_text_field( $bundle->billing_cycle ),
+							'price'        => (float) $bundle->price,
+							'product_type' => 'bundle',
+							'description'  => wp_strip_all_tags( (string) $bundle->description ),
+						)
+					),
+				),
+				array(
+					'user_id'      => $user_id,
+					'product_id'   => (int) $bundle->id,
+					'product_type' => 'bundle',
+				),
+				array( '%s', '%s' ),
+				array( '%d', '%d', '%s' )
+			);
+
+			$this->activate_supervision_purchase(
+				$user_id,
+				array(
+					'subscription_id'    => (string) get_user_meta( $user_id, 'cta_bundle_subscription_id', true ),
+					'customer_id'        => (string) get_user_meta( $user_id, 'cta_stripe_customer_id', true ),
+					'amount'             => (float) $bundle->price,
+					'plan_slug'          => 'hybrid',
+					'plan_name'          => $bundle->name,
+					'plan_details'       => array(
+						'plan_slug'    => 'hybrid',
+						'bundle_id'    => (int) $bundle->id,
+						'billing'      => sanitize_text_field( $bundle->billing_cycle ),
+						'price'        => (float) $bundle->price,
+						'product_type' => 'bundle',
+						'description'  => wp_strip_all_tags( (string) $bundle->description ),
+					),
+					'skip_payment_row'   => true,
+					'send_receipt'       => false,
+				)
+			);
+
 			update_user_meta( $user_id, 'cta_hybrid_plan_active', (int) $bundle->id );
 		}
 
@@ -890,6 +931,8 @@ class CTA_Stripe {
 
 		$user_id = get_current_user_id();
 
+		CTA_Associate_Access::require_associate_for_purchase( $user_id );
+
 		$active_sub = $wpdb->get_var(
 			$wpdb->prepare(
 				"SELECT id FROM {$wpdb->prefix}cta_payments
@@ -911,21 +954,16 @@ class CTA_Stripe {
 
 		$payment_id = 'bypass-sub-' . time();
 
-		$wpdb->insert(
-			$wpdb->prefix . 'cta_payments',
+		$this->activate_supervision_purchase(
+			$user_id,
 			array(
-				'user_id'             => $user_id,
+				'checkout_session_id' => $payment_id,
+				'subscription_id'     => $payment_id,
 				'amount'              => 0,
-				'status'              => 'completed',
-				'payment_type'        => 'subscription',
-				'product_type'        => 'supervision',
-				'stripe_payment_id'   => $payment_id,
-			),
-			array( '%d', '%f', '%s', '%s', '%s', '%s' )
+				'create_payment_row'  => true,
+				'send_receipt'        => false,
+			)
 		);
-
-		update_user_meta( $user_id, 'cta_supervision_subscription_id', $payment_id );
-		update_user_meta( $user_id, 'cta_supervision_status', 'active' );
 
 		$redirect = $this->get_page_url( 'cta_supervision_dashboard_page_id' );
 		if ( ! $redirect ) {
@@ -939,9 +977,212 @@ class CTA_Stripe {
 			array(
 				'enrolled'     => true,
 				'redirect_url' => $redirect,
-				'message'      => __( 'Subscription activated (payment bypass mode).', 'cta-lms' ),
+				'message'      => __( 'Subscription recorded as Pending Approval (payment bypass mode).', 'cta-lms' ),
 			)
 		);
+	}
+
+	/**
+	 * Create / complete a supervision purchase record and set Pending Approval.
+	 *
+	 * Uses existing `{prefix}cta_payments` + user meta — no duplicate user tables.
+	 *
+	 * @param int   $user_id User ID.
+	 * @param array $args    Optional arguments.
+	 * @return int Payment row ID, or 0 on failure.
+	 */
+	public function activate_supervision_purchase( $user_id, $args = array() ) {
+		global $wpdb;
+
+		$user_id = absint( $user_id );
+
+		if ( ! $user_id ) {
+			return 0;
+		}
+
+		$args = wp_parse_args(
+			$args,
+			array(
+				'checkout_session_id' => '',
+				'subscription_id'     => '',
+				'customer_id'         => '',
+				'amount'              => $this->get_supervision_monthly_price(),
+				'plan_slug'           => 'group',
+				'plan_name'           => '',
+				'plan_details'        => array(),
+				'product_id'          => 0,
+				'create_payment_row'  => true,
+				'skip_payment_row'    => false,
+				'send_receipt'        => false,
+				'receipt_payment_id'  => '',
+			)
+		);
+
+		$plan_slug = sanitize_key( $args['plan_slug'] );
+		if ( ! in_array( $plan_slug, array( 'group', 'hybrid' ), true ) ) {
+			$plan_slug = 'group';
+		}
+
+		$plan_name = sanitize_text_field( $args['plan_name'] );
+		if ( '' === $plan_name ) {
+			$plan_name = (string) get_option( 'cta_supervision_product_name', '' );
+		}
+		if ( '' === $plan_name ) {
+			$plan_name = __( 'Group Supervision', 'cta-lms' );
+		}
+
+		$amount = (float) $args['amount'];
+
+		$plan_details = is_array( $args['plan_details'] ) ? $args['plan_details'] : array();
+		$plan_details = wp_parse_args(
+			$plan_details,
+			array(
+				'plan_slug'             => $plan_slug,
+				'plan_name'             => $plan_name,
+				'billing'               => 'monthly',
+				'price'                 => $amount,
+				'currency'              => 'usd',
+				'sessions_per_month'    => 4,
+				'session_duration_mins' => class_exists( 'CTA_Supervision' ) ? CTA_Supervision::GROUP_DURATION_MINS : 120,
+				'max_group_size'        => class_exists( 'CTA_Supervision' ) ? CTA_Supervision::GROUP_SEATS_MAX : 8,
+				'product_type'          => 'supervision',
+				'description'           => (string) get_option(
+					'cta_supervision_product_description',
+					__( 'Monthly group supervision subscription', 'cta-lms' )
+				),
+			)
+		);
+
+		$plan_details_json = wp_json_encode( $plan_details );
+		$table             = $wpdb->prefix . 'cta_payments';
+		$session_id        = sanitize_text_field( $args['checkout_session_id'] );
+		$subscription_id   = sanitize_text_field( $args['subscription_id'] );
+		$customer_id       = sanitize_text_field( $args['customer_id'] );
+		$stripe_ref        = $subscription_id ? $subscription_id : $session_id;
+		$payment_id        = 0;
+
+		if ( empty( $args['skip_payment_row'] ) ) {
+			if ( $session_id ) {
+				$existing = $wpdb->get_row(
+					$wpdb->prepare(
+						"SELECT id FROM {$table} WHERE stripe_payment_id = %s LIMIT 1",
+						$session_id
+					)
+				);
+
+				if ( $existing ) {
+					$wpdb->update(
+						$table,
+						array(
+							'user_id'            => $user_id,
+							'stripe_payment_id'  => $stripe_ref ? $stripe_ref : $session_id,
+							'stripe_customer_id' => $customer_id ? $customer_id : null,
+							'amount'             => $amount,
+							'currency'           => 'usd',
+							'payment_type'       => 'subscription',
+							'product_type'       => 'supervision',
+							'product_id'         => absint( $args['product_id'] ),
+							'plan_name'          => $plan_name,
+							'plan_details'       => $plan_details_json,
+							'status'             => 'completed',
+						),
+						array( 'id' => (int) $existing->id ),
+						array( '%d', '%s', '%s', '%f', '%s', '%s', '%s', '%d', '%s', '%s', '%s' ),
+						array( '%d' )
+					);
+					$payment_id = (int) $existing->id;
+				}
+			}
+
+			if ( ! $payment_id && $stripe_ref && $stripe_ref !== $session_id ) {
+				$existing = $wpdb->get_row(
+					$wpdb->prepare(
+						"SELECT id FROM {$table} WHERE stripe_payment_id = %s LIMIT 1",
+						$stripe_ref
+					)
+				);
+
+				if ( $existing ) {
+					$wpdb->update(
+						$table,
+						array(
+							'user_id'            => $user_id,
+							'stripe_customer_id' => $customer_id ? $customer_id : null,
+							'amount'             => $amount,
+							'plan_name'          => $plan_name,
+							'plan_details'       => $plan_details_json,
+							'status'             => 'completed',
+							'product_type'       => 'supervision',
+						),
+						array( 'id' => (int) $existing->id ),
+						array( '%d', '%s', '%f', '%s', '%s', '%s', '%s' ),
+						array( '%d' )
+					);
+					$payment_id = (int) $existing->id;
+				}
+			}
+
+			if ( ! $payment_id && ! empty( $args['create_payment_row'] ) ) {
+				$inserted = $wpdb->insert(
+					$table,
+					array(
+						'user_id'            => $user_id,
+						'stripe_payment_id'  => $stripe_ref ? $stripe_ref : ( 'supervision-' . $user_id . '-' . time() ),
+						'stripe_customer_id' => $customer_id ? $customer_id : null,
+						'amount'             => $amount,
+						'currency'           => 'usd',
+						'payment_type'       => 'subscription',
+						'product_type'       => 'supervision',
+						'product_id'         => absint( $args['product_id'] ),
+						'plan_name'          => $plan_name,
+						'plan_details'       => $plan_details_json,
+						'status'             => 'completed',
+					),
+					array( '%d', '%s', '%s', '%f', '%s', '%s', '%s', '%d', '%s', '%s', '%s' )
+				);
+
+				if ( $inserted ) {
+					$payment_id = (int) $wpdb->insert_id;
+				}
+			}
+		}
+
+		if ( $customer_id ) {
+			update_user_meta( $user_id, 'cta_stripe_customer_id', $customer_id );
+		}
+
+		if ( $subscription_id ) {
+			update_user_meta( $user_id, 'cta_supervision_subscription_id', $subscription_id );
+		}
+
+		update_user_meta( $user_id, 'cta_supervision_plan', $plan_slug );
+		update_user_meta( $user_id, 'cta_supervision_plan_name', $plan_name );
+		update_user_meta( $user_id, 'cta_supervision_status', 'pending_approval' );
+
+		// Keep Associate account approval in sync when still awaiting review.
+		if ( class_exists( 'CTA_Associate_Access' ) && CTA_Associate_Access::is_associate( $user_id ) ) {
+			$approval = CTA_Associate_Access::get_approval_status( $user_id );
+
+			if ( '' === $approval || CTA_Associate_Access::STATUS_PENDING === $approval ) {
+				update_user_meta( $user_id, 'cta_approval_status', CTA_Associate_Access::STATUS_PENDING );
+			} elseif ( CTA_Associate_Access::STATUS_APPROVED === $approval ) {
+				// Already-approved Associates unlock immediately after purchase.
+				update_user_meta( $user_id, 'cta_supervision_status', 'active' );
+			}
+		}
+
+		if ( ! empty( $args['send_receipt'] ) ) {
+			CTA_Emails::send(
+				'payment_receipt',
+				$user_id,
+				array(
+					'payment_id'   => sanitize_text_field( $args['receipt_payment_id'] ? $args['receipt_payment_id'] : $stripe_ref ),
+					'product_name' => $plan_name,
+				)
+			);
+		}
+
+		return $payment_id;
 	}
 
 	/**

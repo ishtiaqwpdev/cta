@@ -62,7 +62,10 @@ class CTA_Memberships {
 			$courses_map[ (int) $course->id ] = $course;
 		}
 
-		$login_url = $this->get_login_url();
+		$login_url                = $this->get_login_url();
+		$register_url             = CTA_Associate_Access::get_associate_registration_url();
+		$can_purchase_supervision = ! is_user_logged_in() || CTA_Associate_Access::can_purchase_supervision();
+		$associate_required_message = CTA_Associate_Access::get_associate_required_message();
 
 		ob_start();
 		include CTA_PLUGIN_DIR . 'templates/memberships.php';
@@ -97,6 +100,11 @@ class CTA_Memberships {
 		global $wpdb;
 
 		$user_id = get_current_user_id();
+
+		// Hybrid / supervision-inclusive bundles require a Registered Associate account.
+		if ( $this->bundle_includes_supervision( $bundle ) ) {
+			CTA_Associate_Access::require_associate_for_purchase( $user_id );
+		}
 
 		$already_owned = $wpdb->get_var(
 			$wpdb->prepare(
@@ -153,6 +161,34 @@ class CTA_Memberships {
 		}
 
 		$stripe->create_bundle_checkout_session( $bundle );
+	}
+
+	/**
+	 * Whether a membership bundle includes supervision access.
+	 *
+	 * @param object $bundle Bundle row.
+	 * @return bool
+	 */
+	private function bundle_includes_supervision( $bundle ) {
+		if ( ! $bundle ) {
+			return false;
+		}
+
+		// Subscription plan_type bundles activate hybrid supervision on purchase.
+		if ( 'subscription' === (string) $bundle->plan_type ) {
+			return true;
+		}
+
+		$haystack = strtolower(
+			trim(
+				(string) ( $bundle->slug ?? '' ) . ' ' .
+				(string) ( $bundle->name ?? '' ) . ' ' .
+				(string) ( $bundle->description ?? '' )
+			)
+		);
+
+		return false !== strpos( $haystack, 'supervision' )
+			|| false !== strpos( $haystack, 'hybrid' );
 	}
 
 	/**

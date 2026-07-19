@@ -43,8 +43,38 @@ class CTA_Supervision_Dashboard {
 		add_action( 'wp_ajax_cta_upload_document', array( $this, 'ajax_upload_document' ) );
 		add_action( 'wp_ajax_cta_delete_document', array( $this, 'ajax_delete_document' ) );
 		add_action( 'wp_ajax_cta_get_portal_url', array( $this, 'ajax_get_portal_url' ) );
+		add_action( 'wp_ajax_cta_get_supervision_access_status', array( $this, 'ajax_get_access_status' ) );
 
 		add_filter( 'body_class', array( $this, 'add_body_class' ) );
+	}
+
+	/**
+	 * AJAX: return the current user's live supervision access state.
+	 *
+	 * The pending dashboard polls this endpoint so approval takes effect without
+	 * requiring logout/login. The response is also useful for access testing.
+	 */
+	public function ajax_get_access_status() {
+		check_ajax_referer( 'cta_nonce', 'nonce' );
+
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'Please log in to continue.', 'cta-lms' ),
+				)
+			);
+		}
+
+		$user_id = get_current_user_id();
+
+		wp_send_json_success(
+			array(
+				'approval_status'    => CTA_Associate_Access::get_approval_status( $user_id ),
+				'supervision_status' => CTA_Associate_Access::get_supervision_status( $user_id ),
+				'access_granted'     => CTA_Associate_Access::can_access_supervision_features( $user_id ),
+				'dashboard_url'      => $this->get_dashboard_url(),
+			)
+		);
 	}
 
 	/**
@@ -83,27 +113,57 @@ class CTA_Supervision_Dashboard {
 
 		$supervision_status = (string) get_user_meta( $user_id, 'cta_supervision_status', true );
 		$subscription_id    = (string) get_user_meta( $user_id, 'cta_supervision_subscription_id', true );
-		$supervision_plan     = (string) get_user_meta( $user_id, 'cta_supervision_plan', true );
+		$supervision_plan   = (string) get_user_meta( $user_id, 'cta_supervision_plan', true );
+		$plan_name_meta     = (string) get_user_meta( $user_id, 'cta_supervision_plan_name', true );
+		$supervision_payment = CTA_Database::get_user_supervision_payment( $user_id, 'completed' );
+		$has_supervision_purchase = (bool) $supervision_payment;
 
 		if ( empty( $supervision_plan ) ) {
 			$supervision_plan = get_user_meta( $user_id, 'cta_hybrid_plan_active', true ) ? 'hybrid' : 'group';
 		}
 
-		$is_active = ( 'active' === $supervision_status );
-		$is_locked = in_array( $supervision_status, array( 'locked', 'past_due' ), true );
-		$no_plan   = ! $is_active && ! $is_locked;
+		if ( empty( $plan_name_meta ) && $supervision_payment && ! empty( $supervision_payment->plan_name ) ) {
+			$plan_name_meta = (string) $supervision_payment->plan_name;
+		}
 
-		$can_access_booking             = CTA_Associate_Access::can_access_booking( $user_id );
-		$can_access_meeting_links       = CTA_Associate_Access::can_access_meeting_links( $user_id );
-		$can_access_supervision_resources = CTA_Associate_Access::can_access_supervision_resources( $user_id );
-		$is_pending_approval            = CTA_Associate_Access::is_associate( $user_id ) && ! CTA_Associate_Access::is_approved( $user_id );
-		$pending_approval_message       = CTA_Associate_Access::get_pending_message();
+		$is_active         = ( 'active' === $supervision_status );
+		$is_locked         = in_array( $supervision_status, array( 'locked', 'past_due' ), true );
+		$is_pending_plan   = ( 'pending_approval' === $supervision_status );
+		$no_plan           = ! $is_active && ! $is_locked && ! $is_pending_plan;
+		$approval_status   = CTA_Associate_Access::get_approval_status( $user_id );
+		$can_access_supervision = CTA_Associate_Access::can_access_supervision_features( $user_id );
+		$is_supervision_pending = CTA_Associate_Access::is_supervision_pending( $user_id );
+
+		if ( CTA_Associate_Access::STATUS_PENDING === $approval_status || $is_pending_plan || $is_supervision_pending ) {
+			$onboarding_status_label = __( 'Pending Approval', 'cta-lms' );
+			$onboarding_status_class = 'badge--warning';
+			$onboarding_message      = CTA_Associate_Access::get_pending_message();
+		} elseif ( $is_active && $can_access_supervision ) {
+			$onboarding_status_label = __( 'Approved', 'cta-lms' );
+			$onboarding_status_class = 'badge--success';
+			$onboarding_message      = __( 'Your supervision application has been approved. You can now access supervision services.', 'cta-lms' );
+		} elseif ( $is_locked ) {
+			$onboarding_status_label = __( 'Action Required', 'cta-lms' );
+			$onboarding_status_class = 'badge--danger';
+			$onboarding_message      = __( 'Your supervision access is currently paused. Please update your payment method or contact support.', 'cta-lms' );
+		} else {
+			$onboarding_status_label = '';
+			$onboarding_status_class = '';
+			$onboarding_message      = '';
+		}
+
+		$can_access_booking               = $can_access_supervision;
+		$can_access_meeting_links         = $can_access_supervision;
+		$can_access_supervision_resources = $can_access_supervision;
+		$is_pending_approval              = $is_supervision_pending || ( CTA_Associate_Access::is_associate( $user_id ) && ! CTA_Associate_Access::is_approved( $user_id ) );
+		$pending_approval_message         = CTA_Associate_Access::get_pending_message();
 
 		$upcoming_sessions = array();
 		$session_history   = array();
 		$documents         = array();
 
-		if ( ( $is_active || $is_locked ) && $can_access_booking ) {
+		// Never load sessions / materials until supervision access is fully approved.
+		if ( $can_access_supervision ) {
 			$upcoming_sessions = $wpdb->get_results(
 				$wpdb->prepare(
 					"SELECT * FROM {$wpdb->prefix}cta_bookings
@@ -132,9 +192,7 @@ class CTA_Supervision_Dashboard {
 					$user_id
 				)
 			);
-		}
 
-		if ( ( $is_active || $is_locked ) && $can_access_supervision_resources ) {
 			$documents = $wpdb->get_results(
 				$wpdb->prepare(
 					"SELECT * FROM {$wpdb->prefix}cta_documents
@@ -150,7 +208,7 @@ class CTA_Supervision_Dashboard {
 		$individual_price    = (float) get_option( 'cta_individual_session_price', 120.0 );
 		$next_billing_date   = $this->get_next_billing_date( $subscription_id );
 		$next_session_label  = $this->get_next_session_label( $upcoming_sessions );
-		$plan_label          = $this->get_plan_label( $supervision_plan );
+		$plan_label          = $plan_name_meta ? $plan_name_meta : $this->get_plan_label( $supervision_plan );
 		$associate_number    = (string) get_user_meta( $user_id, 'cta_associate_number', true );
 		$dashboard_url       = $this->get_dashboard_url();
 		$supervision_url     = $this->get_supervision_page_url();
@@ -159,7 +217,7 @@ class CTA_Supervision_Dashboard {
 		$dashboard_user      = $this->get_dashboard_user_data( $user, $associate_number );
 		$document_categories = self::DOC_CATEGORIES;
 		$dashboard           = $this;
-		$show_renew          = empty( $supervision_status ) || 'active' !== $supervision_status;
+		$show_renew          = empty( $supervision_status ) || ( 'active' !== $supervision_status && 'pending_approval' !== $supervision_status );
 		$support_email       = (string) get_option( 'cta_support_email', '' );
 
 		if ( '' === $support_email ) {
@@ -181,9 +239,7 @@ class CTA_Supervision_Dashboard {
 			wp_send_json_error( array( 'message' => __( 'Please log in to upload documents.', 'cta-lms' ) ) );
 		}
 
-		if ( ! CTA_Associate_Access::can_access_supervision_resources() ) {
-			wp_send_json_error( array( 'message' => CTA_Associate_Access::get_pending_message() ) );
-		}
+		CTA_Associate_Access::require_supervision_access();
 
 		if ( ! $this->user_can_upload_documents() ) {
 			wp_send_json_error( array( 'message' => __( 'You do not have permission to upload documents.', 'cta-lms' ) ) );
@@ -277,9 +333,7 @@ class CTA_Supervision_Dashboard {
 			wp_send_json_error( array( 'message' => __( 'Please log in to continue.', 'cta-lms' ) ) );
 		}
 
-		if ( ! CTA_Associate_Access::can_access_supervision_resources() ) {
-			wp_send_json_error( array( 'message' => CTA_Associate_Access::get_pending_message() ) );
-		}
+		CTA_Associate_Access::require_supervision_access();
 
 		$document_id = absint( wp_unslash( $_POST['document_id'] ?? 0 ) );
 		$user_id     = get_current_user_id();
@@ -332,6 +386,17 @@ class CTA_Supervision_Dashboard {
 		$user_id = get_current_user_id();
 		$stripe  = cta_get_stripe();
 		$status  = (string) get_user_meta( $user_id, 'cta_supervision_status', true );
+
+		// Pending Approval users cannot manage billing portal / subscription features.
+		if ( CTA_Associate_Access::is_supervision_pending( $user_id ) || 'pending_approval' === $status ) {
+			wp_send_json_error(
+				array(
+					'message' => CTA_Associate_Access::get_pending_message(),
+					'code'    => 'supervision_pending_approval',
+				)
+			);
+		}
+
 		$show_renew = empty( $status ) || 'active' !== $status;
 
 		$stripe_ready = $stripe
@@ -669,12 +734,14 @@ class CTA_Supervision_Dashboard {
 	 * @return bool
 	 */
 	private function user_can_upload_documents() {
-		if ( ! CTA_Associate_Access::can_access_supervision_resources() ) {
+		$user_id = get_current_user_id();
+
+		if ( ! CTA_Associate_Access::can_access_supervision_features( $user_id ) ) {
 			return false;
 		}
 
-		$user  = wp_get_current_user();
-		$roles = (array) $user->roles;
+		$user  = get_userdata( $user_id );
+		$roles = $user ? (array) $user->roles : array();
 
 		return in_array( 'cta_associate', $roles, true ) || in_array( 'administrator', $roles, true );
 	}

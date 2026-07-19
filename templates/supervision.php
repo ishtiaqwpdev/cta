@@ -23,6 +23,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 $monthly_display    = '$' . number_format( $monthly_price, 0 );
 $individual_display = '$' . number_format( $individual_price, 0 );
 $has_subscription   = ( 'active' === $user_status );
+$can_purchase_supervision = isset( $can_purchase_supervision ) ? (bool) $can_purchase_supervision : true;
+$register_url       = isset( $register_url ) ? $register_url : CTA_Associate_Access::get_associate_registration_url();
+$associate_required_message = CTA_Associate_Access::get_associate_required_message();
 
 $calendar_ts   = strtotime( $calendar_month );
 $month_label   = wp_date( 'F Y', $calendar_ts );
@@ -106,6 +109,11 @@ $selected_date = ! empty( $session_dates ) ? min( $session_dates ) : $today;
 						<a href="#booking" class="btn btn-primary btn--lg service-card__cta">
 							<?php echo esc_html__( 'Book Group Session', 'cta-lms' ); ?>
 						</a>
+					<?php elseif ( ! $can_purchase_supervision ) : ?>
+						<p class="service-card__note"><?php echo esc_html( $associate_required_message ); ?></p>
+						<a href="<?php echo esc_url( $register_url ); ?>" class="btn btn-primary btn--lg service-card__cta">
+							<?php echo esc_html__( 'Register as Associate', 'cta-lms' ); ?>
+						</a>
 					<?php else : ?>
 						<button type="button" class="btn btn-primary btn--lg service-card__cta cta-subscribe-btn" data-cta-supervision-subscribe>
 							<?php echo esc_html__( 'Subscribe Now', 'cta-lms' ); ?>
@@ -154,6 +162,11 @@ $selected_date = ! empty( $session_dates ) ? min( $session_dates ) : $today;
 					<?php elseif ( $has_subscription ) : ?>
 						<a href="#booking" class="btn btn-primary btn--lg service-card__cta">
 							<?php echo esc_html__( 'Book Individual Session', 'cta-lms' ); ?>
+						</a>
+					<?php elseif ( ! $can_purchase_supervision ) : ?>
+						<p class="service-card__note"><?php echo esc_html( $associate_required_message ); ?></p>
+						<a href="<?php echo esc_url( $register_url ); ?>" class="btn btn-primary btn--lg service-card__cta">
+							<?php echo esc_html__( 'Register as Associate', 'cta-lms' ); ?>
 						</a>
 					<?php else : ?>
 						<button type="button" class="btn btn-primary btn--lg service-card__cta cta-subscribe-btn" data-cta-supervision-subscribe>
@@ -236,11 +249,18 @@ $selected_date = ! empty( $session_dates ) ? min( $session_dates ) : $today;
 						<p><?php echo esc_html__( 'Subscribe to group supervision to access the booking calendar.', 'cta-lms' ); ?></p>
 						<a href="<?php echo esc_url( $login_url ); ?>" class="btn btn-primary"><?php echo esc_html__( 'Login to Book', 'cta-lms' ); ?></a>
 					<?php elseif ( 'pending_approval' === $user_status ) : ?>
-						<h3><?php echo esc_html__( 'Account pending approval', 'cta-lms' ); ?></h3>
+						<h3><?php echo esc_html__( 'Pending Approval', 'cta-lms' ); ?></h3>
 						<p><?php echo esc_html( CTA_Associate_Access::get_pending_message() ); ?></p>
+						<p><?php echo esc_html__( 'Session booking stays locked until your supervision application is approved.', 'cta-lms' ); ?></p>
 					<?php elseif ( 'locked' === $user_status ) : ?>
 						<h3><?php echo esc_html__( 'Your supervision access is locked', 'cta-lms' ); ?></h3>
 						<p><?php echo esc_html__( 'Please contact support to restore booking access.', 'cta-lms' ); ?></p>
+					<?php elseif ( ! $can_purchase_supervision ) : ?>
+						<h3><?php echo esc_html__( 'Registered Associates only', 'cta-lms' ); ?></h3>
+						<p><?php echo esc_html( $associate_required_message ); ?></p>
+						<a href="<?php echo esc_url( $register_url ); ?>" class="btn btn-primary">
+							<?php echo esc_html__( 'Register as Associate', 'cta-lms' ); ?>
+						</a>
 					<?php else : ?>
 						<h3><?php echo esc_html__( 'Subscribe to book sessions', 'cta-lms' ); ?></h3>
 						<p><?php echo esc_html__( 'An active group supervision subscription is required to access the booking calendar.', 'cta-lms' ); ?></p>

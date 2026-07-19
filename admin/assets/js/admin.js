@@ -734,6 +734,8 @@
   function initAssociateApprovals() {
     var $table = $("#cta-pending-approvals-table");
     var $notice = $("#cta-approvals-notice");
+    var $detailsModal = $("#cta-purchase-details-modal");
+    var $rejectModal = $("#cta-reject-associate-modal");
 
     if (!$table.length || typeof ctaAdmin === "undefined") {
       return;
@@ -759,10 +761,58 @@
       window.location.href = url.toString();
     }
 
+    $table.on("click", ".cta-view-supervision-purchase", function () {
+      var details = {};
+      var rawDetails = $(this).attr("data-purchase-details");
+
+      try {
+        details = rawDetails ? JSON.parse(rawDetails) : {};
+      } catch (e) {
+        details = {};
+      }
+
+      var $list = $("#cta-purchase-details-list").empty();
+      var fields = [
+        ["Associate", details.user_name],
+        ["Email", details.user_email],
+        ["Plan", details.plan_name],
+        ["Purchase Date", details.purchase_date],
+        ["Amount", details.amount],
+        ["Billing", details.billing],
+        ["Status", details.status],
+        ["Description", details.description],
+        ["Stripe Reference", details.stripe_reference],
+        ["Rejection Reason", details.rejection_reason]
+      ];
+
+      fields.forEach(function (field) {
+        if (!field[1]) return;
+        $("<dt>").text(field[0]).appendTo($list);
+        $("<dd>").text(field[1]).appendTo($list);
+      });
+
+      $detailsModal.prop("hidden", false).removeAttr("hidden");
+    });
+
+    $table.on("click", ".cta-open-reject-associate", function () {
+      var $button = $(this);
+      var userId = $button.data("user-id");
+      var userName = $button.data("user-name") || "";
+
+      $("#cta-reject-user-id").val(userId);
+      $("#cta-reject-nonce").val($button.data("review-nonce") || "");
+      $("#cta-rejection-reason").val("");
+      $("#cta-reject-associate-name").text(
+        userName ? "Reject supervision access for " + userName + "?" : ""
+      );
+      $rejectModal.prop("hidden", false).removeAttr("hidden");
+    });
+
     function handleFormSubmit(e) {
       var $form = $(this);
       var isApprove = $form.hasClass("cta-approval-form--approve");
       var userId = $form.find('input[name="user_id"]').val();
+      var reason = $form.find('[name="reason"]').val() || "";
       var confirmMsg = isApprove
         ? ctaAdmin.i18n.approveConfirm
         : ctaAdmin.i18n.rejectConfirm;
@@ -780,14 +830,15 @@
       e.preventDefault();
 
       var $row = $form.closest("tr");
-      var $buttons = $row.find("button");
+      var $buttons = $row.length ? $row.find("button") : $form.find("button");
 
       $buttons.prop("disabled", true);
 
       $.post(ctaAdmin.ajaxUrl, {
         action: isApprove ? "cta_approve_associate" : "cta_reject_associate",
         nonce: ctaAdmin.nonce,
-        user_id: userId
+        user_id: userId,
+        reason: reason
       })
         .done(function (response) {
           if (!response || !response.success) {
@@ -808,6 +859,8 @@
                 : ctaAdmin.i18n.rejectSuccess)
           );
 
+          $rejectModal.prop("hidden", true);
+
           // Keep the record visible: reload so Approved/Rejected tabs stay in sync.
           reloadApprovalsPage(isApprove ? "approved" : "rejected");
         })
@@ -822,6 +875,7 @@
     }
 
     $table.on("submit", ".cta-approval-form", handleFormSubmit);
+    $rejectModal.on("submit", ".cta-approval-form", handleFormSubmit);
   }
 
   $(function () {

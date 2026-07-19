@@ -350,18 +350,18 @@ class CTA_Admin {
 	}
 
 	/**
-	 * Render Associate approvals (pending, approved, rejected).
+	 * Render supervision purchase approvals.
 	 */
 	public function render_approvals() {
 		$status = sanitize_text_field( wp_unslash( $_GET['status'] ?? 'all' ) );
-		$allowed_status = array( 'all', 'pending_approval', 'approved' );
+		$allowed_status = array( 'all', 'pending_approval', 'approved', 'rejected' );
 
 		if ( ! in_array( $status, $allowed_status, true ) ) {
 			$status = 'all';
 		}
 
-		$associates = array();
-		$counts     = array(
+		$purchase_records = array();
+		$counts           = array(
 			'pending_approval' => 0,
 			'approved'         => 0,
 			'rejected'         => 0,
@@ -369,18 +369,122 @@ class CTA_Admin {
 		);
 
 		if ( class_exists( 'CTA_Associate_Access' ) ) {
-			$associates = CTA_Associate_Access::get_associates_for_approvals( $status );
-			$counts     = CTA_Associate_Access::count_associates_by_approval_status();
+			$purchase_records = $this->get_supervision_purchase_records();
+
+			foreach ( $purchase_records as $record ) {
+				if ( isset( $counts[ $record['status'] ] ) ) {
+					$counts[ $record['status'] ]++;
+				}
+			}
+
+			$counts['all'] = count( $purchase_records );
+
+			if ( 'all' !== $status ) {
+				$purchase_records = array_values(
+					array_filter(
+						$purchase_records,
+						static function ( $record ) use ( $status ) {
+							return $status === $record['status'];
+						}
+					)
+				);
+			}
 		}
 
 		$this->load_view(
 			'approvals.php',
 			array(
-				'associates'      => $associates,
+				'purchase_records'=> $purchase_records,
 				'current_status'  => $status,
 				'status_counts'   => $counts,
 			)
 		);
+	}
+
+	/**
+	 * Get the latest completed supervision purchase for each user.
+	 *
+	 * Includes direct supervision subscriptions and the supervision + CE hybrid
+	 * bundle. Each result contains the existing WordPress user and payment row.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function get_supervision_purchase_records() {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'cta_payments';
+		$rows  = $wpdb->get_results(
+			"SELECT payment.*
+			FROM {$table} payment
+			INNER JOIN (
+				SELECT user_id, MAX(id) AS latest_id
+				FROM {$table}
+				WHERE status = 'completed'
+				AND (
+					product_type = 'supervision'
+					OR (
+						product_type = 'bundle'
+						AND (
+							plan_details LIKE '%\"plan_slug\":\"hybrid\"%'
+							OR plan_name LIKE '%Hybrid%'
+						)
+					)
+				)
+				GROUP BY user_id
+			) latest ON latest.latest_id = payment.id
+			ORDER BY payment.created_at DESC, payment.id DESC"
+		);
+
+		$records = array();
+
+		foreach ( $rows as $payment ) {
+			$user = get_user_by( 'id', (int) $payment->user_id );
+
+			if ( ! $user ) {
+				continue;
+			}
+
+			$approval_status = CTA_Associate_Access::get_approval_status( $user->ID );
+
+			if ( ! in_array(
+				$approval_status,
+				array(
+					CTA_Associate_Access::STATUS_PENDING,
+					CTA_Associate_Access::STATUS_APPROVED,
+					CTA_Associate_Access::STATUS_REJECTED,
+				),
+				true
+			) ) {
+				$approval_status = 'active' === get_user_meta( $user->ID, 'cta_supervision_status', true )
+					? CTA_Associate_Access::STATUS_APPROVED
+					: CTA_Associate_Access::STATUS_PENDING;
+			}
+
+			$plan_details = json_decode( (string) ( $payment->plan_details ?? '' ), true );
+			if ( ! is_array( $plan_details ) ) {
+				$plan_details = array();
+			}
+
+			$plan_name = sanitize_text_field( (string) ( $payment->plan_name ?? '' ) );
+			if ( '' === $plan_name ) {
+				$plan_name = (string) get_user_meta( $user->ID, 'cta_supervision_plan_name', true );
+			}
+			if ( '' === $plan_name ) {
+				$plan_name = __( 'Group Supervision', 'cta-lms' );
+			}
+
+			$records[] = array(
+				'user'             => $user,
+				'payment'          => $payment,
+				'plan_name'        => $plan_name,
+				'plan_details'     => $plan_details,
+				'status'           => $approval_status,
+				'rejection_reason' => (string) get_user_meta( $user->ID, 'cta_approval_rejection_reason', true ),
+				'is_associate'     => CTA_Associate_Access::is_associate( $user->ID ),
+			);
+		}
+
+		return $records;
 	}
 
 	/**
@@ -1566,9 +1670,11 @@ class CTA_Admin {
 
 		wp_send_json_success(
 			array(
-				'message' => __( 'Associate approved. Supervision access is now unlocked.', 'cta-lms' ),
-				'user_id' => $user_id,
-				'status'  => CTA_Associate_Access::STATUS_APPROVED,
+				'message'             => __( 'Associate approved. Supervision access is now unlocked.', 'cta-lms' ),
+				'user_id'             => $user_id,
+				'status'              => CTA_Associate_Access::get_approval_status( $user_id ),
+				'supervision_status'  => CTA_Associate_Access::get_supervision_status( $user_id ),
+				'access_granted'      => CTA_Associate_Access::can_access_supervision_features( $user_id ),
 			)
 		);
 	}
@@ -1580,7 +1686,8 @@ class CTA_Admin {
 		$this->verify_admin_ajax();
 
 		$user_id = absint( wp_unslash( $_POST['user_id'] ?? 0 ) );
-		$result  = $this->review_associate_approval( $user_id, 'reject' );
+		$reason  = sanitize_textarea_field( wp_unslash( $_POST['reason'] ?? '' ) );
+		$result  = $this->review_associate_approval( $user_id, 'reject', $reason );
 
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
@@ -1620,9 +1727,10 @@ class CTA_Admin {
 		}
 
 		$user_id = absint( wp_unslash( $_POST['user_id'] ?? 0 ) );
+		$reason  = sanitize_textarea_field( wp_unslash( $_POST['reason'] ?? '' ) );
 		check_admin_referer( 'cta_review_associate_' . $user_id, 'cta_approval_nonce' );
 
-		$result = $this->review_associate_approval( $user_id, $decision );
+		$result = $this->review_associate_approval( $user_id, $decision, $reason );
 		$flash  = is_wp_error( $result ) ? 'error' : ( 'approve' === $decision ? 'approved' : 'rejected' );
 
 		wp_safe_redirect(
@@ -1642,11 +1750,13 @@ class CTA_Admin {
 	 *
 	 * @param int    $user_id  User ID.
 	 * @param string $decision approve|reject.
+	 * @param string $reason   Optional rejection reason.
 	 * @return true|WP_Error
 	 */
-	private function review_associate_approval( $user_id, $decision ) {
+	private function review_associate_approval( $user_id, $decision, $reason = '' ) {
 		$user_id  = absint( $user_id );
 		$decision = sanitize_key( $decision );
+		$reason   = sanitize_textarea_field( $reason );
 
 		if ( ! $user_id || ! CTA_Associate_Access::is_associate( $user_id ) ) {
 			return new WP_Error( 'invalid_associate', __( 'Invalid Associate account.', 'cta-lms' ) );
@@ -1666,7 +1776,7 @@ class CTA_Admin {
 				return new WP_Error( 'not_pending', __( 'This Associate cannot be rejected from the current status.', 'cta-lms' ) );
 			}
 
-			$ok = CTA_Associate_Access::reject( $user_id );
+			$ok = CTA_Associate_Access::reject( $user_id, $reason );
 		}
 
 		if ( ! $ok ) {
@@ -1676,6 +1786,17 @@ class CTA_Admin {
 					? __( 'Unable to approve this Associate.', 'cta-lms' )
 					: __( 'Unable to reject this Associate.', 'cta-lms' )
 			);
+		}
+
+		if ( 'approve' === $decision && class_exists( 'CTA_Database' ) ) {
+			$supervision_payment = CTA_Database::get_user_supervision_payment( $user_id, 'completed' );
+
+			if ( $supervision_payment && ! CTA_Associate_Access::can_access_supervision_features( $user_id ) ) {
+				return new WP_Error(
+					'unlock_failed',
+					__( 'Associate was approved, but supervision access could not be activated.', 'cta-lms' )
+				);
+			}
 		}
 
 		return true;

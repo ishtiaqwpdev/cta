@@ -400,6 +400,40 @@
   margin: 12px 0 16px;
 }
 
+.cta-purchase-details-list {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.4fr) 1fr;
+  gap: 10px 16px;
+  margin: 20px 0 0;
+}
+
+.cta-purchase-details-list dt {
+  color: #50575e;
+  font-weight: 600;
+}
+
+.cta-purchase-details-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+#cta-reject-associate-modal .submit {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+@media (max-width: 782px) {
+  .cta-purchase-details-list {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .cta-purchase-details-list dd {
+    margin-bottom: 10px;
+  }
+}
+
 @media (max-width: 782px) {
   .cta-quiz-options-grid {
     grid-template-columns: 1fr;
