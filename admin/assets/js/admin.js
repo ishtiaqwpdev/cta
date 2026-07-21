@@ -565,6 +565,101 @@
     });
   }
 
+  function initEmailSettings() {
+    var $settings = $(".cta-email-settings");
+    if (!$settings.length) return;
+
+    function getEditorContent(editorId) {
+      if (
+        window.tinymce &&
+        window.tinymce.get(editorId) &&
+        !window.tinymce.get(editorId).isHidden()
+      ) {
+        return window.tinymce.get(editorId).getContent();
+      }
+
+      return $("#" + editorId).val() || "";
+    }
+
+    $settings.on("click", ".cta-email-tab", function () {
+      var type = $(this).data("email-tab");
+
+      $(".cta-email-tab")
+        .removeClass("cta-email-tab--active")
+        .attr("aria-selected", "false");
+      $(this)
+        .addClass("cta-email-tab--active")
+        .attr("aria-selected", "true");
+
+      $(".cta-email-panel").prop("hidden", true);
+      $('.cta-email-panel[data-email-panel="' + type + '"]').prop(
+        "hidden",
+        false
+      );
+    });
+
+    $settings.on("click", ".cta-preview-email", function () {
+      var $button = $(this);
+      var $panel = $button.closest(".cta-email-panel");
+      var $result = $button.siblings(".cta-inline-result");
+      var type = $button.data("email-type");
+      var editorId = $button.data("editor-id");
+
+      $button.prop("disabled", true);
+      $result.removeClass("is-error is-success").text("Generating preview...");
+
+      $.post(ctaAdmin.ajaxUrl, {
+        action: "cta_preview_email",
+        nonce: ctaAdmin.nonce,
+        email_type: type,
+        subject: $panel.find(".cta-email-subject").val(),
+        body: getEditorContent(editorId)
+      })
+        .done(function (response) {
+          if (!response.success || !response.data || !response.data.html) {
+            $result
+              .addClass("is-error")
+              .text(
+                response.data && response.data.message
+                  ? response.data.message
+                  : "Unable to generate preview."
+              );
+            return;
+          }
+
+          $("#cta-email-preview-subject").text(
+            response.data.subject || "Email Preview"
+          );
+
+          var frame = document.getElementById("cta-email-preview-frame");
+          var frameDocument =
+            frame.contentDocument ||
+            (frame.contentWindow && frame.contentWindow.document);
+
+          if (frameDocument) {
+            frameDocument.open();
+            frameDocument.write(response.data.html);
+            frameDocument.close();
+          }
+
+          $("#cta-email-preview-modal").prop("hidden", false);
+          $result.addClass("is-success").text("Preview ready.");
+        })
+        .fail(function () {
+          $result.addClass("is-error").text("Unable to generate preview.");
+        })
+        .always(function () {
+          $button.prop("disabled", false);
+        });
+    });
+
+    $settings.find("form").on("submit", function () {
+      if (window.tinyMCE && typeof window.tinyMCE.triggerSave === "function") {
+        window.tinyMCE.triggerSave();
+      }
+    });
+  }
+
   function initUserStats() {
     $(document).on("click", ".cta-view-user-stats", function () {
       var userId = $(this).data("user-id");
@@ -893,6 +988,7 @@
     try { initQuizPanel(); } catch (e) {}
     try { initStripeTest(); } catch (e) {}
     try { initCertificatePreview(); } catch (e) {}
+    try { initEmailSettings(); } catch (e) {}
     try { initUserStats(); } catch (e) {}
     try { initModals(); } catch (e) {}
     try { initBookings(); } catch (e) {}

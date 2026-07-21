@@ -1,0 +1,40 @@
+{\rtf1\ansi\ansicpg1252\deff0
+{\fonttbl{\f0\fswiss Calibri;}}
+{\colortbl;\red0\green0\blue0;\red11\green83\blue148;\red150\green0\blue0;\red176\green100\blue0;}
+\f0\fs22
+\fs36\b\cf2 Membership and Bundle Management\b0\cf1\fs22\par
+\fs18\cf2 CTA LMS \endash  Client Documentation\cf1\fs22\par
+\par
+\fs20\b\cf4 Status: Partial \endash  buying works, but there is no admin screen to create or edit plans\b0\cf1\fs22\par
+\par
+\fs28\b\cf2 1. Overview\b0\cf1\fs22\par
+\par
+Bundles (also shown as membership plans) let customers buy several courses together, an all-access plan, or a supervision + CE hybrid plan, usually at a better price. The plans are shown on a pricing page where customers can purchase them.\par
+\par
+\fs28\b\cf2 2. How it works (step by step)\b0\cf1\fs22\par
+\par
+1. When the plugin is first installed, it automatically creates five starter plans (for example a starter bundle, clinical focus, crisis & risk, an annual all-access plan, and a supervision + CE hybrid).\par
+2. These plans appear on the public membership pricing page.\par
+3. A customer clicks to buy a plan and is taken to Stripe checkout (one-time for most, monthly for subscription plans), or through the bypass/demo path if enabled.\par
+4. Once paid, access is granted: either enrollment in the specific courses in the bundle, or enrollment in all published courses for all-access/annual/subscription plans.\par
+5. The hybrid plan also switches on supervision access.\par
+6. A payment receipt email is sent.\par
+\par
+\fs28\b\cf2 3. Where to find it\b0\cf1\fs22\par
+\par
+- Public: the membership pricing page (the page containing the membership pricing shortcode).\par
+- Admin: there is no dedicated admin screen for bundles.\par
+\par
+\fs28\b\cf2 4. What you can configure\b0\cf1\fs22\par
+\par
+- The plans and their details (name, price, plan type, billing cycle, which courses are included, featured flag, status, order) exist in the database.\par
+- Some marketing lines on the pricing page (for example "4 sessions/month") are fixed text in the page design, not editable settings.\par
+\par
+\fs28\b\cf2 5. Current limitations / missing parts\b0\cf1\fs22\par
+\par
+- There is no admin screen to create, edit, or delete bundles. The five starter plans are added once at install; changing them requires editing the database directly.\par
+- The starter plans reference specific course ID numbers that may not match your real courses after install, so the "included courses" may need correcting.\par
+- Plans have an "expiry" field in the database, but it is never set or checked \endash  so an "annual" plan is not actually time-limited by the system; access does not automatically expire.\par
+- The comparison table shows "Certificate: Yes" for every plan as fixed text, not based on the actual plan.\par
+- Cancelling or renewing a bundle subscription is not specifically wired up (subscription management is focused on supervision).\par
+}

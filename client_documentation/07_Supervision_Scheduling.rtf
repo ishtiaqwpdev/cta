@@ -1,0 +1,42 @@
+{\rtf1\ansi\ansicpg1252\deff0
+{\fonttbl{\f0\fswiss Calibri;}}
+{\colortbl;\red0\green0\blue0;\red11\green83\blue148;\red150\green0\blue0;\red176\green100\blue0;}
+\f0\fs22
+\fs36\b\cf2 Supervision Scheduling\b0\cf1\fs22\par
+\fs18\cf2 CTA LMS \endash  Client Documentation\cf1\fs22\par
+\par
+\fs20\b\cf4 Status: Working, with some manual parts (see limitations)\b0\cf1\fs22\par
+\par
+\fs28\b\cf2 1. Overview\b0\cf1\fs22\par
+\par
+Supervision scheduling lets you offer supervision session slots (group or individual) that approved associates can book online. Admins create the available slots; associates book a seat, see their upcoming sessions, and can cancel within the allowed window.\par
+\par
+\fs28\b\cf2 2. How it works (step by step)\b0\cf1\fs22\par
+\par
+1. In the admin Bookings screen you create a session slot: type (group or individual), date, time, duration, and number of seats.\par
+2. The slot appears on the public supervision booking page for eligible associates.\par
+3. An approved associate with active supervision books a seat. The seat count goes up, and they receive a confirmation email.\par
+4. The associate sees the session in their supervision dashboard, including a join link if one has been added.\par
+5. Associates can cancel a booking, but not within 24 hours of the session start. Cancelling frees the seat again.\par
+6. Admins can cancel a whole slot, which cancels the associated bookings and emails those associates.\par
+\par
+\fs28\b\cf2 3. Where to find it\b0\cf1\fs22\par
+\par
+- Admin: CTA LMS then Bookings (with Upcoming and History tabs).\par
+- Public booking page: the page containing the supervision booking shortcode.\par
+- Associate dashboard: the page containing the supervision dashboard shortcode.\par
+\par
+\fs28\b\cf2 4. What you can configure\b0\cf1\fs22\par
+\par
+- Session type (group or individual), date, time, duration, and seats when creating a slot.\par
+- Group sessions are capped at 8 seats and 120 minutes; individual sessions are 1 seat and 60 minutes (these are fixed in the code).\par
+- Who can book is controlled by associate approval and active supervision status.\par
+\par
+\fs28\b\cf2 5. Current limitations / missing parts\b0\cf1\fs22\par
+\par
+- Meeting/join links can only be added through the booking's internal notes in the database \endash  there is no admin field to type in a Zoom or meeting link.\par
+- The public booking page forces group sessions to the maximum seats and fixed durations regardless of what was entered.\par
+- When an associate cancels their own booking, no email notification is sent.\par
+- When an admin cancels a slot, the notification email is a plain-text message rather than the branded email style used elsewhere.\par
+- Sessions are never automatically marked "completed" after they happen; the History tab is based on dates only.\par
+}

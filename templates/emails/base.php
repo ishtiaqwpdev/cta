@@ -7,6 +7,7 @@
  * @var string $template
  * @var string $email_subject
  * @var string $logo_url
+ * @var string $custom_body
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -42,7 +43,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 		<img src="<?php echo esc_url( $logo_url ); ?>" alt="<?php esc_attr_e( 'Clinical Training and Supervision Academy', 'cta-lms' ); ?>">
 	</div>
 	<div class="email-body">
-		<?php include CTA_PLUGIN_DIR . 'templates/emails/' . $template . '.php'; ?>
+		<?php if ( ! empty( $custom_body ) ) : ?>
+			<?php echo wp_kses_post( $custom_body ); ?>
+		<?php else : ?>
+			<?php include CTA_PLUGIN_DIR . 'templates/emails/' . $template . '.php'; ?>
+		<?php endif; ?>
 	</div>
 	<div class="email-footer">
 		<p><?php esc_html_e( 'Clinical Training and Supervision Academy', 'cta-lms' ); ?></p>

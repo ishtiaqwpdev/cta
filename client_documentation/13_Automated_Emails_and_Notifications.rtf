@@ -1,0 +1,48 @@
+{\rtf1\ansi\ansicpg1252\deff0
+{\fonttbl{\f0\fswiss Calibri;}}
+{\colortbl;\red0\green0\blue0;\red11\green83\blue148;\red150\green0\blue0;\red176\green100\blue0;}
+\f0\fs22
+\fs36\b\cf2 Automated Emails and Notifications\b0\cf1\fs22\par
+\fs18\cf2 CTA LMS \endash  Client Documentation\cf1\fs22\par
+\par
+\fs20\b\cf4 Status: Working, with a few gaps (see limitations)\b0\cf1\fs22\par
+\par
+\fs28\b\cf2 1. Overview\b0\cf1\fs22\par
+\par
+The system sends branded, automatic emails at key moments \endash  for example a welcome email, a purchase receipt, an enrollment confirmation, a session booking confirmation, a session reminder, and a "certificate ready" email. These use a shared, styled email template.\par
+\par
+\fs28\b\cf2 2. How it works (step by step)\b0\cf1\fs22\par
+\par
+1. When a triggering event happens (registration, purchase, booking, etc.), the system builds the right email from a template and sends it.\par
+2. A once-daily background task checks for supervision sessions happening the next day and sends reminder emails to the booked associates.\par
+3. Emails use a shared header/footer style and the sender name and support email from Settings.\par
+\par
+The automatic emails that are sent are:\par
+- Welcome (when a member registers)\par
+- Agency representative approval request (for associate onboarding; sent to the agency contact)\par
+- Booking confirmation (when a supervision seat is booked)\par
+- Session reminder (the day before a session)\par
+- Certificate ready (when a certificate is generated)\par
+- Payment receipt (after a successful purchase)\par
+- Enrollment confirmation (when enrolled in a course)\par
+- Supervision access paused (when a subscription is cancelled)\par
+- Payment failed (when a subscription payment fails)\par
+\par
+\fs28\b\cf2 3. Where to find it\b0\cf1\fs22\par
+\par
+- Admin: the sender name and support email are set under CTA LMS Settings.\par
+- Emails are sent automatically; there is no manual "send email" button.\par
+\par
+\fs28\b\cf2 4. What you can configure\b0\cf1\fs22\par
+\par
+- The "from" name and the support email address (used in the emails).\par
+- Dashboard/player links inside emails come from your page settings.\par
+\par
+\fs28\b\cf2 5. Current limitations / missing parts\b0\cf1\fs22\par
+\par
+- The email subjects and wording are fixed in the code; there is no admin editor to change email text or design.\par
+- No email is sent to an associate when they are approved or rejected by an admin.\par
+- When an associate cancels their own booking, no email is sent.\par
+- When an admin cancels a session, the notice is a plain-text email rather than the branded style.\par
+- Daily reminder emails rely on the WordPress scheduled-task system actually running (which depends on site traffic or a proper cron setup).\par
+}

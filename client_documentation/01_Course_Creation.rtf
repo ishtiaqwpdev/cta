@@ -1,0 +1,52 @@
+{\rtf1\ansi\ansicpg1252\deff0
+{\fonttbl{\f0\fswiss Calibri;}}
+{\colortbl;\red0\green0\blue0;\red11\green83\blue148;\red150\green0\blue0;}
+\f0\fs22
+\fs36\b\cf2 Course Creation\b0\cf1\fs22\par
+\fs18\cf2 CTA LMS \endash  Client Documentation\cf1\fs22\par
+\par
+\fs20\b\cf3 Status: Fully working\b0\cf1\fs22\par
+\par
+\fs28\b\cf2 1. Overview\b0\cf1\fs22\par
+\par
+This feature lets you build the online CE (Continuing Education) courses that licensed professionals buy and study. From the admin area you can create a course, give it a title, price, category, description, a preview video, a thumbnail image and learning objectives, and then publish it so it appears on your public course catalog. Courses can be saved as drafts while you finish them, or published when ready.\par
+\par
+\fs28\b\cf2 2. How it works (step by step)\b0\cf1\fs22\par
+\par
+1. In the WordPress admin menu you open CTA LMS and go to the Courses list.\par
+2. You click Add New (or Edit on an existing course) to open the course editor.\par
+3. You fill in the course details: title, web address (slug), category, CE hours, price, description, learning objectives, thumbnail image address, preview video, and status (Published or Draft).\par
+4. When you click Save, the information is stored in the plugin's own courses table in the database.\par
+5. Published courses automatically appear on your public "All Courses" catalog page and each has its own single-course detail page.\par
+6. Draft courses are hidden from the public until you publish them.\par
+\par
+Note: Courses are stored in the plugin's own database table, not as normal WordPress posts/pages.\par
+\par
+\fs28\b\cf2 3. Where to find it\b0\cf1\fs22\par
+\par
+- Admin: WordPress dashboard, left menu "CTA LMS" then "Courses".\par
+- The Add/Edit screen is opened from that Courses list (it is intentionally hidden as its own menu item).\par
+- Public catalog page: any page containing the course-catalog shortcode (set under Settings as the Courses page).\par
+- Public single course page: the page containing the single-course shortcode; each course opens with its own course ID in the web address.\par
+\par
+\fs28\b\cf2 4. What you can configure\b0\cf1\fs22\par
+\par
+- Title\par
+- Web address (slug) \endash  must be unique.\par
+- Category \endash  chosen from a fixed list: Law & Ethics, Clinical Skills, Specialized Topics, Supervision.\par
+- CE hours\par
+- Price\par
+- Description\par
+- Learning objectives (a list)\par
+- Thumbnail image (entered as an image web address)\par
+- Preview video (Vimeo, YouTube, uploaded media, or a direct link)\par
+- Status: Published or Draft\par
+\par
+\fs28\b\cf2 5. Current limitations / missing parts\b0\cf1\fs22\par
+\par
+- The category list is fixed in the code; you cannot add your own categories from the admin screen.\par
+- The thumbnail is entered as an image web address only \endash  there is no "choose from Media Library" picker button for it.\par
+- Deleting a course removes its modules, but it does not automatically remove related enrollments, quizzes, certificates, or payment records.\par
+- The instructor name shown on the single-course page comes from a general setting (and has a default value), not a per-course instructor field.\par
+- Duplicate web addresses are only blocked by the database; the save screen does not warn you in advance.\par
+}

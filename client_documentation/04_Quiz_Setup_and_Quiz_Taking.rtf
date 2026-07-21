@@ -1,0 +1,48 @@
+{\rtf1\ansi\ansicpg1252\deff0
+{\fonttbl{\f0\fswiss Calibri;}}
+{\colortbl;\red0\green0\blue0;\red11\green83\blue148;\red150\green0\blue0;\red176\green100\blue0;}
+\f0\fs22
+\fs36\b\cf2 Quiz Setup and Quiz Taking\b0\cf1\fs22\par
+\fs18\cf2 CTA LMS \endash  Client Documentation\cf1\fs22\par
+\par
+\fs20\b\cf4 Status: Working core, but several quiz settings are not editable in admin (see limitations)\b0\cf1\fs22\par
+\par
+\fs28\b\cf2 1. Overview\b0\cf1\fs22\par
+\par
+Each course can have one multiple-choice quiz. Admins build the quiz questions on the course edit screen. Students take the quiz after finishing all the course modules. If they pass, they are asked to fill in a short course evaluation, and then their certificate is generated.\par
+\par
+\fs28\b\cf2 2. How it works (step by step)\b0\cf1\fs22\par
+\par
+Setting up (admin):\par
+1. On the course edit screen, open the Quiz panel.\par
+2. Give the quiz a title and add questions. Each question has the question text, four answer options (A\endash D), the correct option, and an optional explanation.\par
+3. Save the quiz. Questions are stored and reloaded whenever you edit the course.\par
+\par
+Taking the quiz (student):\par
+1. The student must be logged in, enrolled, and have completed 100% of the modules.\par
+2. They open the Quiz page, which shows the number of questions, the passing score, and any time limit.\par
+3. They click Start, answer the questions, and submit.\par
+4. The system scores the quiz (percentage of correct answers) and tells them if they passed. After submitting they can see which answers were right, with explanations.\par
+5. If they passed, they are asked to complete a short evaluation (star ratings and an optional comment).\par
+6. After the evaluation is submitted, the certificate is generated automatically.\par
+\par
+\fs28\b\cf2 3. Where to find it\b0\cf1\fs22\par
+\par
+- Admin: CTA LMS then Courses, open a course, and use the Quiz panel on the edit screen.\par
+- Student side: the Quiz page (the page containing the quiz shortcode), reached by the "Take Quiz" button in the course player.\par
+\par
+\fs28\b\cf2 4. What you can configure\b0\cf1\fs22\par
+\par
+- Quiz title\par
+- Questions: unlimited multiple-choice questions, each with four options, a correct answer, and an explanation.\par
+- The evaluation questions are fixed: overall rating, content quality, instructor rating, a "would you recommend" choice, and an optional comment.\par
+\par
+\fs28\b\cf2 5. Current limitations / missing parts\b0\cf1\fs22\par
+\par
+- The passing score (default 70%), time limit (default none), and maximum number of attempts (default 3) exist in the system, but there is no field in the admin quiz screen to change them. In practice they stay at their defaults unless changed directly in the database.\par
+- The "maximum attempts" value is never actually enforced \endash  students can retry a failed quiz without limit.\par
+- If a time limit were set, it would only be enforced in the browser; the server does not reject a late submission.\par
+- Only multiple-choice (A\endash D) questions are supported \endash  no true/false, multi-select, or written answers.\par
+- Only one quiz per course is supported.\par
+- The evaluation step is required before the certificate is issued.\par
+}

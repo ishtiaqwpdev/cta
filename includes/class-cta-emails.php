@@ -34,6 +34,10 @@ class CTA_Emails {
 	 * @return bool
 	 */
 	public static function send( $type, $user_id, $data = array() ) {
+		if ( self::is_configurable_type( $type ) && ! self::is_email_enabled( $type ) ) {
+			return false;
+		}
+
 		$user = get_userdata( $user_id );
 
 		if ( ! $user || ! is_email( $user->user_email ) ) {
@@ -66,6 +70,199 @@ class CTA_Emails {
 			default:
 				return false;
 		}
+	}
+
+	/**
+	 * Email types admins can manage.
+	 *
+	 * Subjects and bodies use {placeholder} tokens. Existing PHP templates remain
+	 * the fallback until an admin saves a custom body.
+	 *
+	 * @return array<string,array<string,mixed>>
+	 */
+	public static function get_configurable_types() {
+		return array(
+			'welcome' => array(
+				'label'           => __( 'Welcome Email', 'cta-lms' ),
+				'description'     => __( 'Sent when a new student or Associate account is created.', 'cta-lms' ),
+				'template'        => 'welcome',
+				'default_subject' => __( 'Welcome to Clinical Training and Supervision Academy', 'cta-lms' ),
+				'default_body'    => '<p>Hi {student_name},</p><h2>Welcome to Clinical Training and Supervision Academy!</h2><p>Your account has been created successfully.</p><div class="highlight-box"><p><strong>Account Type:</strong> {role_label}</p><p><strong>Email:</strong> {student_email}</p></div><p>You can now browse available learning and supervision services from your dashboard.</p><p><a class="btn-email" href="{dashboard_url}">Go to Dashboard</a></p><hr class="divider"><p><a href="{faq_url}">Visit our FAQ page</a></p>',
+				'placeholders'    => array(
+					'{student_name}'  => __( 'Student display name', 'cta-lms' ),
+					'{student_email}' => __( 'Student email address', 'cta-lms' ),
+					'{role_label}'    => __( 'Account type', 'cta-lms' ),
+					'{dashboard_url}' => __( 'Student dashboard link', 'cta-lms' ),
+					'{faq_url}'       => __( 'FAQ page link', 'cta-lms' ),
+				),
+			),
+			'enrollment_confirmation' => array(
+				'label'           => __( 'Enrollment Confirmation', 'cta-lms' ),
+				'description'     => __( 'Sent after a student is enrolled in a course.', 'cta-lms' ),
+				'template'        => 'enrollment-confirmation',
+				'default_subject' => __( 'You\'re Enrolled — {course_name}', 'cta-lms' ),
+				'default_body'    => '<p>Hi {student_name},</p><h2>You\'re enrolled!</h2><div class="highlight-box"><p><strong>Course:</strong> {course_name}</p><p><strong>CE Hours:</strong> {ce_hours}</p><p><strong>Payment:</strong> {payment_reference}</p><p><strong>Enrolled:</strong> {enrolled_date}</p></div><p>You can start with Module 1 and complete the course at your own pace.</p><p><a class="btn-email" href="{course_player_url}">Start Learning Now</a></p>',
+				'placeholders'    => array(
+					'{student_name}'     => __( 'Student display name', 'cta-lms' ),
+					'{course_name}'      => __( 'Course title', 'cta-lms' ),
+					'{ce_hours}'         => __( 'Course CE hours', 'cta-lms' ),
+					'{payment_reference}'=> __( 'Short payment reference', 'cta-lms' ),
+					'{enrolled_date}'    => __( 'Enrollment date', 'cta-lms' ),
+					'{course_player_url}'=> __( 'Course player link', 'cta-lms' ),
+				),
+			),
+			'booking_confirmation' => array(
+				'label'           => __( 'Booking Confirmation', 'cta-lms' ),
+				'description'     => __( 'Sent after an Associate books a supervision session.', 'cta-lms' ),
+				'template'        => 'booking-confirmation',
+				'default_subject' => __( 'Supervision Session Confirmed — {session_date}', 'cta-lms' ),
+				'default_body'    => '<p>Hi {student_name},</p><h2>Your supervision session is confirmed!</h2><div class="highlight-box"><p><strong>Session Type:</strong> {session_type}</p><p><strong>Date:</strong> {session_date}</p><p><strong>Time:</strong> {session_time}</p><p><strong>Duration:</strong> {duration}</p><p><strong>Your spot:</strong> {seats_booked} of {seats_total}</p></div><p>Please prepare any cases you would like to discuss and join five minutes early.</p><p><a class="btn-email" href="{dashboard_url}">View My Sessions</a></p>',
+				'placeholders'    => array(
+					'{student_name}' => __( 'Associate display name', 'cta-lms' ),
+					'{session_type}' => __( 'Group or individual session', 'cta-lms' ),
+					'{session_date}' => __( 'Formatted session date', 'cta-lms' ),
+					'{session_time}' => __( 'Formatted session time', 'cta-lms' ),
+					'{duration}'     => __( 'Session duration', 'cta-lms' ),
+					'{seats_booked}' => __( 'Number of booked seats', 'cta-lms' ),
+					'{seats_total}'  => __( 'Total available seats', 'cta-lms' ),
+					'{dashboard_url}'=> __( 'Supervision dashboard link', 'cta-lms' ),
+				),
+			),
+			'session_reminder' => array(
+				'label'           => __( 'Session Reminder', 'cta-lms' ),
+				'description'     => __( 'Sent by the daily reminder task for sessions happening tomorrow.', 'cta-lms' ),
+				'template'        => 'session-reminder',
+				'default_subject' => __( 'Reminder: Your Supervision Session is Tomorrow', 'cta-lms' ),
+				'default_body'    => '<p>Hi {student_name},</p><h2>Reminder: Your supervision session is tomorrow</h2><div class="highlight-box"><p><strong>Date:</strong> {session_date}</p><p><strong>Time:</strong> {session_time}</p><p><strong>Type:</strong> {session_type}</p><p><strong>Duration:</strong> {duration}</p></div><p>Please prepare your cases and test your video connection.</p><p><a class="btn-email" href="{dashboard_url}">View Session Details</a></p><hr class="divider"><p class="small-text">Need to cancel? You must cancel before {cancellation_deadline} to avoid being charged.</p>',
+				'placeholders'    => array(
+					'{student_name}'         => __( 'Associate display name', 'cta-lms' ),
+					'{session_type}'         => __( 'Group or individual session', 'cta-lms' ),
+					'{session_date}'         => __( 'Formatted session date', 'cta-lms' ),
+					'{session_time}'         => __( 'Formatted session time', 'cta-lms' ),
+					'{duration}'             => __( 'Session duration', 'cta-lms' ),
+					'{cancellation_deadline}'=> __( 'Cancellation deadline', 'cta-lms' ),
+					'{dashboard_url}'        => __( 'Supervision dashboard link', 'cta-lms' ),
+				),
+			),
+			'certificate_ready' => array(
+				'label'           => __( 'Certificate Ready', 'cta-lms' ),
+				'description'     => __( 'Sent after a course certificate is generated.', 'cta-lms' ),
+				'template'        => 'certificate-ready',
+				'default_subject' => __( 'Your CE Certificate is Ready — {course_name}', 'cta-lms' ),
+				'default_body'    => '<p>Hi {student_name},</p><h2>Your CE certificate is ready!</h2><p>Congratulations on completing your course. Your certificate is ready to download.</p><div class="highlight-box"><p><strong>Course:</strong> {course_name}</p><p><strong>CE Hours:</strong> {ce_hours}</p><p><strong>Certificate #:</strong> {certificate_number}</p><p><strong>Completion Date:</strong> {completion_date}</p></div><p><a class="btn-email" href="{certificate_url}">Download Certificate</a></p><p><a href="{dashboard_url}">View all my certificates</a></p>',
+				'placeholders'    => array(
+					'{student_name}'      => __( 'Student display name', 'cta-lms' ),
+					'{course_name}'       => __( 'Course title', 'cta-lms' ),
+					'{ce_hours}'          => __( 'Course CE hours', 'cta-lms' ),
+					'{certificate_number}'=> __( 'Certificate number', 'cta-lms' ),
+					'{completion_date}'   => __( 'Course completion date', 'cta-lms' ),
+					'{certificate_url}'   => __( 'Certificate download link', 'cta-lms' ),
+					'{dashboard_url}'     => __( 'Student dashboard link', 'cta-lms' ),
+				),
+			),
+			'payment_receipt' => array(
+				'label'           => __( 'Payment Receipt', 'cta-lms' ),
+				'description'     => __( 'Sent after a successful course, bundle, or supervision payment.', 'cta-lms' ),
+				'template'        => 'payment-receipt',
+				'default_subject' => __( 'Payment Received — Thank You', 'cta-lms' ),
+				'default_body'    => '<p>Hi {student_name},</p><h2>Payment received — thank you!</h2><div class="highlight-box"><p><strong>Item:</strong> {product_name}</p><p><strong>Amount:</strong> ${amount}</p><p><strong>Date:</strong> {payment_date}</p><p><strong>Transaction ID:</strong> {transaction_id}</p><p><strong>Status:</strong> Completed</p></div><p>Your access has been activated.</p><p><a class="btn-email" href="{dashboard_url}">Access Your Content</a></p><hr class="divider"><p class="small-text">For billing questions contact {support_email}.</p>',
+				'placeholders'    => array(
+					'{student_name}' => __( 'Customer display name', 'cta-lms' ),
+					'{product_name}' => __( 'Purchased item or plan', 'cta-lms' ),
+					'{amount}'       => __( 'Payment amount', 'cta-lms' ),
+					'{payment_date}' => __( 'Payment date', 'cta-lms' ),
+					'{transaction_id}'=> __( 'Short transaction reference', 'cta-lms' ),
+					'{dashboard_url}'=> __( 'Customer dashboard link', 'cta-lms' ),
+					'{support_email}'=> __( 'Support email address', 'cta-lms' ),
+				),
+			),
+			'payment_failed' => array(
+				'label'           => __( 'Payment Failed', 'cta-lms' ),
+				'description'     => __( 'Sent when Stripe reports a failed subscription payment.', 'cta-lms' ),
+				'template'        => 'payment-failed',
+				'default_subject' => __( 'Action Required: Payment Failed', 'cta-lms' ),
+				'default_body'    => '<p>Hi {student_name},</p><h2>Action required: Payment failed</h2><div class="warning-box"><p>We were unable to process your payment for {subscription_plan}. Your supervision access has been temporarily suspended.</p></div><p>Please update your payment method to restore access.</p><p><a class="btn-email" href="{billing_portal_url}">Update Payment Method</a></p><hr class="divider"><p class="small-text">If you need assistance contact us at {support_email}.</p>',
+				'placeholders'    => array(
+					'{student_name}'      => __( 'Customer display name', 'cta-lms' ),
+					'{subscription_plan}' => __( 'Subscription plan name', 'cta-lms' ),
+					'{billing_portal_url}'=> __( 'Stripe billing portal link', 'cta-lms' ),
+					'{support_email}'     => __( 'Support email address', 'cta-lms' ),
+				),
+			),
+			'supervision_locked' => array(
+				'label'           => __( 'Supervision Access Locked', 'cta-lms' ),
+				'description'     => __( 'Sent when a supervision subscription is cancelled and access is paused.', 'cta-lms' ),
+				'template'        => 'supervision-access-locked',
+				'default_subject' => __( 'Your Supervision Access Has Been Paused', 'cta-lms' ),
+				'default_body'    => '<p>Hi {student_name},</p><h2>Your supervision access has been paused</h2><p>Your supervision subscription has been cancelled or a recent payment could not be processed.</p><p>You cannot book new sessions, but your session history and uploaded documents are preserved.</p><p><a class="btn-email" href="{supervision_url}">Reactivate Supervision</a></p><hr class="divider"><p class="small-text">Questions? Contact us at {support_email}.</p>',
+				'placeholders'    => array(
+					'{student_name}'  => __( 'Associate display name', 'cta-lms' ),
+					'{supervision_url}'=> __( 'Supervision purchase page link', 'cta-lms' ),
+					'{support_email}' => __( 'Support email address', 'cta-lms' ),
+				),
+			),
+		);
+	}
+
+	/**
+	 * Saved values for one configurable email.
+	 *
+	 * @param string $type Email type.
+	 * @return array{enabled:bool,subject:string,body:string}
+	 */
+	public static function get_email_settings( $type ) {
+		$types = self::get_configurable_types();
+
+		if ( ! isset( $types[ $type ] ) ) {
+			return array(
+				'enabled' => true,
+				'subject' => '',
+				'body'    => '',
+			);
+		}
+
+		return array(
+			'enabled' => 'no' !== get_option( self::get_email_option_key( $type, 'enabled' ), 'yes' ),
+			'subject' => (string) get_option( self::get_email_option_key( $type, 'subject' ), '' ),
+			'body'    => (string) get_option( self::get_email_option_key( $type, 'body' ), '' ),
+		);
+	}
+
+	/**
+	 * Build a full HTML preview using safe sample data.
+	 *
+	 * @param string $type    Email type.
+	 * @param string $subject Subject entered in admin.
+	 * @param string $body    Body entered in admin.
+	 * @return array|WP_Error
+	 */
+	public static function preview_email( $type, $subject = '', $body = '' ) {
+		$types = self::get_configurable_types();
+
+		if ( ! isset( $types[ $type ] ) ) {
+			return new WP_Error( 'invalid_email_type', __( 'Invalid email type.', 'cta-lms' ) );
+		}
+
+		$user = (object) array(
+			'ID'           => 1,
+			'display_name' => 'Alex Morgan',
+			'user_email'   => 'alex@example.com',
+			'roles'        => array( 'cta_licensed_professional' ),
+		);
+		$vars = self::get_preview_vars( $type, $user );
+		$vars['user'] = $user;
+
+		$subject = $subject ? $subject : $types[ $type ]['default_subject'];
+		$body    = $body ? $body : $types[ $type ]['default_body'];
+		$subject = self::replace_placeholders( $subject, self::build_placeholder_values( $user, $vars, false ) );
+		$body    = self::replace_placeholders( $body, self::build_placeholder_values( $user, $vars, true ) );
+
+		$vars['email_subject'] = $subject;
+
+		return array(
+			'subject' => $subject,
+			'html'    => self::render( $types[ $type ]['template'], $vars, $body ),
+		);
 	}
 
 	/**
@@ -445,14 +642,16 @@ class CTA_Emails {
 	/**
 	 * Render email HTML using base wrapper.
 	 *
-	 * @param string $template Template slug without .php.
-	 * @param array  $vars     Template variables.
+	 * @param string $template    Template slug without .php.
+	 * @param array  $vars        Template variables.
+	 * @param string $custom_body Optional customized body HTML.
 	 * @return string
 	 */
-	private static function render( $template, $vars = array() ) {
+	private static function render( $template, $vars = array(), $custom_body = '' ) {
 		$vars['template']      = $template;
 		$vars['email_subject'] = $vars['email_subject'] ?? 'CTA';
 		$vars['logo_url']      = self::get_logo_url();
+		$vars['custom_body']   = $custom_body;
 
 		ob_start();
 		extract( $vars, EXTR_SKIP ); // phpcs:ignore WordPress.PHP.DontExtract.extract_extract
@@ -471,6 +670,7 @@ class CTA_Emails {
 	 * @return bool
 	 */
 	private static function deliver( $user, $subject, $template, $vars, $attachments = array() ) {
+		$vars['user'] = $user;
 		return self::deliver_to( $user->user_email, $subject, $template, $vars, $attachments );
 	}
 
@@ -491,8 +691,41 @@ class CTA_Emails {
 			return false;
 		}
 
+		$custom_body = '';
+		$type        = self::get_type_for_template( $template );
+
+		if ( $type ) {
+			$settings = self::get_email_settings( $type );
+
+			if ( ! $settings['enabled'] ) {
+				return false;
+			}
+
+			$user   = isset( $vars['user'] ) && is_object( $vars['user'] )
+				? $vars['user']
+				: (object) array(
+					'ID'           => 0,
+					'display_name' => '',
+					'user_email'   => $to_email,
+					'roles'        => array(),
+				);
+			if ( '' !== $settings['subject'] ) {
+				$subject = self::replace_placeholders(
+					$settings['subject'],
+					self::build_placeholder_values( $user, $vars, false )
+				);
+			}
+
+			if ( '' !== $settings['body'] ) {
+				$custom_body = self::replace_placeholders(
+					$settings['body'],
+					self::build_placeholder_values( $user, $vars, true )
+				);
+			}
+		}
+
 		$vars['email_subject'] = $subject;
-		$html                  = self::render( $template, $vars );
+		$html                  = self::render( $template, $vars, $custom_body );
 		$attachments           = array_values(
 			array_filter(
 				(array) $attachments,
@@ -526,6 +759,190 @@ class CTA_Emails {
 		}
 
 		return (bool) $sent;
+	}
+
+	/**
+	 * Whether an email type is managed by Email Settings.
+	 *
+	 * @param string $type Email type.
+	 * @return bool
+	 */
+	private static function is_configurable_type( $type ) {
+		$types = self::get_configurable_types();
+		return isset( $types[ $type ] );
+	}
+
+	/**
+	 * Whether a configurable email is enabled.
+	 *
+	 * @param string $type Email type.
+	 * @return bool
+	 */
+	private static function is_email_enabled( $type ) {
+		$settings = self::get_email_settings( $type );
+		return $settings['enabled'];
+	}
+
+	/**
+	 * Option key for an email setting.
+	 *
+	 * @param string $type  Email type.
+	 * @param string $field enabled|subject|body.
+	 * @return string
+	 */
+	public static function get_email_option_key( $type, $field ) {
+		return 'cta_email_' . sanitize_key( $type ) . '_' . sanitize_key( $field );
+	}
+
+	/**
+	 * Find a configurable type by its legacy PHP template.
+	 *
+	 * @param string $template Template slug.
+	 * @return string
+	 */
+	private static function get_type_for_template( $template ) {
+		foreach ( self::get_configurable_types() as $type => $config ) {
+			if ( $template === $config['template'] ) {
+				return $type;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Replace supported {placeholder} tokens.
+	 *
+	 * @param string $content Content containing placeholders.
+	 * @param array  $values  Placeholder/value map.
+	 * @return string
+	 */
+	private static function replace_placeholders( $content, $values ) {
+		$replacements = $values;
+
+		// Visual editors may URL-encode braces when a placeholder is used in href.
+		foreach ( $values as $placeholder => $value ) {
+			$replacements[ rawurlencode( $placeholder ) ] = $value;
+		}
+
+		return strtr( (string) $content, $replacements );
+	}
+
+	/**
+	 * Build escaped placeholder values from the normal email template variables.
+	 *
+	 * @param object $user        Recipient user-like object.
+	 * @param array  $vars        Template variables.
+	 * @param bool   $escape_html Whether values will be inserted into HTML.
+	 * @return array<string,string>
+	 */
+	private static function build_placeholder_values( $user, $vars, $escape_html = true ) {
+		$course      = isset( $vars['course'] ) && is_object( $vars['course'] ) ? $vars['course'] : null;
+		$certificate = isset( $vars['certificate'] ) && is_object( $vars['certificate'] ) ? $vars['certificate'] : null;
+		$payment     = isset( $vars['payment'] ) && is_object( $vars['payment'] ) ? $vars['payment'] : null;
+		$session     = isset( $vars['session'] ) && is_object( $vars['session'] ) ? $vars['session'] : null;
+		$raw         = array(
+			'{student_name}'          => $user->display_name ?? '',
+			'{student_email}'         => $user->user_email ?? '',
+			'{role_label}'            => $vars['role_label'] ?? '',
+			'{dashboard_url}'         => $vars['dashboard_url'] ?? '',
+			'{faq_url}'               => $vars['faq_url'] ?? '',
+			'{course_name}'           => $course->title ?? '',
+			'{ce_hours}'              => $vars['ce_hours'] ?? '',
+			'{payment_reference}'     => $vars['payment_reference'] ?? '',
+			'{enrolled_date}'         => $vars['enrolled_date'] ?? '',
+			'{course_player_url}'     => $vars['player_url'] ?? '',
+			'{session_type}'          => $vars['session_type_label'] ?? '',
+			'{session_date}'          => $vars['session_date'] ?? '',
+			'{session_time}'          => $vars['session_time'] ?? '',
+			'{duration}'              => $vars['duration_label'] ?? '',
+			'{seats_booked}'          => $session->seats_booked ?? '',
+			'{seats_total}'           => $session->seats_total ?? '',
+			'{cancellation_deadline}' => $vars['cancellation_deadline'] ?? '',
+			'{certificate_number}'    => $certificate->certificate_number ?? '',
+			'{certificate_url}'       => $vars['certificate_url'] ?? '',
+			'{completion_date}'       => $vars['completion_date'] ?? '',
+			'{product_name}'          => $vars['product_name'] ?? '',
+			'{amount}'                => $vars['amount'] ?? ( $payment->amount ?? '' ),
+			'{payment_date}'          => $vars['payment_date'] ?? '',
+			'{transaction_id}'        => $vars['transaction_ref'] ?? '',
+			'{subscription_plan}'     => $vars['subscription_plan'] ?? '',
+			'{billing_portal_url}'    => $vars['portal_url'] ?? '',
+			'{supervision_url}'       => $vars['supervision_url'] ?? '',
+			'{support_email}'         => $vars['support_email'] ?? self::get_support_email(),
+			'{program_admin_name}'    => get_option( 'cta_admin_name', 'Clinical Training and Supervision Academy' ),
+		);
+		$values      = array();
+
+		foreach ( $raw as $placeholder => $value ) {
+			$values[ $placeholder ] = $escape_html
+				? esc_html( (string) $value )
+				: sanitize_text_field( (string) $value );
+		}
+
+		return $values;
+	}
+
+	/**
+	 * Sample variables used by the admin preview.
+	 *
+	 * @param string $type Email type.
+	 * @param object $user Sample recipient.
+	 * @return array
+	 */
+	private static function get_preview_vars( $type, $user ) {
+		$course = (object) array(
+			'title'    => 'Law & Ethics: 2026 Update',
+			'ce_hours' => 3,
+		);
+		$session = (object) array(
+			'session_type' => 'group',
+			'session_date' => wp_date( 'Y-m-d', strtotime( '+1 day', current_time( 'timestamp' ) ) ),
+			'session_time' => '10:00:00',
+			'duration_mins'=> 120,
+			'seats_booked' => 4,
+			'seats_total'  => 8,
+		);
+		$certificate = (object) array(
+			'certificate_number' => 'CTA-' . wp_date( 'Y' ) . '-123456',
+			'issued_at'           => current_time( 'mysql' ),
+		);
+		$payment = (object) array(
+			'amount'            => '139.00',
+			'created_at'        => current_time( 'mysql' ),
+			'stripe_payment_id' => 'pi_sample123456789',
+		);
+		$common = array(
+			'role_label'           => __( 'Licensed Professional (CE)', 'cta-lms' ),
+			'dashboard_url'        => home_url( '/student-dashboard/' ),
+			'faq_url'              => home_url( '/faq/' ),
+			'course'               => $course,
+			'ce_hours'             => '3',
+			'payment_reference'    => '#12345678',
+			'enrolled_date'        => wp_date( 'F j, Y' ),
+			'player_url'           => home_url( '/course-player/?course_id=1' ),
+			'session'              => $session,
+			'session_type_label'   => __( 'Group Supervision', 'cta-lms' ),
+			'session_date'         => self::format_session_date( $session->session_date ),
+			'session_time'         => self::format_session_time( $session->session_time ),
+			'duration_label'       => __( '2 hours', 'cta-lms' ),
+			'cancellation_deadline'=> self::get_cancellation_deadline( $session ),
+			'certificate'          => $certificate,
+			'certificate_url'      => home_url( '/sample-certificate/' ),
+			'completion_date'      => wp_date( 'F j, Y' ),
+			'product_name'         => __( 'Annual CE Bundle', 'cta-lms' ),
+			'payment'              => $payment,
+			'amount'               => '139.00',
+			'payment_date'         => wp_date( 'F j, Y' ),
+			'transaction_ref'      => 'sample123456',
+			'subscription_plan'    => __( 'Group Supervision Plan', 'cta-lms' ),
+			'portal_url'           => home_url( '/billing-portal/' ),
+			'supervision_url'      => home_url( '/supervision/' ),
+			'support_email'        => self::get_support_email(),
+		);
+
+		unset( $type, $user );
+		return $common;
 	}
 
 	/**

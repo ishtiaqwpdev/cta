@@ -30,6 +30,7 @@ class CTA_Admin {
 		add_action( 'admin_post_cta_delete_course', array( $this, 'delete_course' ) );
 		add_action( 'admin_post_cta_toggle_course', array( $this, 'toggle_course_status' ) );
 		add_action( 'admin_post_cta_save_settings', array( $this, 'save_settings' ) );
+		add_action( 'admin_post_cta_save_email_settings', array( $this, 'save_email_settings' ) );
 
 		add_action( 'wp_ajax_cta_admin_get_stats', array( $this, 'ajax_get_stats' ) );
 		add_action( 'wp_ajax_cta_save_module', array( $this, 'ajax_save_module' ) );
@@ -40,6 +41,7 @@ class CTA_Admin {
 		add_action( 'wp_ajax_cta_admin_cancel_session', array( $this, 'ajax_cancel_session' ) );
 		add_action( 'wp_ajax_cta_test_stripe_connection', array( $this, 'ajax_test_stripe_connection' ) );
 		add_action( 'wp_ajax_cta_preview_certificate', array( $this, 'ajax_preview_certificate' ) );
+		add_action( 'wp_ajax_cta_preview_email', array( $this, 'ajax_preview_email' ) );
 		add_action( 'wp_ajax_cta_save_quiz', array( $this, 'ajax_save_quiz' ) );
 		add_action( 'wp_ajax_cta_load_quiz', array( $this, 'ajax_load_quiz' ) );
 		add_action( 'wp_ajax_cta_approve_associate', array( $this, 'ajax_approve_associate' ) );
@@ -133,6 +135,15 @@ class CTA_Admin {
 			'manage_options',
 			'cta-lms-settings',
 			array( $this, 'render_settings' )
+		);
+
+		add_submenu_page(
+			'cta-lms',
+			__( 'Email Settings', 'cta-lms' ),
+			__( 'Email Settings', 'cta-lms' ),
+			'manage_options',
+			'cta-lms-email-settings',
+			array( $this, 'render_email_settings' )
 		);
 
 		add_submenu_page(
@@ -289,8 +300,14 @@ class CTA_Admin {
 			)
 		);
 
-		if ( 'cta-lms_page_cta-lms-course-edit' === $hook ) {
+		if (
+			'cta-lms_page_cta-lms-course-edit' === $hook
+			|| 'cta-lms_page_cta-lms-email-settings' === $hook
+		) {
 			wp_enqueue_editor();
+		}
+
+		if ( 'cta-lms_page_cta-lms-course-edit' === $hook ) {
 			wp_enqueue_media();
 		}
 	}
@@ -736,6 +753,18 @@ class CTA_Admin {
 	}
 
 	/**
+	 * Render configurable automated email settings.
+	 */
+	public function render_email_settings() {
+		$this->load_view(
+			'email-settings.php',
+			array(
+				'email_types' => CTA_Emails::get_configurable_types(),
+			)
+		);
+	}
+
+	/**
 	 * Render shortcodes reference.
 	 */
 	public function render_shortcodes() {
@@ -985,6 +1014,64 @@ class CTA_Admin {
 				array(
 					'page'       => 'cta-lms-settings',
 					'cta_notice' => 'settings_saved',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
+	 * Save automated email settings.
+	 */
+	public function save_email_settings() {
+		$this->verify_admin_request( 'cta_save_email_settings' );
+
+		update_option( 'cta_admin_name', sanitize_text_field( wp_unslash( $_POST['cta_admin_name'] ?? '' ) ) );
+		update_option( 'cta_support_email', sanitize_email( wp_unslash( $_POST['cta_support_email'] ?? '' ) ) );
+
+		$submitted = isset( $_POST['emails'] ) && is_array( $_POST['emails'] )
+			? wp_unslash( $_POST['emails'] )
+			: array();
+
+		foreach ( CTA_Emails::get_configurable_types() as $type => $config ) {
+			$email = isset( $submitted[ $type ] ) && is_array( $submitted[ $type ] )
+				? $submitted[ $type ]
+				: array();
+			$subject = sanitize_text_field( $email['subject'] ?? $config['default_subject'] );
+			$body    = wp_kses_post( $email['body'] ?? $config['default_body'] );
+
+			// Keep empty options for untouched defaults so the original PHP
+			// template remains the fallback (including its conditional content).
+			$saved_subject = $config['default_subject'] === $subject ? '' : $subject;
+			$normalized_body = str_replace(
+				array( '%7B', '%7D', '%7b', '%7d' ),
+				array( '{', '}', '{', '}' ),
+				$body
+			);
+			$saved_body = trim( wp_kses_post( $config['default_body'] ) ) === trim( $normalized_body )
+				? ''
+				: $body;
+
+			update_option(
+				CTA_Emails::get_email_option_key( $type, 'enabled' ),
+				isset( $email['enabled'] ) ? 'yes' : 'no'
+			);
+			update_option(
+				CTA_Emails::get_email_option_key( $type, 'subject' ),
+				$saved_subject
+			);
+			update_option(
+				CTA_Emails::get_email_option_key( $type, 'body' ),
+				$saved_body
+			);
+		}
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'       => 'cta-lms-email-settings',
+					'cta_notice' => 'email_settings_saved',
 				),
 				admin_url( 'admin.php' )
 			)
@@ -1422,6 +1509,24 @@ class CTA_Admin {
 		$html = ob_get_clean();
 
 		wp_send_json_success( array( 'html' => $html ) );
+	}
+
+	/**
+	 * AJAX: preview a configurable email with safe sample data.
+	 */
+	public function ajax_preview_email() {
+		$this->verify_admin_ajax();
+
+		$type    = sanitize_key( wp_unslash( $_POST['email_type'] ?? '' ) );
+		$subject = sanitize_text_field( wp_unslash( $_POST['subject'] ?? '' ) );
+		$body    = wp_kses_post( wp_unslash( $_POST['body'] ?? '' ) );
+		$preview = CTA_Emails::preview_email( $type, $subject, $body );
+
+		if ( is_wp_error( $preview ) ) {
+			wp_send_json_error( array( 'message' => $preview->get_error_message() ) );
+		}
+
+		wp_send_json_success( $preview );
 	}
 
 	/**
@@ -1962,15 +2067,18 @@ class CTA_Admin {
 		$status = CTA_Associate_Access::get_approval_status( $user_id );
 
 		if ( 'approve' === $decision ) {
-			if ( CTA_Associate_Access::STATUS_PENDING !== $status && CTA_Associate_Access::STATUS_REJECTED !== $status ) {
-				return new WP_Error( 'not_pending', __( 'This Associate cannot be approved from the current status.', 'cta-lms' ) );
+			// Approve from any state except when already approved (idempotent guard only).
+			if ( CTA_Associate_Access::STATUS_APPROVED === $status ) {
+				return new WP_Error( 'already_approved', __( 'This Associate is already approved.', 'cta-lms' ) );
 			}
 
 			$ok = CTA_Associate_Access::approve( $user_id );
 		} else {
-			// Reject pending, or revoke an already-approved Associate.
-			if ( CTA_Associate_Access::STATUS_PENDING !== $status && CTA_Associate_Access::STATUS_APPROVED !== $status ) {
-				return new WP_Error( 'not_pending', __( 'This Associate cannot be rejected from the current status.', 'cta-lms' ) );
+			// Reject/revoke from any state (pending, approved, or legacy accounts with
+			// no approval meta) except when already rejected. This guarantees the
+			// "rejected" status is always written so it persists after a page refresh.
+			if ( CTA_Associate_Access::STATUS_REJECTED === $status ) {
+				return new WP_Error( 'already_rejected', __( 'This Associate is already rejected.', 'cta-lms' ) );
 			}
 
 			$ok = CTA_Associate_Access::reject( $user_id, $reason );

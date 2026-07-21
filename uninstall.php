@@ -55,3 +55,20 @@ delete_option( 'cta_support_email' );
 delete_option( 'cta_certificate_header_text' );
 delete_option( 'cta_certificate_footer_text' );
 delete_option( 'cta_certificate_signature_name' );
+
+$cta_email_types = array(
+	'welcome',
+	'enrollment_confirmation',
+	'booking_confirmation',
+	'session_reminder',
+	'certificate_ready',
+	'payment_receipt',
+	'payment_failed',
+	'supervision_locked',
+);
+
+foreach ( $cta_email_types as $cta_email_type ) {
+	delete_option( 'cta_email_' . $cta_email_type . '_enabled' );
+	delete_option( 'cta_email_' . $cta_email_type . '_subject' );
+	delete_option( 'cta_email_' . $cta_email_type . '_body' );
+}

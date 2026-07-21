@@ -1,0 +1,44 @@
+{\rtf1\ansi\ansicpg1252\deff0
+{\fonttbl{\f0\fswiss Calibri;}}
+{\colortbl;\red0\green0\blue0;\red11\green83\blue148;\red150\green0\blue0;\red176\green100\blue0;}
+\f0\fs22
+\fs36\b\cf2 Stripe Payment Settings\b0\cf1\fs22\par
+\fs18\cf2 CTA LMS \endash  Client Documentation\cf1\fs22\par
+\par
+\fs20\b\cf4 Status: Working, with important safety notes (see limitations)\b0\cf1\fs22\par
+\par
+\fs28\b\cf2 1. Overview\b0\cf1\fs22\par
+\par
+Stripe is the payment system that handles credit-card payments for course purchases, supervision subscriptions, and bundles. In Settings you enter your Stripe keys, test the connection, and choose whether payments are live or temporarily bypassed for testing. When someone pays, Stripe notifies the site and access is granted automatically.\par
+\par
+\fs28\b\cf2 2. How it works (step by step)\b0\cf1\fs22\par
+\par
+1. You enter your Stripe keys (secret key, publishable key, and optionally a webhook secret) in Settings.\par
+2. You can click "Test Connection" to confirm the keys work.\par
+3. When a customer buys something, they are sent to a secure Stripe checkout page.\par
+4. A pending payment record is created while the customer pays.\par
+5. Stripe sends a confirmation back to the site (a "webhook"). The site then marks the payment complete and grants access (enrollment, subscription, or bundle).\par
+6. Stripe also notifies the site if a subscription is cancelled or a payment fails, and the site reacts accordingly (pausing access and emailing the customer).\par
+7. There is also a "payments bypass" mode and a demo mode for testing without charging real cards.\par
+\par
+\fs28\b\cf2 3. Where to find it\b0\cf1\fs22\par
+\par
+- Admin: CTA LMS then Settings.\par
+- The Settings screen also shows the webhook address you need to paste into your Stripe dashboard.\par
+\par
+\fs28\b\cf2 4. What you can configure\b0\cf1\fs22\par
+\par
+- Stripe mode (Test or Live) selector.\par
+- Secret key and Publishable key.\par
+- Webhook secret (optional).\par
+- Payments bypass (on/off) \endash  when on, purchases complete instantly without Stripe.\par
+\par
+\fs28\b\cf2 5. Current limitations / missing parts\b0\cf1\fs22\par
+\par
+- Important: the "payments bypass" option defaults to ON. This must be turned OFF before going live, or purchases will complete without collecting real payment.\par
+- The Test/Live selector is stored but is not actually used by the payment code \endash  whether you are in test or live mode depends entirely on which keys you paste in.\par
+- There is only one pair of keys (not separate saved test and live keys).\par
+- The webhook secret is optional; if you leave it empty, incoming Stripe messages are accepted without signature verification, which is less secure.\par
+- Stripe payments require the Stripe software library to be installed with the plugin; if it is missing, the connection test will ask for it to be installed.\par
+- The supervision monthly price and product name are used by the system but are not editable on the Settings screen.\par
+}

@@ -1,0 +1,40 @@
+{\rtf1\ansi\ansicpg1252\deff0
+{\fonttbl{\f0\fswiss Calibri;}}
+{\colortbl;\red0\green0\blue0;\red11\green83\blue148;\red150\green0\blue0;\red176\green100\blue0;}
+\f0\fs22
+\fs36\b\cf2 Supervision Purchase and Approval Workflow\b0\cf1\fs22\par
+\fs18\cf2 CTA LMS \endash  Client Documentation\cf1\fs22\par
+\par
+\fs20\b\cf4 Status: Working, with a few gaps (see limitations)\b0\cf1\fs22\par
+\par
+\fs28\b\cf2 1. Overview\b0\cf1\fs22\par
+\par
+This is the process for registered associates to sign up, purchase supervision, and be approved by an administrator before they can use supervision features (booking sessions, join links, and resources). Approval is a manual admin step that protects access to supervision.\par
+\par
+\fs28\b\cf2 2. How it works (step by step)\b0\cf1\fs22\par
+\par
+1. A person registers as an associate. Their account is set to "pending approval", and onboarding emails are sent (including a request to their agency contact).\par
+2. The associate can purchase group supervision (monthly) or a supervision + CE hybrid plan via checkout.\par
+3. After purchase, their supervision status is set to "pending approval" (or immediately "active" if they were already approved).\par
+4. An administrator reviews the associate on the Approvals screen and clicks Approve or Reject (with an optional reason).\par
+5. Once approved with active supervision, the associate can book sessions, see join links, and access supervision resources.\par
+6. If a subscription is later cancelled or a payment fails, access is paused automatically and the associate is emailed.\par
+\par
+\fs28\b\cf2 3. Where to find it\b0\cf1\fs22\par
+\par
+- Admin: CTA LMS then Approvals (a count badge shows how many are waiting).\par
+- Public: the login/register page (to sign up) and the supervision pages (to purchase and book).\par
+\par
+\fs28\b\cf2 4. What you can configure\b0\cf1\fs22\par
+\par
+- Approve or reject each associate, with an optional rejection reason.\par
+- Filter the approvals list by status (pending, approved, rejected).\par
+- Access to supervision features is controlled by approval status plus active supervision.\par
+\par
+\fs28\b\cf2 5. Current limitations / missing parts\b0\cf1\fs22\par
+\par
+- No email is sent to the associate when they are approved or rejected. (The onboarding email to the agency contact is about document signing, not the admin's approval decision.)\par
+- Cancelling a subscription inside the app is handled either through the Stripe customer portal (when configured) or by a "contact support" email link; there is no one-click cancel button that cancels the Stripe subscription directly.\par
+- The supervision monthly price and product name are used by the system but are not editable on the Settings screen.\par
+- Associates whose approval status was never set (older/legacy accounts) are treated as already approved.\par
+}

@@ -1,0 +1,44 @@
+{\rtf1\ansi\ansicpg1252\deff0
+{\fonttbl{\f0\fswiss Calibri;}}
+{\colortbl;\red0\green0\blue0;\red11\green83\blue148;\red150\green0\blue0;\red176\green100\blue0;}
+\f0\fs22
+\fs36\b\cf2 Module Management\b0\cf1\fs22\par
+\fs18\cf2 CTA LMS \endash  Client Documentation\cf1\fs22\par
+\par
+\fs20\b\cf4 Status: Working (one setting is not honored \endash  see limitations)\b0\cf1\fs22\par
+\par
+\fs28\b\cf2 1. Overview\b0\cf1\fs22\par
+\par
+Modules are the individual video lessons inside a course. Each course can have as many modules as you like, each with its own title, description, video and estimated length. Students watch the modules in order and mark each one complete as they go.\par
+\par
+\fs28\b\cf2 2. How it works (step by step)\b0\cf1\fs22\par
+\par
+1. You must save the course first. Once the course exists, the "Course Modules" panel appears on the course edit screen.\par
+2. You add a module by entering a title, description, a video, and a duration in minutes.\par
+3. Each module is saved instantly in the background (no full page reload).\par
+4. You can drag modules up and down to set the order students see them in.\par
+5. You can edit or delete a module at any time.\par
+6. On the student side, the course player shows the lessons in order. A student watches a lesson, clicks "Mark as Complete", and the next lesson unlocks.\par
+7. When every module is complete, the course quiz becomes available (if a quiz exists).\par
+\par
+\fs28\b\cf2 3. Where to find it\b0\cf1\fs22\par
+\par
+- Admin: CTA LMS then Courses, open a course, and use the "Course Modules" panel on the edit screen.\par
+- Student side: the Course Player page (the page containing the course-player shortcode), opened from a course in the student's dashboard.\par
+\par
+\fs28\b\cf2 4. What you can configure\b0\cf1\fs22\par
+\par
+- Module title\par
+- Module description\par
+- Module video (Vimeo, YouTube, uploaded media, or a direct link)\par
+- Duration in minutes\par
+- A "locked until previous module is complete" checkbox\par
+- Order of modules (drag and drop)\par
+\par
+\fs28\b\cf2 5. Current limitations / missing parts\b0\cf1\fs22\par
+\par
+- The "locked until previous module is complete" checkbox is saved, but it is currently ignored. Regardless of that checkbox, the system always requires the previous module to be completed before the next one opens. Unchecking it does not let students jump ahead.\par
+- Modules cannot be added until the course has been saved at least once.\par
+- There are no per-module file attachments, downloads, or per-module quizzes.\par
+- If a course is deleted, its modules are removed, but any record of which modules a student had completed is not cleaned up.\par
+}

@@ -1,0 +1,39 @@
+{\rtf1\ansi\ansicpg1252\deff0
+{\fonttbl{\f0\fswiss Calibri;}}
+{\colortbl;\red0\green0\blue0;\red11\green83\blue148;\red150\green0\blue0;\red176\green100\blue0;}
+\f0\fs22
+\fs36\b\cf2 Vimeo Integration\b0\cf1\fs22\par
+\fs18\cf2 CTA LMS \endash  Client Documentation\cf1\fs22\par
+\par
+\fs20\b\cf3 Status: Working (and actually supports more than just Vimeo)\b0\cf1\fs22\par
+\par
+\fs28\b\cf2 1. Overview\b0\cf1\fs22\par
+\par
+This is how videos are shown for course previews and for each lesson. Vimeo is the default and recommended source, but the system also accepts YouTube videos, videos uploaded to your WordPress Media Library, and direct video links. You simply paste a video address (or pick a media file) and the correct player is displayed automatically.\par
+\par
+\fs28\b\cf2 2. How it works (step by step)\b0\cf1\fs22\par
+\par
+1. When adding a course preview video or a module video, you choose the video type (Vimeo, YouTube, WordPress media, or direct link) and paste the address.\par
+2. For Vimeo, you can paste the full Vimeo link or just the numeric ID; the system tidies it into a proper Vimeo address.\par
+3. When a student watches, the system decides the correct player: a Vimeo player, a YouTube player, or a standard HTML5 video player for uploaded/direct files.\par
+4. For each lesson it uses the module's own video first. If a module has no video, it falls back to the course-level video, and finally shows a friendly "Video coming soon" placeholder if nothing is set.\par
+\par
+\fs28\b\cf2 3. Where to find it\b0\cf1\fs22\par
+\par
+- Admin (course preview video): the "Preview Video" fields on the course edit screen.\par
+- Admin (lesson video): the video field inside each module on the course edit screen.\par
+- Student side: videos play in the Course Player, and preview videos appear on the single-course page.\par
+\par
+\fs28\b\cf2 4. What you can configure\b0\cf1\fs22\par
+\par
+- Per course: preview video type and address.\par
+- Per module: lesson video type and address.\par
+- Video type options: Vimeo, YouTube, WordPress media, or direct link.\par
+\par
+\fs28\b\cf2 5. Current limitations / missing parts\b0\cf1\fs22\par
+\par
+- Videos are embedded as simple players. There is no official Vimeo account connection (no API key, login, or OAuth setup).\par
+- There is no tracking of how much of a video a student has watched; completion is by clicking "Mark as Complete", not by watch time.\par
+- Private or password-protected Vimeo links with special hashes are not specifically handled; standard Vimeo links work best.\par
+- The "choose from Media Library" picker is only available on the course edit screen.\par
+}

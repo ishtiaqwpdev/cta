@@ -60,6 +60,12 @@ class CTA_Activator {
 		add_option( 'cta_certificate_footer_text', 'clinicaltrainingacademy.com' );
 		add_option( 'cta_certificate_signature_name', 'Candice Fuimaono, MS, LMFT' );
 
+		foreach ( array_keys( CTA_Emails::get_configurable_types() ) as $email_type ) {
+			add_option( CTA_Emails::get_email_option_key( $email_type, 'enabled' ), 'yes' );
+			add_option( CTA_Emails::get_email_option_key( $email_type, 'subject' ), '' );
+			add_option( CTA_Emails::get_email_option_key( $email_type, 'body' ), '' );
+		}
+
 		update_option( 'cta_lms_version', CTA_VERSION );
 
 		flush_rewrite_rules();
