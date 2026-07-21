@@ -52,6 +52,16 @@ class CTA_Admin {
 	 * Register admin menus.
 	 */
 	public function register_menus() {
+		$pending_approval_count = $this->get_pending_approval_count();
+		$approvals_menu_title   = __( 'Approvals', 'cta-lms' );
+
+		if ( $pending_approval_count > 0 ) {
+			$approvals_menu_title .= sprintf(
+				' <span class="awaiting-mod count-%1$d"><span class="pending-count">%1$d</span></span>',
+				$pending_approval_count
+			);
+		}
+
 		add_menu_page(
 			__( 'CTA LMS', 'cta-lms' ),
 			__( 'CTA LMS', 'cta-lms' ),
@@ -101,7 +111,7 @@ class CTA_Admin {
 		add_submenu_page(
 			'cta-lms',
 			__( 'Approvals', 'cta-lms' ),
-			__( 'Approvals', 'cta-lms' ),
+			$approvals_menu_title,
 			'manage_options',
 			'cta-lms-approvals',
 			array( $this, 'render_approvals' )
@@ -133,6 +143,27 @@ class CTA_Admin {
 			'cta-lms-shortcodes',
 			array( $this, 'render_shortcodes' )
 		);
+	}
+
+	/**
+	 * Count records currently waiting in the Approvals queue.
+	 *
+	 * @return int
+	 */
+	private function get_pending_approval_count() {
+		if ( ! class_exists( 'CTA_Associate_Access' ) ) {
+			return 0;
+		}
+
+		$count = 0;
+
+		foreach ( $this->get_supervision_purchase_records() as $record ) {
+			if ( CTA_Associate_Access::STATUS_PENDING === $record['status'] ) {
+				++$count;
+			}
+		}
+
+		return $count;
 	}
 
 	/**
