@@ -21,7 +21,9 @@ class CTA_Admin {
 	 */
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'register_menus' ) );
-		add_action( 'admin_menu', array( $this, 'hide_course_edit_submenu' ), 999 );
+		// Hide on admin_head (after core's access check, before the sidebar renders)
+		// so the page stays directly accessible while staying out of the menu.
+		add_action( 'admin_head', array( $this, 'hide_course_edit_submenu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		add_action( 'admin_head', array( $this, 'print_admin_menu_icon_styles' ) );
 		add_action( 'admin_init', array( $this, 'redirect_frontend_roles_from_admin' ) );
@@ -180,8 +182,12 @@ class CTA_Admin {
 	/**
 	 * Keep course edit registered under CTA LMS, but hide it from the sidebar.
 	 *
-	 * Registering with a null parent breaks access checks on some hosts/WP versions
-	 * ("Sorry, you are not allowed to access this page").
+	 * Must run on admin_head, not admin_menu: WordPress runs its capability check
+	 * (user_can_access_admin_page) at the end of the admin_menu cycle. Removing the
+	 * submenu during admin_menu strips the parent link needed for that check, which
+	 * denies administrators access ("Sorry, you are not allowed to access this page").
+	 * admin_head fires after the check but before the sidebar is rendered, so the page
+	 * stays reachable while remaining hidden from the menu.
 	 */
 	public function hide_course_edit_submenu() {
 		remove_submenu_page( 'cta-lms', 'cta-lms-course-edit' );
