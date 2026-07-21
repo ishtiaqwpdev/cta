@@ -211,7 +211,20 @@ class CTA_Student_Dashboard {
 		$completed_ids = $this->parse_completed_modules( $enrollment->modules_completed );
 
 		if ( empty( $modules ) ) {
-			return '<div class="cta-empty-state"><p>' . esc_html__( 'This course has no modules yet.', 'cta-lms' ) . '</p></div>';
+			$dashboard_url = $this->get_dashboard_url();
+			ob_start();
+			?>
+			<div class="cta-plugin-wrapper">
+				<div class="cta-empty-state cta-empty-state--coming-soon">
+					<h2><?php echo esc_html( $course->title ); ?></h2>
+					<p><?php esc_html_e( 'Course content is coming soon. The lessons for this course are still being prepared — please check back shortly.', 'cta-lms' ); ?></p>
+					<?php if ( $dashboard_url ) : ?>
+						<a href="<?php echo esc_url( $dashboard_url ); ?>" class="btn btn-primary"><?php esc_html_e( 'Back to My Courses', 'cta-lms' ); ?></a>
+					<?php endif; ?>
+				</div>
+			</div>
+			<?php
+			return ob_get_clean();
 		}
 
 		if ( ! $module_id ) {
@@ -246,6 +259,12 @@ class CTA_Student_Dashboard {
 		$quiz_unlocked  = count( $completed_ids ) >= count( $modules ) && count( $modules ) > 0;
 		$quiz_url       = $this->get_quiz_url( $course_id );
 		$quiz_page_id   = absint( get_option( 'cta_quiz_page_id', 0 ) );
+
+		// A quiz only counts as "available" when it exists AND has questions,
+		// otherwise the course is still being finalized (show "coming soon").
+		$course_quiz     = CTA_Database::get_quiz_by_course( $course_id );
+		$quiz_questions  = $course_quiz ? CTA_Database::get_quiz_questions( (int) $course_quiz->id ) : array();
+		$quiz_available  = $course_quiz && ! empty( $quiz_questions );
 		$dashboard_url  = $this->get_dashboard_url();
 		$player_base    = $this->get_player_page_url();
 		$user           = wp_get_current_user();

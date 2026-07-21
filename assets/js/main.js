@@ -201,24 +201,32 @@
   function initDashboardUser() {
     if (!document.body.classList.contains("dashboard-page")) return;
 
-    var wpDashboard = document.querySelector(".cta-student-dashboard, .cta-course-player, .cta-supervision-dashboard");
-
-    if (wpDashboard && typeof ctaAjax !== "undefined" && ctaAjax.isLoggedIn === "yes") {
-      var userDataEl = document.querySelector("[data-dashboard-user]");
-      if (userDataEl && userDataEl.getAttribute("data-dashboard-user")) {
-        try {
-          var userData = JSON.parse(userDataEl.getAttribute("data-dashboard-user"));
-          applyWpDashboardUser(userData);
-        } catch (err) {
-          /* ignore invalid JSON */
+    // In the live WordPress environment the server is the single source of
+    // truth for the session. Trust ctaAjax.isLoggedIn regardless of which
+    // dashboard surface rendered (dashboard, course player, quiz, etc.) so we
+    // never bounce an authenticated user to the login page.
+    if (typeof ctaAjax !== "undefined") {
+      if (ctaAjax.isLoggedIn === "yes") {
+        var userDataEl = document.querySelector("[data-dashboard-user]");
+        if (userDataEl && userDataEl.getAttribute("data-dashboard-user")) {
+          try {
+            var userData = JSON.parse(userDataEl.getAttribute("data-dashboard-user"));
+            applyWpDashboardUser(userData);
+          } catch (err) {
+            /* ignore invalid JSON */
+          }
         }
+        return;
       }
+
+      window.location.href = ctaAjax.loginUrl ? ctaAjax.loginUrl : "login.html";
       return;
     }
 
+    // Static HTML mockup fallback (localStorage demo session, no WordPress).
     var user = getCurrentUser();
     if (!user) {
-      window.location.href = typeof ctaAjax !== "undefined" && ctaAjax.loginUrl ? ctaAjax.loginUrl : "login.html";
+      window.location.href = "login.html";
       return;
     }
 
@@ -229,7 +237,7 @@
       link.addEventListener("click", function (e) {
         e.preventDefault();
         clearSession();
-        window.location.href = typeof ctaAjax !== "undefined" && ctaAjax.loginUrl ? ctaAjax.loginUrl : "login.html";
+        window.location.href = "login.html";
       });
     });
   }

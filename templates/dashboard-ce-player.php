@@ -13,6 +13,7 @@
  * @var object|null $next_module     Next module.
  * @var int         $progress        Progress percentage.
  * @var bool        $quiz_unlocked   Whether all modules are complete.
+ * @var bool        $quiz_available  Whether the course has a published quiz with questions.
  * @var bool        $module_complete Whether current module is complete.
  * @var string      $video_markup    Video embed HTML.
  * @var string      $quiz_url        Quiz page URL.
@@ -130,17 +131,23 @@ $next_url = $next_module
 
 				<section class="course-player__quiz-section" aria-labelledby="course-quiz-title">
 					<h2 class="dashboard-section__title" id="course-quiz-title"><?php echo esc_html__( 'Course Quiz', 'cta-lms' ); ?></h2>
-					<div class="cta-quiz-locked-message" <?php echo $quiz_unlocked ? 'hidden' : ''; ?>>
-						<p><?php echo esc_html__( 'Complete all modules to unlock the quiz', 'cta-lms' ); ?></p>
-					</div>
-					<div class="cta-quiz-unlocked-message" <?php echo $quiz_unlocked ? '' : 'hidden'; ?>>
-						<p><?php echo esc_html__( 'All modules complete! Take the final quiz to earn your certificate.', 'cta-lms' ); ?></p>
-						<?php if ( $quiz_page_id && $quiz_url && '#' !== $quiz_url ) : ?>
-							<a href="<?php echo esc_url( $quiz_url ); ?>" class="btn btn-primary cta-quiz-btn"><?php echo esc_html__( 'Take Quiz', 'cta-lms' ); ?></a>
-						<?php else : ?>
-							<p class="cta-empty-state"><?php echo esc_html__( 'Quiz page is not configured. Ask the site admin to assign the Quiz Page in CTA LMS Settings.', 'cta-lms' ); ?></p>
-						<?php endif; ?>
-					</div>
+					<?php if ( ! $quiz_available ) : ?>
+						<div class="cta-quiz-coming-soon">
+							<p><?php echo esc_html__( 'Quiz coming soon. The final quiz for this course has not been published yet — you can keep working through the modules in the meantime.', 'cta-lms' ); ?></p>
+						</div>
+					<?php else : ?>
+						<div class="cta-quiz-locked-message" <?php echo $quiz_unlocked ? 'hidden' : ''; ?>>
+							<p><?php echo esc_html__( 'Complete all modules to unlock the quiz', 'cta-lms' ); ?></p>
+						</div>
+						<div class="cta-quiz-unlocked-message" <?php echo $quiz_unlocked ? '' : 'hidden'; ?>>
+							<p><?php echo esc_html__( 'All modules complete! Take the final quiz to earn your certificate.', 'cta-lms' ); ?></p>
+							<?php if ( $quiz_page_id && $quiz_url && '#' !== $quiz_url ) : ?>
+								<a href="<?php echo esc_url( $quiz_url ); ?>" class="btn btn-primary cta-quiz-btn"><?php echo esc_html__( 'Take Quiz', 'cta-lms' ); ?></a>
+							<?php else : ?>
+								<p class="cta-empty-state"><?php echo esc_html__( 'Quiz page is not configured. Ask the site admin to assign the Quiz Page in CTA LMS Settings.', 'cta-lms' ); ?></p>
+							<?php endif; ?>
+						</div>
+					<?php endif; ?>
 				</section>
 			</div>
 

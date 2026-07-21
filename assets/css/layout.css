@@ -5147,8 +5147,22 @@ button.pagination__item:disabled {
   margin-bottom: var(--space-sm);
 }
 
-.cta-plugin-wrapper .cta-empty-state--locked .btn {
+.cta-plugin-wrapper .cta-empty-state--locked .btn,
+.cta-plugin-wrapper .cta-empty-state--coming-soon .btn {
   margin-top: var(--space-lg);
+}
+
+.cta-plugin-wrapper .cta-quiz-coming-soon {
+  padding: var(--space-lg);
+  text-align: center;
+  background-color: var(--color-bg-light);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+}
+
+.cta-plugin-wrapper .cta-quiz-coming-soon p {
+  color: var(--color-text-gray);
+  margin: 0;
 }
 
 .cta-plugin-wrapper .cta-empty-state p {
