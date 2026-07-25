@@ -15,10 +15,9 @@ $enrollment  = $item->enrollment;
 $course      = $item->course;
 $certificate = isset( $item->certificate ) ? $item->certificate : null;
 $ce_hours    = rtrim( rtrim( number_format( (float) $course->ce_hours, 1, '.', '' ), '0' ), '.' );
-$date_source = ! empty( $enrollment->completed_at )
-	? $enrollment->completed_at
-	: ( $certificate && ! empty( $certificate->issued_at ) ? $certificate->issued_at : null );
-$completed   = cta_lms_format_local_date( $date_source, 'F j, Y' );
+$completed   = $enrollment->completed_at
+	? wp_date( 'F j, Y', strtotime( $enrollment->completed_at ) )
+	: wp_date( 'F j, Y' );
 ?>
 <article class="card dashboard-course-card cta-certificate-card">
 	<span class="badge badge--success cta-certificate-card__badge"><?php echo esc_html__( 'Completed', 'cta-lms' ); ?></span>
@@ -44,7 +43,7 @@ $completed   = cta_lms_format_local_date( $date_source, 'F j, Y' );
 				data-certificate-id="<?php echo esc_attr( $certificate->id ); ?>"
 			>
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-				<?php echo esc_html__( 'Print / Save as PDF', 'cta-lms' ); ?>
+				<?php echo esc_html__( 'Download Certificate', 'cta-lms' ); ?>
 			</button>
 		<?php endif; ?>
 	</div>

@@ -130,9 +130,7 @@ $next_url = $next_module
 				</div>
 
 				<section class="course-player__quiz-section" aria-labelledby="course-quiz-title">
-					<h2 class="dashboard-section__title" id="course-quiz-title">
-						<?php echo ! empty( $is_exam_prep ) ? esc_html__( 'Practice / Mock Exam', 'cta-lms' ) : esc_html__( 'Course Quiz', 'cta-lms' ); ?>
-					</h2>
+					<h2 class="dashboard-section__title" id="course-quiz-title"><?php echo esc_html__( 'Course Quiz', 'cta-lms' ); ?></h2>
 					<?php if ( ! $quiz_available ) : ?>
 						<div class="cta-quiz-coming-soon">
 							<p><?php echo esc_html__( 'Quiz coming soon. The final quiz for this course has not been published yet — you can keep working through the modules in the meantime.', 'cta-lms' ); ?></p>
@@ -142,31 +140,15 @@ $next_url = $next_module
 							<p><?php echo esc_html__( 'Complete all modules to unlock the quiz', 'cta-lms' ); ?></p>
 						</div>
 						<div class="cta-quiz-unlocked-message" <?php echo $quiz_unlocked ? '' : 'hidden'; ?>>
-							<p>
-								<?php
-								echo ! empty( $is_exam_prep )
-									? esc_html__( 'All modules complete! Take the practice / mock exam. Answer rationales are shown after you submit.', 'cta-lms' )
-									: esc_html__( 'All modules complete! Take the final quiz (70% to pass, unlimited attempts, no time limit) to earn your certificate.', 'cta-lms' );
-								?>
-							</p>
+							<p><?php echo esc_html__( 'All modules complete! Take the final quiz to earn your certificate.', 'cta-lms' ); ?></p>
 							<?php if ( $quiz_page_id && $quiz_url && '#' !== $quiz_url ) : ?>
-								<a href="<?php echo esc_url( $quiz_url ); ?>" class="btn btn-primary cta-quiz-btn">
-									<?php echo ! empty( $is_exam_prep ) ? esc_html__( 'Start Practice Exam', 'cta-lms' ) : esc_html__( 'Take Quiz', 'cta-lms' ); ?>
-								</a>
+								<a href="<?php echo esc_url( $quiz_url ); ?>" class="btn btn-primary cta-quiz-btn"><?php echo esc_html__( 'Take Quiz', 'cta-lms' ); ?></a>
 							<?php else : ?>
 								<p class="cta-empty-state"><?php echo esc_html__( 'Quiz page is not configured. Ask the site admin to assign the Quiz Page in CTA LMS Settings.', 'cta-lms' ); ?></p>
 							<?php endif; ?>
 						</div>
 					<?php endif; ?>
 				</section>
-
-				<?php if ( ! empty( $resources ) ) : ?>
-					<?php
-					$heading     = ! empty( $is_exam_prep ) ? __( 'Downloadable Materials', 'cta-lms' ) : __( 'Course Materials', 'cta-lms' );
-					$is_enrolled = true;
-					include CTA_PLUGIN_DIR . 'templates/partials/course-materials.php';
-					?>
-				<?php endif; ?>
 			</div>
 
 			<aside class="course-player__sidebar" aria-label="<?php echo esc_attr__( 'Course modules', 'cta-lms' ); ?>">

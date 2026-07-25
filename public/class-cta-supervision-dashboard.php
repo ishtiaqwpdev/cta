@@ -117,11 +117,10 @@ class CTA_Supervision_Dashboard {
 		// Heal completed payments that never received supervision status meta.
 		$this->maybe_heal_completed_supervision_purchase( $user_id );
 
-		// Refresh cancel-at-period-end / period dates from Stripe.
-		$this->maybe_sync_subscription_from_stripe( $user_id );
-
 		$supervision_status = (string) get_user_meta( $user_id, 'cta_supervision_status', true );
 		$subscription_id    = (string) get_user_meta( $user_id, 'cta_supervision_subscription_id', true );
+		$supervision_plan   = (string) get_user_meta( $user_id, 'cta_supervision_plan', true );
+		$plan_name_meta     = (string) get_user_meta( $user_id, 'cta_supervision_plan_name', true );
 		$supervision_payment = CTA_Database::get_user_supervision_payment( $user_id, 'completed' );
 		$has_supervision_purchase = (bool) $supervision_payment;
 
@@ -129,20 +128,12 @@ class CTA_Supervision_Dashboard {
 			$has_supervision_purchase = true;
 		}
 
-		// Single resolver keeps name + price aligned (avoids Hybrid name with Group $260).
-		$supervision_plan = CTA_Supervision_Plans::resolve_user_plan_slug( $user_id );
-		$plan_name_meta   = CTA_Supervision_Plans::get_name( $supervision_plan );
+		if ( empty( $supervision_plan ) ) {
+			$supervision_plan = get_user_meta( $user_id, 'cta_hybrid_plan_active', true ) ? 'hybrid' : 'group';
+		}
 
-		// Persist healed meta so admin/emails/popups stay consistent.
-		$stored_slug = (string) get_user_meta( $user_id, 'cta_supervision_plan', true );
-		$stored_name = (string) get_user_meta( $user_id, 'cta_supervision_plan_name', true );
-		if ( $has_supervision_purchase || '' !== $stored_slug || '' !== $stored_name ) {
-			if ( $stored_slug !== $supervision_plan ) {
-				update_user_meta( $user_id, 'cta_supervision_plan', $supervision_plan );
-			}
-			if ( $stored_name !== $plan_name_meta ) {
-				update_user_meta( $user_id, 'cta_supervision_plan_name', $plan_name_meta );
-			}
+		if ( empty( $plan_name_meta ) && $supervision_payment && ! empty( $supervision_payment->plan_name ) ) {
+			$plan_name_meta = (string) $supervision_payment->plan_name;
 		}
 
 		$is_active         = ( 'active' === $supervision_status );
@@ -151,30 +142,23 @@ class CTA_Supervision_Dashboard {
 		$approval_status   = CTA_Associate_Access::get_approval_status( $user_id );
 		$can_access_supervision = CTA_Associate_Access::can_access_supervision_features( $user_id );
 		$is_supervision_pending = CTA_Associate_Access::is_supervision_pending( $user_id );
-		$is_approved_awaiting_plan = CTA_Associate_Access::is_approved_awaiting_plan( $user_id );
-		$is_pending_approval    = ( ! $is_approved_awaiting_plan ) && (
-			$is_supervision_pending || ( CTA_Associate_Access::is_associate( $user_id ) && ! CTA_Associate_Access::is_approved( $user_id ) )
-		);
+		$is_pending_approval    = $is_supervision_pending || ( CTA_Associate_Access::is_associate( $user_id ) && ! CTA_Associate_Access::is_approved( $user_id ) );
 
 		// Paid / pending purchase should never fall through to "No active plan".
-		$no_plan = ! $is_active && ! $is_locked && ! $is_pending_plan && ! $has_supervision_purchase && ! $is_pending_approval && ! $is_approved_awaiting_plan;
+		$no_plan = ! $is_active && ! $is_locked && ! $is_pending_plan && ! $has_supervision_purchase && ! $is_pending_approval;
 
 		if ( CTA_Associate_Access::STATUS_PENDING === $approval_status || $is_pending_plan || $is_supervision_pending ) {
 			$onboarding_status_label = __( 'Pending Approval', 'cta-lms' );
 			$onboarding_status_class = 'badge--warning';
 			$onboarding_message      = CTA_Associate_Access::get_pending_message();
-		} elseif ( $is_approved_awaiting_plan ) {
-			$onboarding_status_label = __( 'Approved — Awaiting Plan', 'cta-lms' );
-			$onboarding_status_class = 'badge--warning';
-			$onboarding_message      = CTA_Associate_Access::get_approved_awaiting_plan_message();
 		} elseif ( $is_active && $can_access_supervision ) {
 			$onboarding_status_label = __( 'Approved', 'cta-lms' );
 			$onboarding_status_class = 'badge--success';
 			$onboarding_message      = __( 'Your supervision application has been approved. You can now access supervision services.', 'cta-lms' );
 		} elseif ( $is_locked ) {
-			$onboarding_status_label = __( 'Payment Past Due', 'cta-lms' );
+			$onboarding_status_label = __( 'Action Required', 'cta-lms' );
 			$onboarding_status_class = 'badge--danger';
-			$onboarding_message      = __( 'Your last subscription payment failed. Use Manage Subscription to update your payment method and restore access.', 'cta-lms' );
+			$onboarding_message      = __( 'Your supervision access is currently paused. Please update your payment method or contact support.', 'cta-lms' );
 		} else {
 			$onboarding_status_label = '';
 			$onboarding_status_class = '';
@@ -184,12 +168,12 @@ class CTA_Supervision_Dashboard {
 		$can_access_booking               = $can_access_supervision;
 		$can_access_meeting_links         = $can_access_supervision;
 		$can_access_supervision_resources = $can_access_supervision;
-		$pending_approval_message         = CTA_Associate_Access::get_access_denied_message( $user_id );
+		$pending_approval_message         = CTA_Associate_Access::get_pending_message();
 
 		$upcoming_sessions = array();
 		$session_history   = array();
 		$documents         = array();
-		$today             = cta_lms_current_date( 'Y-m-d' );
+		$today             = wp_date( 'Y-m-d' );
 
 		// Never load sessions / materials until supervision access is fully approved.
 		if ( $can_access_supervision ) {
@@ -234,11 +218,12 @@ class CTA_Supervision_Dashboard {
 			);
 		}
 
-		$monthly_price       = CTA_Supervision_Plans::get_price( $supervision_plan );
+		$stripe              = cta_get_stripe();
+		$monthly_price       = $stripe ? $stripe->get_supervision_monthly_price() : (float) get_option( 'cta_supervision_monthly_price', 260.0 );
 		$individual_price    = (float) get_option( 'cta_individual_session_price', 120.0 );
-		$next_billing_date   = $this->get_subscription_billing_label( $user_id );
+		$next_billing_date   = $this->get_next_billing_date( $subscription_id );
 		$next_session_label  = $this->get_next_session_label( $upcoming_sessions );
-		$plan_label          = $this->get_plan_label( $supervision_plan );
+		$plan_label          = $plan_name_meta ? $plan_name_meta : $this->get_plan_label( $supervision_plan );
 		$associate_number    = (string) get_user_meta( $user_id, 'cta_associate_number', true );
 		$dashboard_url       = $this->get_dashboard_url();
 		$supervision_url     = $this->get_supervision_page_url();
@@ -417,103 +402,73 @@ class CTA_Supervision_Dashboard {
 		$stripe  = cta_get_stripe();
 		$status  = (string) get_user_meta( $user_id, 'cta_supervision_status', true );
 
-		$return_url = $this->get_dashboard_url();
-		if ( ! $return_url ) {
-			$return_url = home_url( '/' );
+		// Pending Approval users cannot manage billing portal / subscription features.
+		if ( CTA_Associate_Access::is_supervision_pending( $user_id ) || 'pending_approval' === $status ) {
+			wp_send_json_error(
+				array(
+					'message' => CTA_Associate_Access::get_pending_message(),
+					'code'    => 'supervision_pending_approval',
+				)
+			);
 		}
-		$return_url = add_query_arg( 'cta_billing', 'returned', $return_url );
 
-		$supervision_plan = CTA_Supervision_Plans::resolve_user_plan_slug( $user_id );
-		$show_renew       = empty( $status ) || ! in_array( $status, array( 'active', 'pending_approval', 'locked', 'past_due' ), true );
-		$renew_url        = $this->get_supervision_page_url();
-		$support_email    = (string) get_option( 'cta_support_email', '' );
+		$show_renew = empty( $status ) || 'active' !== $status;
+
+		$stripe_ready = $stripe
+			&& $stripe->is_configured()
+			&& class_exists( '\Stripe\BillingPortal\Session' )
+			&& ! CTA_Stripe::is_payments_bypass_enabled();
+
+		if ( $stripe_ready && ! $show_renew ) {
+			$customer_id = $this->get_stripe_customer_id( $user_id );
+
+			if ( $customer_id ) {
+				try {
+					$session = \Stripe\BillingPortal\Session::create(
+						array(
+							'customer'   => $customer_id,
+							'return_url' => $this->get_dashboard_url() ? $this->get_dashboard_url() : home_url( '/' ),
+						)
+					);
+
+					wp_send_json_success(
+						array(
+							'portal_url' => esc_url_raw( $session->url ),
+						)
+					);
+				} catch ( Exception $e ) {
+					// Fall through to demo portal when Stripe portal cannot be opened.
+				}
+			}
+		}
+
+		$supervision_plan = (string) get_user_meta( $user_id, 'cta_supervision_plan', true );
+
+		if ( empty( $supervision_plan ) ) {
+			$supervision_plan = get_user_meta( $user_id, 'cta_hybrid_plan_active', true ) ? 'hybrid' : 'group';
+		}
+
+		$monthly_price = $stripe ? $stripe->get_supervision_monthly_price() : (float) get_option( 'cta_supervision_monthly_price', 260.0 );
+		$renew_url     = $this->get_supervision_page_url();
+		$support_email = (string) get_option( 'cta_support_email', '' );
 
 		if ( '' === $support_email ) {
 			$support_email = (string) get_option( 'admin_email', 'support@clinicaltrainingacademy.com' );
 		}
 
-		$bypass_on         = CTA_Stripe::is_payments_bypass_enabled();
-		$stripe_configured = ( $stripe && $stripe->is_configured() );
-
-		$fallback = array(
-			'demo_mode'         => true,
-			'stripe_configured' => ( $stripe_configured && ! $bypass_on ),
-			'payments_bypass'   => $bypass_on,
-			'plan_name'         => CTA_Supervision_Plans::get_name( $supervision_plan ),
-			'status'            => $status ? $status : 'none',
-			'show_renew'        => $show_renew,
-			'renew_url'         => $renew_url ? esc_url_raw( $renew_url ) : '',
-			'price'             => CTA_Supervision_Plans::get_price_label( $supervision_plan ),
-			'next_billing'      => $this->get_subscription_billing_label( $user_id ),
-			'support_email'     => sanitize_email( $support_email ),
-		);
-
-		// Testing Mode (payment bypass) intentionally blocks the real Stripe portal.
-		if ( $bypass_on ) {
-			$fallback['reason']  = 'payments_bypass';
-			$fallback['message'] = __( 'Testing Mode is enabled in CTA LMS settings, so Stripe Checkout and the Customer Billing Portal are skipped. Turn off "Skip payments" (Testing Mode), keep your Stripe test API keys, then click Manage Subscription again.', 'cta-lms' );
-			wp_send_json_success( $fallback );
-		}
-
-		if ( ! $stripe || ! $stripe_configured ) {
-			$fallback['reason']  = 'stripe_not_configured';
-			$fallback['message'] = __( 'Stripe is not configured. Add your Stripe API keys in CTA LMS → Settings, then try again.', 'cta-lms' );
-			wp_send_json_success( $fallback );
-		}
-
-		$result = $stripe->create_billing_portal_session( $user_id, $return_url );
-
-		if ( ! is_wp_error( $result ) ) {
-			wp_send_json_success(
-				array(
-					'portal_url' => esc_url_raw( $result ),
-				)
-			);
-		}
-
-		$code = $result->get_error_code();
-
-		// No Stripe customer yet — show renew / support fallback instead of a hard error.
-		if ( 'no_customer' === $code ) {
-			$fallback['reason']  = 'no_customer';
-			$fallback['message'] = $result->get_error_message();
-			wp_send_json_success( $fallback );
-		}
-
-		wp_send_json_error(
+		wp_send_json_success(
 			array(
-				'message' => $result->get_error_message(),
-				'code'    => $code,
+				'demo_mode'         => true,
+				'stripe_configured' => (bool) $stripe_ready,
+				'plan_name'     => $this->get_plan_label( $supervision_plan ),
+				'status'        => $status ? $status : 'none',
+				'show_renew'    => $show_renew,
+				'renew_url'     => $renew_url ? esc_url_raw( $renew_url ) : '',
+				'price'         => '$' . number_format( $monthly_price, 0 ) . __( '/month', 'cta-lms' ),
+				'next_billing'  => $this->get_demo_next_billing_date( $user_id ),
+				'support_email' => sanitize_email( $support_email ),
 			)
 		);
-	}
-
-	/**
-	 * Human-readable next billing / access-through label for the current user.
-	 *
-	 * @param int $user_id User ID.
-	 * @return string
-	 */
-	private function get_subscription_billing_label( $user_id ) {
-		$subscription_id = (string) get_user_meta( $user_id, 'cta_supervision_subscription_id', true );
-		$cancel_pending  = '1' === (string) get_user_meta( $user_id, 'cta_supervision_cancel_at_period_end', true );
-		$period_end      = absint( get_user_meta( $user_id, 'cta_supervision_period_end', true ) );
-
-		$next = $this->get_next_billing_date( $subscription_id );
-
-		if ( $cancel_pending && $period_end > 0 ) {
-			return sprintf(
-				/* translators: %s: formatted date */
-				__( 'Access through %s (auto-renewal cancelled)', 'cta-lms' ),
-				cta_lms_date( 'F j, Y', $period_end, cta_lms_get_timezone() )
-			);
-		}
-
-		if ( $next ) {
-			return $next;
-		}
-
-		return $this->get_demo_next_billing_date( $user_id );
 	}
 
 	/**
@@ -572,19 +527,9 @@ class CTA_Supervision_Dashboard {
 		$booking->seats_total  = max( 1, $seats_total );
 		$booking->can_cancel   = $this->booking_can_cancel( $booking );
 		$booking->meeting_url  = $meeting_url;
+		$booking->can_join     = (bool) $meeting_url && CTA_Associate_Access::can_access_meeting_links( get_current_user_id() );
 
-		$is_own_confirmed = (
-			(int) $booking->user_id === (int) get_current_user_id()
-			&& 'confirmed' === (string) $booking->status
-		);
-
-		$booking->can_join = CTA_Supervision::evaluate_can_join_meeting(
-			(bool) $meeting_url,
-			$is_own_confirmed,
-			CTA_Associate_Access::can_access_meeting_links( get_current_user_id() )
-		);
-
-		// Never expose the raw meeting URL unless Join is allowed.
+		// Never expose the raw meeting URL when the associate is not approved.
 		if ( ! $booking->can_join ) {
 			$booking->meeting_url = '';
 		}
@@ -635,13 +580,9 @@ class CTA_Supervision_Dashboard {
 	 * @return bool
 	 */
 	public function booking_can_cancel( $booking ) {
-		$dt = cta_lms_session_datetime( $booking->session_date, $booking->session_time );
+		$session_start = strtotime( $booking->session_date . ' ' . $booking->session_time );
 
-		if ( ! $dt ) {
-			return false;
-		}
-
-		return $dt->getTimestamp() > ( time() + DAY_IN_SECONDS );
+		return false !== $session_start && $session_start > ( time() + DAY_IN_SECONDS );
 	}
 
 	/**
@@ -651,7 +592,9 @@ class CTA_Supervision_Dashboard {
 	 * @return string
 	 */
 	public function format_session_date( $date ) {
-		return cta_lms_format_session_date( $date, 'l, F j, Y' );
+		$timestamp = strtotime( $date );
+
+		return $timestamp ? wp_date( 'l, F j, Y', $timestamp ) : $date;
 	}
 
 	/**
@@ -662,7 +605,9 @@ class CTA_Supervision_Dashboard {
 	 * @return string
 	 */
 	public function format_session_time( $date, $time ) {
-		return cta_lms_format_session_time( $date, $time, 'g:i A T' );
+		$timestamp = strtotime( $date . ' ' . $time );
+
+		return $timestamp ? wp_date( 'g:i A T', $timestamp ) : $time;
 	}
 
 	/**
@@ -839,9 +784,9 @@ class CTA_Supervision_Dashboard {
 
 		if ( ! $stripe ) {
 			update_user_meta( $user_id, 'cta_supervision_status', 'pending_approval' );
-			$resolved_slug = CTA_Supervision_Plans::resolve_user_plan_slug( $user_id );
-			update_user_meta( $user_id, 'cta_supervision_plan', $resolved_slug );
-			update_user_meta( $user_id, 'cta_supervision_plan_name', CTA_Supervision_Plans::get_name( $resolved_slug ) );
+			if ( ! empty( $payment->plan_name ) ) {
+				update_user_meta( $user_id, 'cta_supervision_plan_name', sanitize_text_field( (string) $payment->plan_name ) );
+			}
 			clean_user_cache( $user_id );
 			return;
 		}
@@ -864,25 +809,20 @@ class CTA_Supervision_Dashboard {
 	}
 
 	private function check_associate_access() {
-		$user  = wp_get_current_user();
-		$roles = is_user_logged_in() ? (array) $user->roles : array();
-
-		// Associates and admins stay on the portal.
-		if ( in_array( 'cta_associate', $roles, true ) || in_array( 'administrator', $roles, true ) ) {
-			return null;
-		}
-
-		// Guests, CE learners, and other roles hitting this portal (often via a
-		// mis-pointed "Clinical Supervision" marketing link) should land on the
-		// public supervision plans / booking page — not login or the CE dashboard.
-		$booking = $this->get_supervision_page_url();
-
-		if ( $booking ) {
-			return $this->redirect_markup( $booking );
-		}
-
 		if ( ! is_user_logged_in() ) {
 			return $this->redirect_markup( $this->get_login_url() );
+		}
+
+		$user  = wp_get_current_user();
+		$roles = (array) $user->roles;
+
+		if ( in_array( 'cta_licensed_professional', $roles, true ) ) {
+			$url = $this->get_student_dashboard_url();
+			return $this->redirect_markup( $url ? $url : home_url( '/' ) );
+		}
+
+		if ( in_array( 'cta_associate', $roles, true ) || in_array( 'administrator', $roles, true ) ) {
+			return null;
 		}
 
 		return $this->redirect_markup( home_url( '/' ) );
@@ -907,52 +847,35 @@ class CTA_Supervision_Dashboard {
 	}
 
 	/**
-	 * Pull latest subscription cancel / period data from Stripe into user meta.
-	 *
-	 * @param int $user_id User ID.
-	 */
-	private function maybe_sync_subscription_from_stripe( $user_id ) {
-		$user_id = absint( $user_id );
-
-		if ( ! $user_id || CTA_Stripe::is_payments_bypass_enabled() ) {
-			return;
-		}
-
-		$stripe = cta_get_stripe();
-
-		if ( ! $stripe || ! $stripe->is_configured() ) {
-			return;
-		}
-
-		// Always refresh after returning from the Customer Billing Portal.
-		$force = isset( $_GET['cta_billing'] ) && 'returned' === sanitize_text_field( wp_unslash( $_GET['cta_billing'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-
-		$last = (int) get_user_meta( $user_id, 'cta_supervision_last_stripe_sync', true );
-		if ( ! $force && $last && ( time() - $last ) < 60 ) {
-			return;
-		}
-
-		$result = $stripe->sync_user_subscription_from_stripe( $user_id );
-
-		if ( ! is_wp_error( $result ) ) {
-			update_user_meta( $user_id, 'cta_supervision_last_stripe_sync', time() );
-		}
-	}
-
-	/**
 	 * Get Stripe customer ID for user.
 	 *
 	 * @param int $user_id User ID.
 	 * @return string
 	 */
 	private function get_stripe_customer_id( $user_id ) {
-		$stripe = cta_get_stripe();
+		$customer_id = (string) get_user_meta( $user_id, 'cta_stripe_customer_id', true );
 
-		if ( $stripe ) {
-			return $stripe->resolve_stripe_customer_id( $user_id );
+		if ( $customer_id ) {
+			return $customer_id;
 		}
 
-		$customer_id = (string) get_user_meta( $user_id, 'cta_stripe_customer_id', true );
+		global $wpdb;
+
+		$customer_id = (string) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT stripe_customer_id FROM {$wpdb->prefix}cta_payments
+				WHERE user_id = %d
+				AND stripe_customer_id IS NOT NULL
+				AND stripe_customer_id != ''
+				ORDER BY created_at DESC
+				LIMIT 1",
+				$user_id
+			)
+		);
+
+		if ( $customer_id ) {
+			update_user_meta( $user_id, 'cta_stripe_customer_id', $customer_id );
+		}
 
 		return $customer_id;
 	}
@@ -982,7 +905,7 @@ class CTA_Supervision_Dashboard {
 			$subscription = \Stripe\Subscription::retrieve( $subscription_id );
 
 			if ( ! empty( $subscription->current_period_end ) ) {
-				return cta_lms_date( 'F j, Y', (int) $subscription->current_period_end, cta_lms_get_timezone() );
+				return wp_date( 'F j, Y', (int) $subscription->current_period_end );
 			}
 		} catch ( Exception $e ) {
 			return '';
@@ -1013,20 +936,14 @@ class CTA_Supervision_Dashboard {
 		);
 
 		if ( $last_payment && ! empty( $last_payment->created_at ) ) {
-			$parsed = cta_lms_parse_datetime( $last_payment->created_at );
+			$timestamp = strtotime( $last_payment->created_at . ' +1 month' );
 
-			if ( $parsed ) {
-				$next = $parsed->setTimezone( cta_lms_get_timezone() )->modify( '+1 month' );
-				return cta_lms_date( 'F j, Y', $next->getTimestamp(), cta_lms_get_timezone() );
+			if ( $timestamp ) {
+				return wp_date( 'F j, Y', $timestamp );
 			}
 		}
 
-		try {
-			$next_month = ( new DateTimeImmutable( 'first day of next month', cta_lms_get_timezone() ) );
-			return cta_lms_date( 'F j, Y', $next_month->getTimestamp(), cta_lms_get_timezone() );
-		} catch ( Exception $e ) {
-			return cta_lms_format_local_date( null, 'F j, Y' );
-		}
+		return wp_date( 'F j, Y', strtotime( 'first day of next month' ) );
 	}
 
 	/**
@@ -1045,7 +962,7 @@ class CTA_Supervision_Dashboard {
 		return sprintf(
 			/* translators: %s: session date/time */
 			__( 'Next Session: %s', 'cta-lms' ),
-			$this->format_session_date( $next->session_date ) . ' · ' . $this->format_session_time( $next->session_date, $next->session_time )
+			$this->format_session_date( $next->session_date ) . ' · ' . wp_date( 'g:i A', strtotime( $next->session_date . ' ' . $next->session_time ) )
 		);
 	}
 
@@ -1056,7 +973,11 @@ class CTA_Supervision_Dashboard {
 	 * @return string
 	 */
 	private function get_plan_label( $plan ) {
-		return CTA_Supervision_Plans::get_name( $plan );
+		if ( 'hybrid' === $plan ) {
+			return __( 'Supervision + CE Hybrid', 'cta-lms' );
+		}
+
+		return __( 'Group Supervision', 'cta-lms' );
 	}
 
 	/**
@@ -1184,15 +1105,6 @@ class CTA_Supervision_Dashboard {
 	 */
 	private function get_supervision_page_url() {
 		$page_id = absint( get_option( 'cta_supervision_page_id', 0 ) );
-		$dash_id = absint( get_option( 'cta_supervision_dashboard_page_id', 0 ) );
-
-		if ( $page_id && $dash_id && $page_id === $dash_id ) {
-			$page_id = 0;
-		}
-
-		if ( ! $page_id && function_exists( 'cta_lms_find_page_id_by_shortcode' ) ) {
-			$page_id = absint( cta_lms_find_page_id_by_shortcode( 'cta_supervision_booking' ) );
-		}
 
 		if ( ! $page_id ) {
 			return '';

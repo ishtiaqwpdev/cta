@@ -38,7 +38,7 @@
 \pard\sb280\sa120\f0\fs28\b 2.2 Module structure and progression controls\b0\par
 \pard\f0\fs22 Modules are the individual video lessons inside a course. Students typically complete them in order. When \u8220?locked until previous complete\u8221? is enabled, the next lesson stays locked until the previous one is marked complete. Progress is stored per enrollment as a percentage and a list of completed module IDs. The quiz unlocks only after all modules are finished (100% progress).\par
 \pard\sb280\sa120\f0\fs28\b 2.3 Quiz and assessment engine\b0\par
-\pard\f0\fs22 Each course can have one final quiz with multiple-choice questions (A\u8211?D), a passing score of 70%, unlimited retake attempts until passed, and no time limit. Students start and submit quizzes from the quiz page. After passing, they may be asked for a short course evaluation (rating questions). Passing is what triggers certificate generation.\par
+\pard\f0\fs22 Each course can have one final quiz with multiple-choice questions (A\u8211?D), a passing score (default 70%), optional time limit, and a maximum number of attempts (default 3). Students start and submit quizzes from the quiz page. After passing, they may be asked for a short course evaluation (rating questions). Passing is what triggers certificate generation.\par
 \pard\sb280\sa120\f0\fs28\b 2.4 Certificate generation workflow\b0\par
 \pard\f0\fs22 Certificates are created automatically after a student passes the course quiz. The system marks the enrollment complete, assigns a unique certificate number (format CTA-YEAR-######), writes an HTML certificate file into the WordPress uploads folder, stores the record, and emails the student that the certificate is ready. Students download certificates from the CE dashboard under My Certificates. Header text, footer, signature name, and CAMFT provider number are configurable in Settings.\par
 \pard\sb280\sa120\f0\fs28\b 2.5 Membership and subscription management\b0\par
@@ -223,7 +223,7 @@
 \pard\sb200\sa120\f0\fs24\b Table: \{prefix\}cta_quizzes\b0\par
 \pard\f0\fs22 Purpose: One quiz per course\par
 \pard\li360\fi-180\f0\fs22 \bullet  id, course_id (UNIQUE), title\par
-\pard\li360\fi-180\f0\fs22 \bullet  passing_score (70), time_limit_mins (0 = no time limit), max_attempts (0 = unlimited)\par
+\pard\li360\fi-180\f0\fs22 \bullet  passing_score (default 70), time_limit_mins, max_attempts (default 3)\par
 \pard\li360\fi-180\f0\fs22 \bullet  status, created_at\par
 \pard\sb200\sa120\f0\fs24\b Table: \{prefix\}cta_quiz_questions\b0\par
 \pard\f0\fs22 Purpose: Multiple-choice questions\par

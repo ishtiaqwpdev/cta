@@ -37,17 +37,15 @@ $price_value      = (float) $course->price;
 $price_display    = ( floor( $price_value ) === $price_value )
 	? '$' . number_format( $price_value, 0 )
 	: '$' . number_format( $price_value, 2 );
-$is_exam_prep     = class_exists( 'CTA_Exam_Access' ) && CTA_Exam_Access::is_exam_prep( $course );
 $link_label       = $is_enrolled
 	? __( 'Continue', 'cta-lms' ) . ' →'
-	: ( $is_exam_prep ? __( 'View Program', 'cta-lms' ) . ' →' : __( 'View Course', 'cta-lms' ) . ' →' );
+	: __( 'View Course', 'cta-lms' ) . ' →';
 ?>
 <article
-	class="cta-course-card card course-card course-card--catalog<?php echo $is_exam_prep ? ' course-card--exam-prep' : ''; ?>"
+	class="cta-course-card card course-card course-card--catalog"
 	data-category="<?php echo esc_attr( $category ); ?>"
 	data-price="<?php echo esc_attr( $course->price ); ?>"
 	data-ce-hours="<?php echo esc_attr( $course->ce_hours ); ?>"
-	data-product-type="<?php echo esc_attr( $is_exam_prep ? 'exam_prep' : 'ce' ); ?>"
 >
 	<div class="cta-course-card__thumb course-card__media">
 		<?php if ( ! empty( $course->thumbnail_url ) ) : ?>
@@ -74,21 +72,9 @@ $link_label       = $is_enrolled
 				</span>
 			<?php endif; ?>
 
-			<?php if ( $is_exam_prep ) : ?>
-				<span class="cta-badge badge badge--primary course-card__badge">
-					<?php
-					printf(
-						/* translators: %d: access months */
-						esc_html__( '%d mo access', 'cta-lms' ),
-						(int) ( $course->access_period_months ?? 6 )
-					);
-					?>
-				</span>
-			<?php else : ?>
-				<span class="cta-badge cta-badge--ce badge badge--success course-card__badge">
-					<?php echo esc_html( $ce_hours_display ); ?> <?php echo esc_html__( 'CE', 'cta-lms' ); ?>
-				</span>
-			<?php endif; ?>
+			<span class="cta-badge cta-badge--ce badge badge--success course-card__badge">
+				<?php echo esc_html( $ce_hours_display ); ?> <?php echo esc_html__( 'CE', 'cta-lms' ); ?>
+			</span>
 		</div>
 
 		<h3 class="cta-course-card__title card__title course-card__title">

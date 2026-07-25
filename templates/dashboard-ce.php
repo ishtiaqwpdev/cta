@@ -20,11 +20,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$has_enrollments = ! empty( $in_progress ) || ! empty( $completed ) || ! empty( $exam_prep );
+$has_enrollments = ! empty( $in_progress ) || ! empty( $completed );
 $in_progress_count = count( $in_progress );
 $completed_count   = count( $completed );
-$exam_prep         = isset( $exam_prep ) ? $exam_prep : array();
-$exam_prep_count   = count( $exam_prep );
 ?>
 <div class="cta-plugin-wrapper">
 <div class="cta-lms cta-student-dashboard dashboard-layout" data-dashboard data-dashboard-user="<?php echo esc_attr( wp_json_encode( $dashboard_user ) ); ?>">
@@ -79,7 +77,7 @@ $exam_prep_count   = count( $exam_prep );
 						);
 						?>
 					</h1>
-					<p class="dashboard-welcome__date" id="dashboard-date"><?php echo esc_html( cta_lms_format_local_date( null, 'l, F j, Y' ) ); ?></p>
+					<p class="dashboard-welcome__date" id="dashboard-date"><?php echo esc_html( wp_date( 'l, F j, Y' ) ); ?></p>
 				</div>
 				<?php if ( $has_enrollments ) : ?>
 					<div class="dashboard-stats" aria-label="<?php echo esc_attr__( 'Your progress summary', 'cta-lms' ); ?>">
@@ -150,19 +148,6 @@ $exam_prep_count   = count( $exam_prep );
 					</div>
 				</section>
 
-				<section class="dashboard-section" aria-labelledby="exam-prep-title">
-					<h2 class="dashboard-section__title" id="exam-prep-title"><?php echo esc_html__( 'Exam Preparation Programs', 'cta-lms' ); ?></h2>
-					<div class="dashboard-course-list">
-						<?php if ( empty( $exam_prep ) ) : ?>
-							<p class="cta-empty-state cta-empty-state--inline"><?php echo esc_html__( 'No exam preparation programs purchased yet', 'cta-lms' ); ?></p>
-						<?php else : ?>
-							<?php foreach ( $exam_prep as $item ) : ?>
-								<?php include CTA_PLUGIN_DIR . 'templates/partials/exam-prep-card.php'; ?>
-							<?php endforeach; ?>
-						<?php endif; ?>
-					</div>
-				</section>
-
 			<?php endif; ?>
 		</div>
 
@@ -216,15 +201,14 @@ $exam_prep_count   = count( $exam_prep );
 					</div>
 					<div class="form-group">
 						<label class="form-label" for="settings-license"><?php echo esc_html__( 'License Number', 'cta-lms' ); ?></label>
-						<input type="text" id="settings-license" name="license_number" class="form-input" value="<?php echo esc_attr( get_user_meta( get_current_user_id(), 'cta_license_number', true ) ); ?>" maxlength="64" required>
-						<p class="form-hint" style="margin-top:0.35rem;font-size:0.85em;opacity:0.8;"><?php echo esc_html__( 'Enter your license or registration number (formats vary by type, e.g. LMFT, LCSW, AMFT).', 'cta-lms' ); ?></p>
+						<input type="text" id="settings-license" name="license_number" class="form-input" value="<?php echo esc_attr( get_user_meta( get_current_user_id(), 'cta_license_number', true ) ); ?>" required>
 					</div>
 					<div class="form-group">
 						<label class="form-label" for="settings-license-type"><?php echo esc_html__( 'License Type', 'cta-lms' ); ?></label>
 						<select id="settings-license-type" name="license_type" class="form-input">
 							<?php
 							$current_type = (string) get_user_meta( get_current_user_id(), 'cta_license_type', true );
-							$types        = cta_lms_get_license_types();
+							$types        = array( 'LMFT', 'LCSW', 'LPCC', 'LEP', 'AMFT', 'ASW', 'APCC' );
 							foreach ( $types as $type ) :
 								?>
 								<option value="<?php echo esc_attr( $type ); ?>" <?php selected( $current_type, $type ); ?>><?php echo esc_html( $type ); ?></option>

@@ -83,26 +83,6 @@
   color: #ffffff !important;
 }
 
-.cta-plugin-wrapper .auth-page__logo,
-.cta-lms.cta-login-shortcode.auth-page .auth-page__logo,
-.cta-lms.auth-page .auth-page__logo {
-  align-self: flex-start !important;
-  max-width: 220px !important;
-  margin-bottom: var(--space-xl) !important;
-}
-
-.cta-plugin-wrapper .auth-page__logo img,
-.cta-lms.cta-login-shortcode.auth-page .auth-page__logo img,
-.cta-lms.auth-page .auth-page__logo img {
-  display: block !important;
-  width: auto !important;
-  height: auto !important;
-  max-width: 200px !important;
-  max-height: 52px !important;
-  object-fit: contain !important;
-  object-position: left center !important;
-}
-
 .cta-plugin-wrapper .auth-page__brand .auth-page__brand-title,
 .cta-lms.cta-login-shortcode.auth-page .auth-page__brand .auth-page__brand-title,
 .cta-lms.auth-page .auth-page__brand .auth-page__brand-title {
@@ -260,14 +240,7 @@ body.dashboard-page {
    Hide duplicate theme page titles on CTA pages
    -------------------------------------------------------------------------- */
 body.cta-lms-page {
-  /* Prefer visible so sticky header CTAs are not clipped; clip only on small screens below. */
-  overflow-x: visible;
-}
-
-@media (max-width: 767px) {
-  body.cta-lms-page {
-    overflow-x: clip;
-  }
+  overflow-x: clip;
 }
 
 body.cta-lms-page .entry-header,
@@ -462,17 +435,11 @@ body.cta-lms-page .elementor-shortcode {
 
 /* Course catalog — stay inside theme content, no 100vw breakout */
 .cta-lms.cta-course-catalog,
-.cta-lms.cta-single-course,
-.cta-lms.dashboard-layout,
-.cta-lms.cta-student-dashboard,
-.cta-lms.cta-course-player,
-.cta-lms.cta-supervision-dashboard,
-.cta-lms.cta-quiz-page,
-.cta-lms.cta-supervision-booking {
-  width: 100% !important;
-  max-width: 100% !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
+.cta-lms.cta-single-course {
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .cta-lms .cta-catalog-inner {
@@ -587,7 +554,6 @@ body.cta-lms-page .elementor-shortcode {
 
 /* --------------------------------------------------------------------------
    Hello Elementor — layout overrides (dashboard, booking, course player)
-   Desktop rules are scoped so they do not break portrait mobile.
    -------------------------------------------------------------------------- */
 body.cta-lms-page:not(.admin-bar) {
   margin-top: 0 !important;
@@ -599,72 +565,62 @@ body.cta-lms-page:not(.admin-bar) {
   }
 }
 
-@media (min-width: 993px) {
-  .cta-plugin-wrapper .dashboard-layout,
-  .cta-plugin-wrapper > .cta-lms.dashboard-layout {
-    display: grid !important;
-    grid-template-columns: 260px minmax(0, 1fr) !important;
-    min-height: 100vh;
-    width: 100% !important;
-    max-width: none !important;
-  }
+.cta-plugin-wrapper .dashboard-layout,
+.cta-plugin-wrapper > .cta-lms.dashboard-layout {
+  display: grid !important;
+  grid-template-columns: 260px minmax(0, 1fr) !important;
+  min-height: 100vh;
+  width: 100% !important;
+  max-width: none !important;
+}
 
-  .cta-plugin-wrapper .dashboard-sidebar {
-    display: flex !important;
-    flex-direction: column !important;
-    grid-column: 1 !important;
-    grid-row: 1 !important;
-    width: 100% !important;
-    max-width: 260px !important;
-    min-height: 100vh !important;
-    background-color: var(--color-navy) !important;
-    color: var(--color-white) !important;
-    position: relative !important;
-    float: none !important;
-  }
+.cta-plugin-wrapper .dashboard-sidebar {
+  display: flex !important;
+  flex-direction: column !important;
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  max-width: 260px !important;
+  min-height: 100vh !important;
+  background-color: var(--color-navy) !important;
+  color: var(--color-white) !important;
+  position: relative !important;
+  float: none !important;
+}
 
-  .cta-plugin-wrapper .dashboard-main {
-    grid-column: 2 !important;
-    grid-row: 1 !important;
-    min-width: 0 !important;
-    width: 100% !important;
-    float: none !important;
-  }
+.cta-plugin-wrapper .dashboard-main {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  float: none !important;
+}
 
-  .cta-plugin-wrapper .course-player-layout {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) 320px !important;
-    gap: var(--space-xl) !important;
-    align-items: start !important;
-    width: 100% !important;
-  }
+.cta-plugin-wrapper .course-player-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 320px !important;
+  gap: var(--space-xl) !important;
+  align-items: start !important;
+  width: 100% !important;
+}
 
-  .cta-plugin-wrapper .course-player__sidebar {
-    position: sticky !important;
-    top: calc(var(--header-height, 80px) + 16px) !important;
-    width: 100% !important;
-    min-width: 0 !important;
-  }
+.cta-plugin-wrapper .course-player__sidebar {
+  position: sticky !important;
+  top: calc(var(--header-height, 80px) + 16px) !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
 
-  .cta-plugin-wrapper .cta-supervision-booking__layout {
-    display: grid !important;
-    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr) !important;
-    gap: var(--space-2xl) !important;
-    align-items: start !important;
-    width: 100% !important;
-  }
-
-  .cta-plugin-wrapper .cta-booking-calendar {
-    grid-column: 1 !important;
-  }
-
-  .cta-plugin-wrapper .cta-session-list,
-  .cta-plugin-wrapper #cta-supervision-sessions {
-    grid-column: 2 !important;
-  }
+.cta-plugin-wrapper .cta-supervision-booking__layout {
+  display: grid !important;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr) !important;
+  gap: var(--space-2xl) !important;
+  align-items: start !important;
+  width: 100% !important;
 }
 
 .cta-plugin-wrapper .cta-booking-calendar {
+  grid-column: 1 !important;
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;
@@ -691,6 +647,7 @@ body.cta-lms-page:not(.admin-bar) {
 
 .cta-plugin-wrapper .cta-session-list,
 .cta-plugin-wrapper #cta-supervision-sessions {
+  grid-column: 2 !important;
   width: 100% !important;
   min-width: 0 !important;
   position: relative !important;
@@ -783,345 +740,18 @@ body.cta-lms-page:not(.admin-bar) {
 }
 
 @media (max-width: 992px) {
-  /* Block layout avoids fixed sidebar competing for grid/flex track space. */
   .cta-plugin-wrapper .dashboard-layout,
-  .cta-plugin-wrapper > .cta-lms.dashboard-layout,
-  .cta-lms.dashboard-layout {
-    display: block !important;
-    grid-template-columns: none !important;
-    grid-template-rows: none !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    min-height: 0 !important;
-    overflow-x: clip !important;
-  }
-
-  .cta-plugin-wrapper .dashboard-mobile-bar {
-    display: flex !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 40 !important;
+  .cta-plugin-wrapper > .cta-lms.dashboard-layout {
+    grid-template-columns: 1fr !important;
   }
 
   .cta-plugin-wrapper .dashboard-sidebar {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    bottom: 0 !important;
-    grid-column: auto !important;
-    grid-row: auto !important;
-    width: min(300px, 88vw) !important;
-    max-width: min(300px, 88vw) !important;
+    max-width: none !important;
     min-height: 0 !important;
-    height: 100% !important;
-    z-index: 50 !important;
-    float: none !important;
-    transform: translateX(-105%) !important;
-    transition: transform 0.25s ease !important;
-    overflow-x: hidden !important;
-    overflow-y: auto !important;
-    /* Keep navy chrome even when desktop theme-compat rules are scoped away. */
-    display: flex !important;
-    flex-direction: column !important;
-    background-color: var(--color-navy) !important;
-    color: var(--color-white) !important;
-  }
-
-  .cta-plugin-wrapper .dashboard-layout--menu-open .dashboard-sidebar {
-    transform: translateX(0) !important;
-  }
-
-  .cta-plugin-wrapper .dashboard-layout--menu-open::before {
-    content: "" !important;
-    position: fixed !important;
-    inset: 0 !important;
-    background: rgba(15, 23, 42, 0.45) !important;
-    z-index: 45 !important;
-  }
-
-  .cta-plugin-wrapper .dashboard-main {
-    display: block !important;
-    grid-column: auto !important;
-    grid-row: auto !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    padding: var(--space-lg) var(--space-md) !important;
-    box-sizing: border-box !important;
-    overflow-x: hidden !important;
-    float: none !important;
   }
 
   .cta-plugin-wrapper .course-player-layout,
   .cta-plugin-wrapper .cta-supervision-booking__layout {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: var(--space-lg) !important;
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-
-  .cta-plugin-wrapper .course-player__sidebar,
-  .cta-plugin-wrapper .cta-booking-calendar,
-  .cta-plugin-wrapper .cta-session-list,
-  .cta-plugin-wrapper #cta-supervision-sessions {
-    position: static !important;
-    top: auto !important;
-    grid-column: auto !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-  }
-
-  .cta-plugin-wrapper .course-player__iframe,
-  .cta-plugin-wrapper .course-player__html5-video,
-  .cta-plugin-wrapper .course-player__video,
-  .cta-plugin-wrapper .course-player__video iframe,
-  .cta-plugin-wrapper .course-player__video video {
-    width: 100% !important;
-    max-width: 100% !important;
-    height: auto !important;
-  }
-
-  .cta-plugin-wrapper .course-player__iframe {
-    aspect-ratio: 16 / 9 !important;
-    min-height: 0 !important;
-  }
-
-  .cta-plugin-wrapper .course-player__nav-links {
-    flex-direction: column !important;
-  }
-
-  .cta-plugin-wrapper .course-player__nav-links .btn,
-  .cta-plugin-wrapper .course-player__lesson-actions .btn,
-  .cta-plugin-wrapper .dashboard-course-card__actions .btn,
-  .cta-plugin-wrapper .subscription-card__actions .btn,
-  .cta-plugin-wrapper .session-card__actions .btn {
-    width: 100% !important;
-    max-width: 100% !important;
-    justify-content: center !important;
-  }
-
-  .cta-plugin-wrapper .session-table-wrap,
-  .cta-plugin-wrapper .comparison-table-wrap {
-    width: 100% !important;
-    max-width: 100% !important;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .cta-plugin-wrapper .cta-quiz-page,
-  .cta-lms.cta-quiz-page {
-    width: 100% !important;
-    max-width: 100% !important;
-    padding: var(--space-lg) var(--space-md) !important;
-    box-sizing: border-box !important;
-  }
-
-  .cta-plugin-wrapper .cta-quiz-info-grid {
     grid-template-columns: 1fr !important;
-  }
-
-  .cta-plugin-wrapper .cta-quiz-header {
-    padding-right: 0 !important;
-  }
-
-  .cta-plugin-wrapper .cta-quiz-timer {
-    position: static !important;
-    display: inline-flex !important;
-    margin-top: var(--space-sm) !important;
-  }
-
-  .cta-plugin-wrapper .cta-quiz-start-card,
-  .cta-plugin-wrapper .cta-quiz-evaluation,
-  .cta-plugin-wrapper .cta-quiz-certificate-ready,
-  .cta-plugin-wrapper .cta-certificate-card,
-  .cta-plugin-wrapper .course-quiz-modal__dialog {
-    width: 100% !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-  }
-
-  .cta-plugin-wrapper .course-quiz-modal {
-    padding: var(--space-md) !important;
-    align-items: flex-start !important;
-  }
-
-  .cta-plugin-wrapper .cta-supervision-plan-grid,
-  .cta-plugin-wrapper .grid-2,
-  .cta-plugin-wrapper .dashboard-settings .form-row,
-  .cta-plugin-wrapper .dashboard-settings .grid-2 {
-    grid-template-columns: 1fr !important;
-  }
-}
-
-@media (max-width: 480px) {
-  .cta-plugin-wrapper .dashboard-main {
-    padding: var(--space-md) var(--space-sm) !important;
-  }
-
-  .cta-plugin-wrapper .dashboard-sidebar {
-    width: min(100vw - 48px, 300px) !important;
-    max-width: min(100vw - 48px, 300px) !important;
-  }
-
-  .cta-plugin-wrapper .dashboard-welcome__greeting,
-  .cta-plugin-wrapper .course-player__lesson-title {
-    font-size: var(--font-size-lg) !important;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-
-  .cta-plugin-wrapper .course-player__video--placeholder {
-    min-height: 180px !important;
-  }
-
-  .cta-plugin-wrapper .cta-quiz-question,
-  .cta-plugin-wrapper .cta-quiz-start-card,
-  .cta-plugin-wrapper .cta-quiz-evaluation,
-  .cta-plugin-wrapper .cta-quiz-certificate-ready {
-    padding: var(--space-md) !important;
-  }
-}
-
-/* Portrait mobile: never allow app shells to force landscape via overflow */
-@media (max-width: 767px) {
-  body.cta-lms-page--no-chrome,
-  body.dashboard-page,
-  body.cta-lms-page--no-chrome .site-content,
-  body.cta-lms-page--no-chrome .content-area,
-  body.cta-lms-page--no-chrome .entry-content,
-  body.cta-lms-page--no-chrome .site-main,
-  body.dashboard-page .site-content,
-  body.dashboard-page .content-area,
-  body.dashboard-page .entry-content,
-  body.dashboard-page .site-main {
-    overflow-x: clip !important;
-    max-width: 100vw !important;
-  }
-
-  .cta-plugin-wrapper,
-  .cta-plugin-wrapper > .cta-lms,
-  .cta-lms.dashboard-layout {
-    overflow-x: clip !important;
-  }
-
-  .cta-plugin-wrapper img,
-  .cta-plugin-wrapper iframe,
-  .cta-plugin-wrapper video,
-  .cta-plugin-wrapper table {
-    max-width: 100% !important;
-  }
-
-  .cta-plugin-wrapper .dashboard-course-card__header,
-  .cta-plugin-wrapper .dashboard-course-card__actions,
-  .cta-plugin-wrapper .subscription-card,
-  .cta-plugin-wrapper .subscription-card__actions,
-  .cta-plugin-wrapper .session-card__meta,
-  .cta-plugin-wrapper .course-player__quiz-ref-row {
-    flex-direction: column !important;
-    align-items: stretch !important;
-  }
-}
-
-/* --------------------------------------------------------------------------
-   Elementor / theme header — keep nav on one line; stop right CTA clipping
-   -------------------------------------------------------------------------- */
-body.cta-lms-page,
-body:not(.cta-lms-page--no-chrome) {
-  overflow-x: visible;
-}
-
-.elementor-location-header,
-.elementor-location-header .e-con,
-.elementor-location-header .e-con-inner,
-.elementor-location-header .elementor-container,
-.elementor-location-header .elementor-widget-wrap {
-  overflow: visible !important;
-}
-
-.elementor-location-header .e-con.e-parent,
-.elementor-location-header .e-con-boxed {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  padding-inline: clamp(16px, 2.5vw, 32px) !important;
-}
-
-.elementor-location-header .e-con-inner {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: min(1300px, 100%) !important;
-  margin-inline: auto;
-  padding-inline: 0;
-}
-
-.elementor-location-header .elementor-nav-menu--main .elementor-nav-menu,
-.elementor-location-header .elementor-nav-menu {
-  display: flex !important;
-  flex-wrap: nowrap !important;
-  align-items: center;
-  white-space: nowrap;
-  max-width: 100%;
-}
-
-.elementor-location-header .elementor-nav-menu > li {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
-.elementor-location-header .elementor-nav-menu .elementor-item,
-.elementor-location-header .elementor-nav-menu a {
-  white-space: nowrap !important;
-}
-
-/* Fallback hide if a quiz page remains in a cached Elementor menu. */
-.elementor-location-header .elementor-nav-menu > li.menu-item:has(> a[href*="/course-quiz"]),
-.elementor-location-header .elementor-nav-menu > li.menu-item:has(> a[href*="/quiz/"]) {
-  display: none !important;
-}
-
-.elementor-location-header .elementor-widget-button,
-.elementor-location-header .elementor-button-wrapper {
-  flex: 0 0 auto !important;
-  flex-shrink: 0 !important;
-  max-width: none !important;
-  overflow: visible !important;
-}
-
-.elementor-location-header .elementor-button-link,
-.elementor-location-header .elementor-button {
-  white-space: nowrap !important;
-  overflow: visible !important;
-  max-width: none !important;
-}
-
-@media (min-width: 1025px) {
-  .elementor-location-header .e-con.e-parent.e-flex,
-  .elementor-location-header .e-con-boxed.e-flex,
-  .elementor-location-header .elementor-container {
-    flex-wrap: nowrap !important;
-    align-items: center !important;
-    gap: 0.75rem;
-  }
-
-  .elementor-location-header .elementor-widget-nav-menu {
-    min-width: 0;
-    flex: 1 1 auto;
-    overflow: visible !important;
-  }
-
-  .elementor-location-header .elementor-nav-menu .elementor-item {
-    padding-inline: 0.65rem !important;
-  }
-}
-
-@media (max-width: 1024px) {
-  .elementor-location-header .elementor-nav-menu--main .elementor-nav-menu {
-    flex-wrap: wrap !important;
-    white-space: normal;
   }
 }

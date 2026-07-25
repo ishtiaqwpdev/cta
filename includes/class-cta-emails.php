@@ -271,19 +271,7 @@ class CTA_Emails {
 	public static function send_daily_reminders() {
 		global $wpdb;
 
-		$tomorrow = cta_lms_current_date( 'Y-m-d' );
-		try {
-			$tomorrow_dt = new DateTimeImmutable( 'now', cta_lms_get_timezone() );
-			$tomorrow    = $tomorrow_dt->modify( '+1 day' )->format( 'Y-m-d' );
-		} catch ( Exception $e ) {
-			$tomorrow = cta_lms_current_date( 'Y-m-d' );
-			try {
-				$fallback = new DateTimeImmutable( $tomorrow . ' 12:00:00', cta_lms_get_timezone() );
-				$tomorrow = $fallback->modify( '+1 day' )->format( 'Y-m-d' );
-			} catch ( Exception $ignored ) {
-				$tomorrow = gmdate( 'Y-m-d', time() + DAY_IN_SECONDS );
-			}
-		}
+		$tomorrow = wp_date( 'Y-m-d', strtotime( '+1 day', current_time( 'timestamp' ) ) );
 
 		$bookings = $wpdb->get_results(
 			$wpdb->prepare(
@@ -362,7 +350,7 @@ class CTA_Emails {
 				'payment_id'        => sanitize_text_field( $data['payment_id'] ?? '' ),
 				'payment_reference' => self::format_payment_reference( $data['payment_id'] ?? '' ),
 				'ce_hours'          => self::format_ce_hours( $course ),
-				'enrolled_date'     => cta_lms_format_local_date( null, 'F j, Y' ),
+				'enrolled_date'     => wp_date( 'F j, Y' ),
 				'player_url'        => self::get_course_player_url( $course_id ),
 			)
 		);
@@ -398,7 +386,7 @@ class CTA_Emails {
 				'session_type'      => $session_type,
 				'session_type_label'=> 'group' === $session_type ? __( 'Group Supervision', 'cta-lms' ) : __( 'Individual Supervision', 'cta-lms' ),
 				'session_date'      => self::format_session_date( $session->session_date ),
-				'session_time'      => self::format_session_time( $session->session_time, $session->session_date ),
+				'session_time'      => self::format_session_time( $session->session_time ),
 				'duration_label'    => 'group' === $session_type ? __( '2 hours', 'cta-lms' ) : __( '1 hour', 'cta-lms' ),
 				'dashboard_url'     => self::get_page_url( 'cta_supervision_dashboard_page_id' ),
 			)
@@ -430,7 +418,7 @@ class CTA_Emails {
 				'session'                => $session,
 				'session_type_label'     => 'group' === $session_type ? __( 'Group Supervision', 'cta-lms' ) : __( 'Individual Supervision', 'cta-lms' ),
 				'session_date'           => self::format_session_date( $session->session_date ),
-				'session_time'           => self::format_session_time( $session->session_time, $session->session_date ),
+				'session_time'           => self::format_session_time( $session->session_time ),
 				'duration_label'         => (int) $session->duration_mins . ' ' . __( 'minutes', 'cta-lms' ),
 				'cancellation_deadline'  => self::get_cancellation_deadline( $session ),
 				'dashboard_url'          => self::get_page_url( 'cta_supervision_dashboard_page_id' ),
@@ -453,19 +441,11 @@ class CTA_Emails {
 			return false;
 		}
 
-		$completion_date = ! empty( $certificate->issued_at )
-			? cta_lms_format_local_date( $certificate->issued_at, 'F j, Y', cta_lms_get_timezone() )
-			: cta_lms_format_local_date( null, 'F j, Y', cta_lms_get_timezone() );
-
 		$subject = sprintf(
 			/* translators: %s: course title */
 			__( 'Your CE Certificate is Ready — %s', 'cta-lms' ),
 			$course->title
 		);
-
-		$certificate_url = class_exists( 'CTA_Certificates' )
-			? CTA_Certificates::get_print_url( (int) $certificate->id, true )
-			: CTA_Database::get_certificate_url( $certificate );
 
 		return self::deliver(
 			$user,
@@ -475,8 +455,8 @@ class CTA_Emails {
 				'course'             => $course,
 				'certificate'        => $certificate,
 				'ce_hours'           => self::format_ce_hours( $course ),
-				'certificate_url'    => $certificate_url,
-				'completion_date'    => $completion_date,
+				'certificate_url'    => CTA_Database::get_certificate_url( $certificate ),
+				'completion_date'    => ! empty( $certificate->issued_at ) ? wp_date( 'F j, Y', strtotime( $certificate->issued_at ) ) : wp_date( 'F j, Y' ),
 				'dashboard_url'      => self::get_page_url( 'cta_student_dashboard_page_id' ),
 			)
 		);
@@ -518,7 +498,7 @@ class CTA_Emails {
 				'payment'            => $payment,
 				'product_name'       => $product_name,
 				'amount'             => number_format( (float) $payment->amount, 2 ),
-				'payment_date'       => ! empty( $payment->created_at ) ? cta_lms_format_local_date( $payment->created_at, 'F j, Y' ) : cta_lms_format_local_date( null, 'F j, Y' ),
+				'payment_date'       => ! empty( $payment->created_at ) ? wp_date( 'F j, Y', strtotime( $payment->created_at ) ) : wp_date( 'F j, Y' ),
 				'transaction_ref'    => self::format_transaction_reference( $payment->stripe_payment_id ?? '' ),
 				'dashboard_url'      => self::get_dashboard_url( $user ),
 				'support_email'      => self::get_support_email(),
@@ -917,14 +897,14 @@ class CTA_Emails {
 		);
 		$session = (object) array(
 			'session_type' => 'group',
-			'session_date' => ( new DateTimeImmutable( 'now', cta_lms_get_timezone() ) )->modify( '+1 day' )->format( 'Y-m-d' ),
+			'session_date' => wp_date( 'Y-m-d', strtotime( '+1 day', current_time( 'timestamp' ) ) ),
 			'session_time' => '10:00:00',
 			'duration_mins'=> 120,
 			'seats_booked' => 4,
 			'seats_total'  => 8,
 		);
 		$certificate = (object) array(
-			'certificate_number' => 'CTA-' . cta_lms_current_date( 'Y' ) . '-123456',
+			'certificate_number' => 'CTA-' . wp_date( 'Y' ) . '-123456',
 			'issued_at'           => current_time( 'mysql' ),
 		);
 		$payment = (object) array(
@@ -939,25 +919,23 @@ class CTA_Emails {
 			'course'               => $course,
 			'ce_hours'             => '3',
 			'payment_reference'    => '#12345678',
-			'enrolled_date'        => cta_lms_format_local_date( null, 'F j, Y' ),
+			'enrolled_date'        => wp_date( 'F j, Y' ),
 			'player_url'           => home_url( '/course-player/?course_id=1' ),
 			'session'              => $session,
 			'session_type_label'   => __( 'Group Supervision', 'cta-lms' ),
 			'session_date'         => self::format_session_date( $session->session_date ),
-			'session_time'         => self::format_session_time( $session->session_time, $session->session_date ),
+			'session_time'         => self::format_session_time( $session->session_time ),
 			'duration_label'       => __( '2 hours', 'cta-lms' ),
 			'cancellation_deadline'=> self::get_cancellation_deadline( $session ),
 			'certificate'          => $certificate,
 			'certificate_url'      => home_url( '/sample-certificate/' ),
-			'completion_date'      => cta_lms_format_local_date( null, 'F j, Y' ),
+			'completion_date'      => wp_date( 'F j, Y' ),
 			'product_name'         => __( 'Annual CE Bundle', 'cta-lms' ),
 			'payment'              => $payment,
 			'amount'               => '139.00',
-			'payment_date'         => cta_lms_format_local_date( null, 'F j, Y' ),
+			'payment_date'         => wp_date( 'F j, Y' ),
 			'transaction_ref'      => 'sample123456',
-			'subscription_plan'    => class_exists( 'CTA_Supervision_Plans' )
-				? CTA_Supervision_Plans::get_name( CTA_Supervision_Plans::GROUP_SLUG )
-				: 'Group Supervision',
+			'subscription_plan'    => __( 'Group Supervision Plan', 'cta-lms' ),
 			'portal_url'           => home_url( '/billing-portal/' ),
 			'supervision_url'      => home_url( '/supervision/' ),
 			'support_email'        => self::get_support_email(),
@@ -1017,7 +995,17 @@ class CTA_Emails {
 	 * @return string
 	 */
 	private static function get_logo_url() {
-		return cta_lms_get_logo_url( 'white' );
+		$white = CTA_PLUGIN_DIR . 'assets/img/logo-white.png';
+		if ( file_exists( $white ) ) {
+			return CTA_PLUGIN_URL . 'assets/img/logo-white.png';
+		}
+
+		$placeholder = CTA_PLUGIN_DIR . 'assets/img/placeholder/logo.png';
+		if ( file_exists( $placeholder ) ) {
+			return CTA_PLUGIN_URL . 'assets/img/placeholder/logo.png';
+		}
+
+		return CTA_PLUGIN_URL . 'assets/img/logo-white.png';
 	}
 
 	/**
@@ -1149,22 +1137,17 @@ class CTA_Emails {
 	 * @return string
 	 */
 	private static function format_session_date( $date ) {
-		return cta_lms_format_session_date( $date, 'l, F j, Y' );
+		return wp_date( 'l, F j, Y', strtotime( $date ) );
 	}
 
 	/**
-	 * Format session time with timezone abbreviation (PST/PDT).
+	 * Format session time with PST label.
 	 *
 	 * @param string $time Time string.
-	 * @param string $date Optional session date for DST-accurate abbreviation.
 	 * @return string
 	 */
-	private static function format_session_time( $time, $date = '' ) {
-		if ( '' === $date ) {
-			$date = cta_lms_current_date( 'Y-m-d' );
-		}
-
-		return cta_lms_format_session_time( $date, $time, 'g:i A T' );
+	private static function format_session_time( $time ) {
+		return substr( (string) $time, 0, 5 ) . ' PST';
 	}
 
 	/**
@@ -1174,15 +1157,8 @@ class CTA_Emails {
 	 * @return string
 	 */
 	private static function get_cancellation_deadline( $session ) {
-		$dt = cta_lms_session_datetime( $session->session_date, $session->session_time );
-
-		if ( ! $dt ) {
-			return '';
-		}
-
-		$deadline = $dt->modify( '-1 day' );
-
-		return cta_lms_date( 'F j, Y g:i A T', $deadline->getTimestamp(), cta_lms_get_timezone() );
+		$timestamp = strtotime( $session->session_date . ' ' . $session->session_time ) - DAY_IN_SECONDS;
+		return wp_date( 'F j, Y g:i A', $timestamp ) . ' PST';
 	}
 
 	/**
@@ -1195,17 +1171,38 @@ class CTA_Emails {
 		$fallback = self::get_page_url( 'cta_supervision_dashboard_page_id' );
 		$stripe   = function_exists( 'cta_get_stripe' ) ? cta_get_stripe() : null;
 
-		if ( ! $stripe || ! $stripe->is_configured() ) {
+		if ( ! $stripe || ! $stripe->is_configured() || ! class_exists( '\Stripe\BillingPortal\Session' ) ) {
 			return $fallback;
 		}
 
-		$result = $stripe->create_billing_portal_session( $user_id, $fallback ? $fallback : home_url( '/' ) );
+		$customer_id = (string) get_user_meta( $user_id, 'cta_stripe_customer_id', true );
 
-		if ( is_wp_error( $result ) ) {
+		if ( ! $customer_id ) {
+			global $wpdb;
+			$customer_id = (string) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT stripe_customer_id FROM {$wpdb->prefix}cta_payments WHERE user_id = %d AND stripe_customer_id != '' ORDER BY id DESC LIMIT 1",
+					$user_id
+				)
+			);
+		}
+
+		if ( ! $customer_id ) {
 			return $fallback;
 		}
 
-		return $result;
+		try {
+			$session = \Stripe\BillingPortal\Session::create(
+				array(
+					'customer'   => $customer_id,
+					'return_url' => $fallback,
+				)
+			);
+
+			return ! empty( $session->url ) ? $session->url : $fallback;
+		} catch ( Exception $e ) {
+			return $fallback;
+		}
 	}
 }
 }

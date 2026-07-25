@@ -51,14 +51,9 @@ class CTA_Supervision {
 		if ( $is_logged_in ) {
 			$user_id     = get_current_user_id();
 			$meta_status = CTA_Associate_Access::get_supervision_status( $user_id );
-			$approval    = CTA_Associate_Access::get_approval_status( $user_id );
 
 			if ( ! CTA_Associate_Access::can_access_supervision_features( $user_id ) ) {
-				if ( CTA_Associate_Access::STATUS_REJECTED === $approval || 'rejected' === $meta_status ) {
-					$user_status = 'rejected';
-				} elseif ( CTA_Associate_Access::is_approved_awaiting_plan( $user_id ) ) {
-					$user_status = 'awaiting_plan';
-				} elseif ( CTA_Associate_Access::is_supervision_pending( $user_id ) || 'pending_approval' === $meta_status ) {
+				if ( CTA_Associate_Access::is_supervision_pending( $user_id ) || 'pending_approval' === $meta_status ) {
 					$user_status = 'pending_approval';
 				} elseif ( 'locked' === $meta_status || 'past_due' === $meta_status ) {
 					$user_status = 'locked';
@@ -71,16 +66,14 @@ class CTA_Supervision {
 
 			// Only expose existing bookings once supervision access is fully approved.
 			if ( 'active' === $user_status ) {
-				$today    = cta_lms_current_date( 'Y-m-d' );
 				$bookings = $wpdb->get_results(
 					$wpdb->prepare(
 						"SELECT session_date, session_time, session_type, id
 						FROM {$wpdb->prefix}cta_bookings
 						WHERE user_id = %d
 						AND status = 'confirmed'
-						AND session_date >= %s",
-						$user_id,
-						$today
+						AND session_date >= CURDATE()",
+						$user_id
 					)
 				);
 
@@ -91,18 +84,14 @@ class CTA_Supervision {
 			}
 		}
 
-		$today    = cta_lms_current_date( 'Y-m-d' );
 		$sessions = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT *
-				FROM {$wpdb->prefix}cta_bookings
-				WHERE user_id = 0
-				AND status = 'open'
-				AND seats_booked < seats_total
-				AND session_date >= %s
-				ORDER BY session_date ASC, session_time ASC",
-				$today
-			)
+			"SELECT *
+			FROM {$wpdb->prefix}cta_bookings
+			WHERE user_id = 0
+			AND status = 'open'
+			AND seats_booked < seats_total
+			AND session_date >= CURDATE()
+			ORDER BY session_date ASC, session_time ASC"
 		);
 
 		foreach ( $sessions as $session ) {
@@ -115,12 +104,12 @@ class CTA_Supervision {
 		}
 
 		$stripe              = cta_get_stripe();
-		$monthly_price       = CTA_Supervision_Plans::get_group_price();
+		$monthly_price       = $stripe ? $stripe->get_supervision_monthly_price() : (float) get_option( 'cta_supervision_monthly_price', 260.0 );
 		$individual_price    = (float) get_option( 'cta_individual_session_price', 120.0 );
 		$login_url           = $this->get_login_url();
 		$register_url        = CTA_Associate_Access::get_associate_registration_url();
 		$can_purchase_supervision = ! $is_logged_in || CTA_Associate_Access::can_purchase_supervision();
-		$calendar_month      = cta_lms_current_date( 'Y-m-01' );
+		$calendar_month      = gmdate( 'Y-m-01' );
 		$session_dates       = array();
 
 		foreach ( $sessions as $session ) {
@@ -133,109 +122,6 @@ class CTA_Supervision {
 		ob_start();
 		include CTA_PLUGIN_DIR . 'templates/supervision.php';
 		return ob_get_clean();
-	}
-
-	/**
-	 * Whether a group/individual slot still has an open seat.
-	 *
-	 * Pure helper for tests and booking checks.
-	 *
-	 * @param int $seats_booked Seats already taken.
-	 * @param int $seats_total  Capacity (8 group / 1 individual).
-	 * @return bool
-	 */
-	public static function evaluate_has_open_seat( $seats_booked, $seats_total ) {
-		$seats_booked = (int) $seats_booked;
-		$seats_total  = max( 1, (int) $seats_total );
-
-		return $seats_booked < $seats_total;
-	}
-
-	/**
-	 * Capacity for a session type (BBS group max = 8; individual = 1).
-	 *
-	 * @param string $session_type group|individual.
-	 * @return int
-	 */
-	public static function get_capacity_for_type( $session_type ) {
-		return 'group' === $session_type ? self::GROUP_SEATS_MAX : 1;
-	}
-
-	/**
-	 * Duration in minutes for a session type.
-	 *
-	 * @param string $session_type group|individual.
-	 * @return int
-	 */
-	public static function get_duration_for_type( $session_type ) {
-		return 'group' === $session_type ? self::GROUP_DURATION_MINS : self::INDIVIDUAL_DURATION_MINS;
-	}
-
-	/**
-	 * Whether two session intervals overlap (same calendar day in session timezone).
-	 *
-	 * @param string $date_a Session A date Y-m-d.
-	 * @param string $time_a Session A start H:i:s or H:i.
-	 * @param int    $dur_a  Duration A minutes.
-	 * @param string $date_b Session B date Y-m-d.
-	 * @param string $time_b Session B start.
-	 * @param int    $dur_b  Duration B minutes.
-	 * @return bool
-	 */
-	public static function sessions_overlap( $date_a, $time_a, $dur_a, $date_b, $time_b, $dur_b ) {
-		if ( (string) $date_a !== (string) $date_b ) {
-			return false;
-		}
-
-		$start_a = self::time_to_minutes( $time_a );
-		$start_b = self::time_to_minutes( $time_b );
-
-		if ( null === $start_a || null === $start_b ) {
-			return false;
-		}
-
-		$end_a = $start_a + max( 1, (int) $dur_a );
-		$end_b = $start_b + max( 1, (int) $dur_b );
-
-		return $start_a < $end_b && $start_b < $end_a;
-	}
-
-	/**
-	 * Convert a time string to minutes from midnight.
-	 *
-	 * @param string $time H:i:s or H:i.
-	 * @return int|null
-	 */
-	public static function time_to_minutes( $time ) {
-		$time = trim( (string) $time );
-
-		if ( ! preg_match( '/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', $time, $m ) ) {
-			return null;
-		}
-
-		$hour = (int) $m[1];
-		$min  = (int) $m[2];
-
-		if ( $hour > 23 || $min > 59 ) {
-			return null;
-		}
-
-		return ( $hour * 60 ) + $min;
-	}
-
-	/**
-	 * Whether a Join Session / meeting link may be shown.
-	 *
-	 * Requires: meeting URL present, viewer owns a confirmed booking for that session,
-	 * and full supervision access (approved + plan + active).
-	 *
-	 * @param bool $has_meeting_url           Slot has a meeting URL.
-	 * @param bool $is_own_confirmed_booking  Booking belongs to viewer and is confirmed.
-	 * @param bool $has_supervision_access    can_access_meeting_links / features.
-	 * @return bool
-	 */
-	public static function evaluate_can_join_meeting( $has_meeting_url, $is_own_confirmed_booking, $has_supervision_access ) {
-		return (bool) $has_meeting_url && (bool) $is_own_confirmed_booking && (bool) $has_supervision_access;
 	}
 
 	/**
@@ -254,7 +140,6 @@ class CTA_Supervision {
 
 		$user_id = get_current_user_id();
 
-		// Backend gate: associate + approved + qualifying plan + active (not UI-only).
 		CTA_Associate_Access::require_supervision_access( $user_id );
 
 		$status = (string) get_user_meta( $user_id, 'cta_supervision_status', true );
@@ -262,8 +147,8 @@ class CTA_Supervision {
 		if ( 'active' !== $status ) {
 			wp_send_json_error(
 				array(
-					'message' => CTA_Associate_Access::get_access_denied_message( $user_id ),
-					'code'    => 'supervision_not_active',
+					'message' => CTA_Associate_Access::get_pending_message(),
+					'code'    => 'supervision_pending_approval',
 				)
 			);
 		}
@@ -280,27 +165,19 @@ class CTA_Supervision {
 
 		global $wpdb;
 
-		$table = $wpdb->prefix . 'cta_bookings';
-		$today = cta_lms_current_date( 'Y-m-d' );
-
-		// Serialize seat claims for this slot (race-safe under concurrent bookers).
-		$wpdb->query( 'START TRANSACTION' );
-
+		$table   = $wpdb->prefix . 'cta_bookings';
 		$session = $wpdb->get_row(
 			$wpdb->prepare(
 				"SELECT * FROM {$table}
 				WHERE id = %d
 				AND user_id = 0
 				AND status = 'open'
-				AND session_date >= %s
-				FOR UPDATE",
-				$session_id,
-				$today
+				AND session_date >= CURDATE()",
+				$session_id
 			)
 		);
 
 		if ( ! $session ) {
-			$wpdb->query( 'ROLLBACK' );
 			wp_send_json_error(
 				array(
 					'message' => __( 'This session is no longer available.', 'cta-lms' ),
@@ -309,15 +186,13 @@ class CTA_Supervision {
 		}
 
 		$session_type  = sanitize_text_field( $session->session_type );
-		$duration_mins = self::get_duration_for_type( $session_type );
-		$seats_total   = self::get_capacity_for_type( $session_type );
+		$duration_mins = 'group' === $session_type ? self::GROUP_DURATION_MINS : self::INDIVIDUAL_DURATION_MINS;
+		$seats_total   = 'group' === $session_type ? self::GROUP_SEATS_MAX : 1;
 
-		if ( ! self::evaluate_has_open_seat( (int) $session->seats_booked, $seats_total ) ) {
-			$wpdb->query( 'ROLLBACK' );
+		if ( (int) $session->seats_booked >= $seats_total ) {
 			wp_send_json_error(
 				array(
 					'message' => __( 'This session is full.', 'cta-lms' ),
-					'code'    => 'session_full',
 				)
 			);
 		}
@@ -329,8 +204,7 @@ class CTA_Supervision {
 				AND session_date = %s
 				AND session_time = %s
 				AND session_type = %s
-				AND status = 'confirmed'
-				LIMIT 1",
+				AND status = 'confirmed'",
 				$user_id,
 				$session->session_date,
 				$session->session_time,
@@ -339,49 +213,11 @@ class CTA_Supervision {
 		);
 
 		if ( $existing ) {
-			$wpdb->query( 'ROLLBACK' );
 			wp_send_json_error(
 				array(
 					'message' => __( 'You have already booked this session.', 'cta-lms' ),
-					'code'    => 'duplicate_booking',
 				)
 			);
-		}
-
-		// Block overlapping sessions the same day (e.g. group 2h + individual 1h).
-		$day_bookings = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT session_type, session_time, duration_mins FROM {$table}
-				WHERE user_id = %d
-				AND session_date = %s
-				AND status = 'confirmed'",
-				$user_id,
-				$session->session_date
-			)
-		);
-
-		foreach ( (array) $day_bookings as $other ) {
-			$other_duration = (int) $other->duration_mins;
-			if ( $other_duration <= 0 ) {
-				$other_duration = self::get_duration_for_type( $other->session_type );
-			}
-
-			if ( self::sessions_overlap(
-				$session->session_date,
-				$session->session_time,
-				$duration_mins,
-				$session->session_date,
-				$other->session_time,
-				$other_duration
-			) ) {
-				$wpdb->query( 'ROLLBACK' );
-				wp_send_json_error(
-					array(
-						'message' => __( 'You already have a supervision session that overlaps this time.', 'cta-lms' ),
-						'code'    => 'overlapping_booking',
-					)
-				);
-			}
 		}
 
 		$sub_id = (string) get_user_meta( $user_id, 'cta_supervision_subscription_id', true );
@@ -419,7 +255,6 @@ class CTA_Supervision {
 		);
 
 		if ( ! $inserted ) {
-			$wpdb->query( 'ROLLBACK' );
 			wp_send_json_error(
 				array(
 					'message' => __( 'Unable to complete booking. Please try again.', 'cta-lms' ),
@@ -447,42 +282,14 @@ class CTA_Supervision {
 		);
 
 		if ( ! $updated ) {
-			$wpdb->query( 'ROLLBACK' );
+			$wpdb->delete( $table, array( 'id' => $booking_id ), array( '%d' ) );
+
 			wp_send_json_error(
 				array(
 					'message' => __( 'This session just filled up. Please choose another time.', 'cta-lms' ),
-					'code'    => 'session_full',
 				)
 			);
 		}
-
-		// Extra duplicate guard after insert (same user, same slot).
-		$dup_count = (int) $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT COUNT(*) FROM {$table}
-				WHERE user_id = %d
-				AND session_date = %s
-				AND session_time = %s
-				AND session_type = %s
-				AND status = 'confirmed'",
-				$user_id,
-				$session->session_date,
-				$session->session_time,
-				$session_type
-			)
-		);
-
-		if ( $dup_count > 1 ) {
-			$wpdb->query( 'ROLLBACK' );
-			wp_send_json_error(
-				array(
-					'message' => __( 'You have already booked this session.', 'cta-lms' ),
-					'code'    => 'duplicate_booking',
-				)
-			);
-		}
-
-		$wpdb->query( 'COMMIT' );
 
 		$seats_remaining = max( 0, $seats_total - ( (int) $session->seats_booked + 1 ) );
 
@@ -557,9 +364,9 @@ class CTA_Supervision {
 			);
 		}
 
-		$dt = cta_lms_session_datetime( $booking->session_date, $booking->session_time );
+		$session_start = strtotime( $booking->session_date . ' ' . $booking->session_time );
 
-		if ( ! $dt || $dt->getTimestamp() <= ( time() + DAY_IN_SECONDS ) ) {
+		if ( false === $session_start || $session_start <= ( time() + DAY_IN_SECONDS ) ) {
 			wp_send_json_error(
 				array(
 					'message' => __( 'Bookings must be cancelled at least 24 hours before the session.', 'cta-lms' ),
@@ -639,7 +446,13 @@ class CTA_Supervision {
 	 * @return string
 	 */
 	public function format_session_datetime( $date, $time ) {
-		return cta_lms_format_session_datetime( $date, $time, 'l, F j, Y · g:i A T' );
+		$timestamp = strtotime( $date . ' ' . $time );
+
+		if ( ! $timestamp ) {
+			return $date . ' ' . $time;
+		}
+
+		return wp_date( 'l, F j, Y · g:i A', $timestamp );
 	}
 
 	/**

@@ -34,7 +34,7 @@ $can_delete = ( 'pending' === $document->review_status );
 				printf(
 					/* translators: 1: upload date, 2: file size */
 					esc_html__( 'Uploaded %1$s · %2$s', 'cta-lms' ),
-					esc_html( cta_lms_format_local_date( $document->uploaded_at, 'F j, Y' ) ),
+					esc_html( wp_date( 'F j, Y', strtotime( $document->uploaded_at ) ) ),
 					esc_html( $dashboard->format_file_size( $document->file_size ) )
 				);
 				?>

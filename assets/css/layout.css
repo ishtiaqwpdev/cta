@@ -63,10 +63,8 @@
 
 .cta-plugin-wrapper .site-header__nav-list {
   display: flex;
-  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-xl);
-  white-space: nowrap;
 }
 
 .cta-plugin-wrapper .site-header__nav-link {
@@ -76,7 +74,6 @@
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-dark);
-  white-space: nowrap;
   transition: color var(--transition-fast);
 }
 
@@ -119,14 +116,8 @@
 
 .cta-plugin-wrapper .site-header__actions {
   display: flex;
-  flex-shrink: 0;
   align-items: center;
   gap: var(--space-sm);
-  overflow: visible;
-}
-
-.cta-plugin-wrapper .site-header__actions .btn {
-  white-space: nowrap;
 }
 
 /* --------------------------------------------------------------------------
@@ -2909,36 +2900,21 @@ button.pagination__item:disabled {
 .cta-plugin-wrapper .auth-page__logo {
   position: relative;
   z-index: 1;
-  align-self: flex-start;
-  flex-shrink: 0;
-  max-width: 220px;
-  margin-bottom: var(--space-xl);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   letter-spacing: var(--letter-spacing-wide);
   text-transform: uppercase;
   color: var(--color-white);
   line-height: var(--line-height-snug);
+  max-width: 260px;
 }
 
 .cta-plugin-wrapper .auth-page__logo a {
-  display: inline-flex;
-  align-items: center;
   color: var(--color-white);
 }
 
 .cta-plugin-wrapper .auth-page__logo a:hover {
   color: var(--color-white-subtle);
-}
-
-.cta-plugin-wrapper .auth-page__logo img {
-  display: block;
-  width: auto;
-  height: auto;
-  max-width: 200px;
-  max-height: 52px;
-  object-fit: contain;
-  object-position: left center;
 }
 
 .cta-plugin-wrapper .auth-page__brand-content {
@@ -3110,16 +3086,6 @@ button.pagination__item:disabled {
   .cta-plugin-wrapper .auth-page__brand {
     min-height: auto;
     padding: var(--space-xl);
-  }
-
-  .cta-plugin-wrapper .auth-page__logo {
-    max-width: 180px;
-    margin-bottom: var(--space-lg);
-  }
-
-  .cta-plugin-wrapper .auth-page__logo img {
-    max-width: 160px;
-    max-height: 44px;
   }
 
   .cta-plugin-wrapper .auth-page__brand-content {
@@ -4120,7 +4086,8 @@ button.pagination__item:disabled {
 @media (max-width: 992px) {
   .cta-plugin-wrapper.dashboard-layout,
   .cta-plugin-wrapper .dashboard-layout {
-    display: block;
+    display: flex;
+    flex-direction: column;
     min-height: auto;
   }
 
@@ -4134,8 +4101,6 @@ button.pagination__item:disabled {
     position: sticky;
     top: 0;
     z-index: 40;
-    width: 100%;
-    box-sizing: border-box;
   }
 
   .cta-plugin-wrapper .dashboard-mobile-bar__title {
@@ -5936,83 +5901,8 @@ button.pagination__item:disabled {
   flex-wrap: wrap;
 }
 
-.cta-plugin-wrapper .cta-evaluation-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.cta-plugin-wrapper .cta-evaluation-section__title {
-  margin: var(--space-lg) 0 var(--space-sm);
-  font-size: 1.05rem;
-  color: var(--color-navy, #122b51);
-}
-
-.cta-plugin-wrapper .cta-evaluation-question .form-label {
-  display: block;
-  margin-bottom: var(--space-sm);
-}
-
-.cta-plugin-wrapper .cta-required {
-  color: #b42318;
-  margin-left: 2px;
-}
-
-.cta-plugin-wrapper .cta-evaluation-options {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.cta-plugin-wrapper .cta-evaluation-option {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-sm);
-  padding: 10px 12px;
-  border: 1px solid var(--color-border, #d0d5dd);
-  border-radius: var(--radius-md, 8px);
-  cursor: pointer;
-  background: #fff;
-}
-
-.cta-plugin-wrapper .cta-evaluation-option:has(input:checked) {
-  border-color: var(--color-navy, #122b51);
-  background: #f4f7fb;
-}
-
 .cta-plugin-wrapper .cta-quiz-certificate-ready {
   text-align: center;
-}
-
-@media (max-width: 768px) {
-  .cta-plugin-wrapper .cta-quiz-page {
-    padding: var(--space-lg) var(--space-md);
-    max-width: 100%;
-  }
-
-  .cta-plugin-wrapper .cta-quiz-info-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .cta-plugin-wrapper .cta-quiz-timer {
-    position: static;
-    display: inline-flex;
-    margin-top: var(--space-sm);
-  }
-
-  .cta-plugin-wrapper .cta-quiz-header {
-    padding-right: 0;
-  }
-
-  .cta-plugin-wrapper .cta-star-rating {
-    gap: var(--space-sm);
-  }
-
-  .cta-plugin-wrapper .cta-evaluation-option,
-  .cta-plugin-wrapper .cta-quiz-option {
-    width: 100%;
-    box-sizing: border-box;
-  }
 }
 
 .cta-plugin-wrapper .cta-quiz-certificate-ready__icon {
@@ -6028,37 +5918,6 @@ button.pagination__item:disabled {
   0% { transform: scale(0.6); opacity: 0; }
   60% { transform: scale(1.1); opacity: 1; }
   100% { transform: scale(1); }
-}
-
-@media (max-width: 767px) {
-  .cta-plugin-wrapper .cta-quiz-page {
-    padding: var(--space-lg) var(--space-md);
-    max-width: 100%;
-  }
-
-  .cta-plugin-wrapper .cta-quiz-info-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .cta-plugin-wrapper .cta-quiz-timer {
-    position: static;
-    display: inline-flex;
-    margin-top: var(--space-sm);
-  }
-
-  .cta-plugin-wrapper .cta-quiz-header {
-    padding-right: 0;
-  }
-
-  .cta-plugin-wrapper .cta-star-rating {
-    gap: var(--space-sm);
-  }
-
-  .cta-plugin-wrapper .cta-evaluation-option,
-  .cta-plugin-wrapper .cta-quiz-option {
-    width: 100%;
-    box-sizing: border-box;
-  }
 }
 
 @media (min-width: 768px) {

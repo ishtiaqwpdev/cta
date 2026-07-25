@@ -139,7 +139,7 @@ class CTA_Shortcodes {
 		$home_url    = home_url( '/' );
 		$enroll_url  = $nav_links['CE Courses'] ? $nav_links['CE Courses'] : $home_url;
 		$logout_url  = wp_logout_url( home_url() );
-		$logo_url    = cta_lms_get_logo_url();
+		$logo_url    = CTA_PLUGIN_URL . 'assets/img/logo.png';
 		$site_name   = get_bloginfo( 'name' );
 
 		ob_start();

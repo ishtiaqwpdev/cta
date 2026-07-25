@@ -14,10 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 $type_class = 'group' === $session->session_type ? 'badge--primary' : 'badge--teal';
 $type_label = 'group' === $session->session_type ? __( 'Group', 'cta-lms' ) : __( 'Individual', 'cta-lms' );
-$session_dt    = cta_lms_session_datetime( $session->session_date, $session->session_time );
-$datetime_attr = $session_dt
-	? esc_attr( $session_dt->format( 'c' ) )
-	: esc_attr( $session->session_date . 'T' . $session->session_time );
+$datetime_attr = esc_attr( $session->session_date . ' ' . $session->session_time );
 ?>
 <article
 	class="card session-card cta-session-upcoming-card"

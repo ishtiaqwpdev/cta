@@ -12,14 +12,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 $is_edit = (bool) $course;
 $notice  = sanitize_text_field( wp_unslash( $_GET['cta_notice'] ?? '' ) );
 
-$current_product_type = $course->product_type ?? ( $default_product_type ?? 'ce' );
-if ( ! in_array( $current_product_type, array( 'ce', 'exam_prep' ), true ) ) {
-	$current_product_type = 'ce';
-}
-$is_exam_prep = ( 'exam_prep' === $current_product_type );
-$resources    = isset( $resources ) ? $resources : array();
-$exam_learners = isset( $exam_learners ) ? $exam_learners : array();
-
 $course_video_type  = 'vimeo';
 $course_video_value = '';
 $course_video_url   = '';
@@ -50,32 +42,12 @@ if ( $course ) {
 }
 ?>
 <div class="wrap cta-admin-wrap">
-	<h1>
-		<?php
-		if ( $is_edit ) {
-			echo $is_exam_prep ? esc_html__( 'Edit Exam Preparation Program', 'cta-lms' ) : esc_html__( 'Edit Course', 'cta-lms' );
-		} else {
-			echo $is_exam_prep ? esc_html__( 'Add Exam Preparation Program', 'cta-lms' ) : esc_html__( 'Add New Course', 'cta-lms' );
-		}
-		?>
-	</h1>
+	<h1><?php echo $is_edit ? esc_html__( 'Edit Course', 'cta-lms' ) : esc_html__( 'Add New Course', 'cta-lms' ); ?></h1>
 
 	<?php if ( 'course_saved' === $notice ) : ?>
-		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Saved successfully.', 'cta-lms' ); ?></p></div>
+		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Course saved successfully.', 'cta-lms' ); ?></p></div>
 	<?php elseif ( 'course_save_failed' === $notice ) : ?>
-		<div class="notice notice-error is-dismissible"><p><?php esc_html_e( 'Could not be saved. Check that only one CTA LMS plugin is installed, then deactivate and reactivate the plugin.', 'cta-lms' ); ?></p></div>
-	<?php elseif ( 'resource_saved' === $notice || 'resource_deleted' === $notice ) : ?>
-		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Downloadable resource updated.', 'cta-lms' ); ?></p></div>
-	<?php elseif ( 'resource_invalid_type' === $notice ) : ?>
-		<div class="notice notice-error is-dismissible"><p><?php esc_html_e( 'Only PDF, DOC, and DOCX files are allowed for course materials.', 'cta-lms' ); ?></p></div>
-	<?php elseif ( 'resource_too_large' === $notice ) : ?>
-		<div class="notice notice-error is-dismissible"><p><?php esc_html_e( 'File exceeds the 20MB size limit. Please upload a smaller PDF, DOC, or DOCX file.', 'cta-lms' ); ?></p></div>
-	<?php elseif ( 'resource_save_failed' === $notice ) : ?>
-		<div class="notice notice-error is-dismissible"><p><?php esc_html_e( 'Could not save the course material. Please try again with a valid PDF, DOC, or DOCX under 20MB.', 'cta-lms' ); ?></p></div>
-	<?php elseif ( 'exam_extended' === $notice ) : ?>
-		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Exam access extended.', 'cta-lms' ); ?></p></div>
-	<?php elseif ( 'exam_extend_failed' === $notice ) : ?>
-		<div class="notice notice-error is-dismissible"><p><?php esc_html_e( 'Could not extend exam access.', 'cta-lms' ); ?></p></div>
+		<div class="notice notice-error is-dismissible"><p><?php esc_html_e( 'Course could not be saved. Check that only one CTA LMS plugin is installed, then deactivate and reactivate the plugin.', 'cta-lms' ); ?></p></div>
 	<?php endif; ?>
 
 	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="cta-admin-form">
@@ -86,15 +58,7 @@ if ( $course ) {
 		<div class="cta-admin-panel">
 			<table class="form-table">
 				<tr>
-					<th><?php esc_html_e( 'Product Type', 'cta-lms' ); ?></th>
-					<td>
-						<label><input type="radio" name="product_type" value="ce" <?php checked( $current_product_type, 'ce' ); ?>> <?php esc_html_e( 'CE Course', 'cta-lms' ); ?></label>
-						<label style="margin-left:12px;"><input type="radio" name="product_type" value="exam_prep" <?php checked( $current_product_type, 'exam_prep' ); ?>> <?php esc_html_e( 'Exam Preparation Program', 'cta-lms' ); ?></label>
-						<p class="description"><?php esc_html_e( 'Exam Preparation programs do not award CE hours or certificates.', 'cta-lms' ); ?></p>
-					</td>
-				</tr>
-				<tr>
-					<th><label for="cta-course-title"><?php echo $is_exam_prep ? esc_html__( 'Program Name', 'cta-lms' ) : esc_html__( 'Course Title', 'cta-lms' ); ?></label></th>
+					<th><label for="cta-course-title"><?php esc_html_e( 'Course Title', 'cta-lms' ); ?></label></th>
 					<td><input type="text" class="regular-text" id="cta-course-title" name="title" value="<?php echo esc_attr( $course->title ?? '' ); ?>" required></td>
 				</tr>
 				<tr>
@@ -107,21 +71,14 @@ if ( $course ) {
 						<select id="cta-course-category" name="category">
 							<option value=""><?php esc_html_e( 'Select category', 'cta-lms' ); ?></option>
 							<?php foreach ( $categories as $value => $label ) : ?>
-								<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $course->category ?? ( $is_exam_prep ? 'Exam Preparation' : '' ), $value ); ?>><?php echo esc_html( $label ); ?></option>
+								<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $course->category ?? '', $value ); ?>><?php echo esc_html( $label ); ?></option>
 							<?php endforeach; ?>
 						</select>
 					</td>
 				</tr>
-				<tr class="cta-field-ce-hours">
+				<tr>
 					<th><label for="cta-course-ce-hours"><?php esc_html_e( 'CE Hours', 'cta-lms' ); ?></label></th>
-					<td><input type="number" step="0.5" min="0" id="cta-course-ce-hours" name="ce_hours" value="<?php echo esc_attr( $is_exam_prep ? '0' : ( $course->ce_hours ?? '0' ) ); ?>" <?php disabled( $is_exam_prep ); ?>></td>
-				</tr>
-				<tr class="cta-field-access-months" <?php echo $is_exam_prep ? '' : 'style="display:none;"'; ?>>
-					<th><label for="cta-access-period"><?php esc_html_e( 'Access Period (months)', 'cta-lms' ); ?></label></th>
-					<td>
-						<input type="number" min="1" max="36" id="cta-access-period" name="access_period_months" value="<?php echo esc_attr( (string) (int) ( $course->access_period_months ?? 6 ) ); ?>">
-						<p class="description"><?php esc_html_e( 'Default is 6 months from purchase. Admins can manually extend access per learner.', 'cta-lms' ); ?></p>
-					</td>
+					<td><input type="number" step="0.5" min="0" id="cta-course-ce-hours" name="ce_hours" value="<?php echo esc_attr( $course->ce_hours ?? '0' ); ?>"></td>
 				</tr>
 				<tr>
 					<th><label for="cta-course-price"><?php esc_html_e( 'Price', 'cta-lms' ); ?></label></th>
@@ -199,32 +156,11 @@ if ( $course ) {
 			</table>
 
 			<p class="submit">
-				<button type="submit" class="button button-primary"><?php echo $is_exam_prep ? esc_html__( 'Save Program', 'cta-lms' ) : esc_html__( 'Save Course', 'cta-lms' ); ?></button>
-				<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=cta-lms-courses&product_type=' . $current_product_type ) ); ?>"><?php esc_html_e( 'Back to List', 'cta-lms' ); ?></a>
+				<button type="submit" class="button button-primary"><?php esc_html_e( 'Save Course', 'cta-lms' ); ?></button>
+				<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=cta-lms-courses' ) ); ?>"><?php esc_html_e( 'Back to Courses', 'cta-lms' ); ?></a>
 			</p>
 		</div>
 	</form>
-
-	<script>
-	(function () {
-		function syncProductType() {
-			var exam = document.querySelector('input[name="product_type"][value="exam_prep"]');
-			var isExam = exam && exam.checked;
-			var ceRow = document.querySelector('.cta-field-ce-hours');
-			var accessRow = document.querySelector('.cta-field-access-months');
-			var ceInput = document.getElementById('cta-course-ce-hours');
-			if (accessRow) { accessRow.style.display = isExam ? '' : 'none'; }
-			if (ceInput) {
-				ceInput.disabled = !!isExam;
-				if (isExam) { ceInput.value = '0'; }
-			}
-		}
-		document.querySelectorAll('input[name="product_type"]').forEach(function (el) {
-			el.addEventListener('change', syncProductType);
-		});
-		syncProductType();
-	})();
-	</script>
 
 	<?php if ( $course_id ) : ?>
 		<div class="cta-admin-panel" id="cta-modules-panel" data-course-id="<?php echo esc_attr( (string) $course_id ); ?>">
@@ -277,7 +213,7 @@ if ( $course ) {
 		</div>
 
 		<div class="cta-admin-panel" id="cta-quiz-panel" data-course-id="<?php echo esc_attr( (string) $course_id ); ?>">
-			<h2><?php echo $is_exam_prep ? esc_html__( 'Practice Questions / Mock Exam', 'cta-lms' ) : esc_html__( 'Course Quiz', 'cta-lms' ); ?></h2>
+			<h2><?php esc_html_e( 'Course Quiz', 'cta-lms' ); ?></h2>
 			<div id="cta-quiz-status-line" class="cta-quiz-status-line">
 				<?php if ( $quiz ) : ?>
 					<p><?php esc_html_e( 'Quiz exists for this course.', 'cta-lms' ); ?> <strong><?php echo esc_html( $quiz->title ); ?></strong></p>
@@ -317,159 +253,9 @@ if ( $course ) {
 				<button type="button" class="button button-primary" id="cta-save-quiz"><?php echo $quiz ? esc_html__( 'Save Quiz', 'cta-lms' ) : esc_html__( 'Create Quiz', 'cta-lms' ); ?></button>
 				<span id="cta-quiz-save-status" class="cta-inline-result"></span>
 			</p>
-			<p class="description">
-				<?php
-				echo $is_exam_prep
-					? esc_html__( 'Add practice / mock exam questions. Use the explanation field as the answer rationale shown after each question. No CE certificate is issued for exam prep programs.', 'cta-lms' )
-					: esc_html__( 'Add multiple-choice questions below. Students must score 70% or higher to pass. Quizzes have no time limit and unlimited retake attempts until passed.', 'cta-lms' );
-				?>
-			</p>
+			<p class="description"><?php esc_html_e( 'Add multiple-choice questions below. Students must pass the quiz to earn their certificate.', 'cta-lms' ); ?></p>
 		</div>
-
-		<div class="cta-admin-panel" id="cta-resources-panel" data-course-id="<?php echo esc_attr( (string) $course_id ); ?>">
-			<h2><?php echo $is_exam_prep ? esc_html__( 'Downloadable Workbooks & Practice Tests', 'cta-lms' ) : esc_html__( 'Course Materials', 'cta-lms' ); ?></h2>
-			<p class="description"><?php esc_html_e( 'Attach PDFs, handouts, worksheets, checklists, templates, or reference guides to the whole course or to a specific module. Allowed types: PDF, DOC, DOCX. Max size: 20MB per file. Files are stored in a protected folder and only enrolled learners can download them.', 'cta-lms' ); ?></p>
-
-			<?php if ( ! empty( $resources ) ) : ?>
-				<table class="widefat striped">
-					<thead>
-						<tr>
-							<th style="width:36px;"></th>
-							<th><?php esc_html_e( 'Title', 'cta-lms' ); ?></th>
-							<th><?php esc_html_e( 'Attached to', 'cta-lms' ); ?></th>
-							<th><?php esc_html_e( 'Type', 'cta-lms' ); ?></th>
-							<?php if ( $is_exam_prep ) : ?>
-								<th><?php esc_html_e( 'Practice Test', 'cta-lms' ); ?></th>
-							<?php endif; ?>
-							<th><?php esc_html_e( 'Actions', 'cta-lms' ); ?></th>
-						</tr>
-					</thead>
-					<tbody id="cta-resources-list">
-						<?php
-						$module_labels = array();
-						foreach ( $modules as $module ) {
-							$module_labels[ (int) $module->id ] = $module->title;
-						}
-						foreach ( $resources as $resource ) :
-							$mid = isset( $resource->module_id ) ? (int) $resource->module_id : 0;
-							?>
-							<tr data-resource-id="<?php echo esc_attr( (string) $resource->id ); ?>"
-								data-title="<?php echo esc_attr( $resource->title ); ?>"
-								data-module-id="<?php echo esc_attr( (string) $mid ); ?>"
-								data-file-type="<?php echo esc_attr( (string) $resource->file_type ); ?>"
-								data-practice="<?php echo ! empty( $resource->is_practice_test ) ? '1' : '0'; ?>"
-								data-attachment-id="<?php echo esc_attr( (string) (int) ( $resource->attachment_id ?? 0 ) ); ?>">
-								<td class="cta-drag-handle" style="cursor:move;" title="<?php esc_attr_e( 'Drag to reorder', 'cta-lms' ); ?>">&#8942;&#8942;</td>
-								<td><strong><?php echo esc_html( $resource->title ); ?></strong></td>
-								<td>
-									<?php
-									echo $mid && isset( $module_labels[ $mid ] )
-										? esc_html( $module_labels[ $mid ] )
-										: esc_html__( 'Entire course', 'cta-lms' );
-									?>
-								</td>
-								<td><?php echo esc_html( strtoupper( (string) $resource->file_type ) ); ?></td>
-								<?php if ( $is_exam_prep ) : ?>
-									<td><?php echo ! empty( $resource->is_practice_test ) ? esc_html__( 'Yes', 'cta-lms' ) : esc_html__( 'No', 'cta-lms' ); ?></td>
-								<?php endif; ?>
-								<td>
-									<button type="button" class="button button-small cta-edit-resource"><?php esc_html_e( 'Edit / Replace', 'cta-lms' ); ?></button>
-									<a class="button button-small button-link-delete" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=cta_delete_resource&resource_id=' . (int) $resource->id . '&course_id=' . (int) $course_id ), 'cta_delete_resource' ) ); ?>"><?php esc_html_e( 'Delete', 'cta-lms' ); ?></a>
-								</td>
-							</tr>
-						<?php endforeach; ?>
-					</tbody>
-				</table>
-			<?php else : ?>
-				<p><?php esc_html_e( 'No course materials yet.', 'cta-lms' ); ?></p>
-			<?php endif; ?>
-
-			<h3 id="cta-resource-form-heading"><?php esc_html_e( 'Add Material', 'cta-lms' ); ?></h3>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="cta-admin-form" id="cta-resource-form">
-				<?php wp_nonce_field( 'cta_save_resource' ); ?>
-				<input type="hidden" name="action" value="cta_save_resource">
-				<input type="hidden" name="course_id" value="<?php echo esc_attr( (string) $course_id ); ?>">
-				<input type="hidden" name="resource_id" id="cta-resource-id" value="">
-				<input type="hidden" name="resource_attachment_id" id="cta-resource-attachment-id" value="">
-				<input type="hidden" name="resource_file_url" id="cta-resource-file-url" value="">
-				<p>
-					<label for="cta-resource-title"><strong><?php esc_html_e( 'Title', 'cta-lms' ); ?></strong></label><br>
-					<input type="text" class="regular-text" id="cta-resource-title" name="resource_title" placeholder="<?php esc_attr_e( 'e.g. Session Handout, Worksheet, Checklist', 'cta-lms' ); ?>" required>
-				</p>
-				<p>
-					<label for="cta-resource-module"><strong><?php esc_html_e( 'Attach to', 'cta-lms' ); ?></strong></label><br>
-					<select id="cta-resource-module" name="resource_module_id">
-						<option value="0"><?php esc_html_e( 'Entire course', 'cta-lms' ); ?></option>
-						<?php foreach ( $modules as $module ) : ?>
-							<option value="<?php echo esc_attr( (string) $module->id ); ?>"><?php echo esc_html( $module->title ); ?></option>
-						<?php endforeach; ?>
-					</select>
-				</p>
-				<p>
-					<label><strong><?php esc_html_e( 'File', 'cta-lms' ); ?></strong></label><br>
-					<button type="button" class="button" id="cta-resource-select-file"><?php esc_html_e( 'Select / Upload File', 'cta-lms' ); ?></button>
-					<span id="cta-resource-file-label" class="description" style="margin-left:8px;"></span>
-					<br><span class="description"><?php esc_html_e( 'PDF, DOC, or DOCX only. Maximum 20MB.', 'cta-lms' ); ?></span>
-				</p>
-				<p>
-					<label for="cta-resource-file-type"><strong><?php esc_html_e( 'File type', 'cta-lms' ); ?></strong></label><br>
-					<input type="text" class="small-text" id="cta-resource-file-type" name="resource_file_type" placeholder="<?php esc_attr_e( 'pdf', 'cta-lms' ); ?>">
-					<?php if ( $is_exam_prep ) : ?>
-						<label style="margin-left:12px;"><input type="checkbox" name="is_practice_test" id="cta-resource-practice" value="1"> <?php esc_html_e( 'Practice test / approved testing material', 'cta-lms' ); ?></label>
-					<?php endif; ?>
-				</p>
-				<p>
-					<button type="submit" class="button button-primary" id="cta-resource-submit"><?php esc_html_e( 'Add Material', 'cta-lms' ); ?></button>
-					<button type="button" class="button" id="cta-resource-cancel-edit" style="display:none;"><?php esc_html_e( 'Cancel', 'cta-lms' ); ?></button>
-				</p>
-			</form>
-		</div>
-
-		<?php if ( $is_exam_prep ) : ?>
-			<div class="cta-admin-panel" id="cta-exam-access-panel">
-				<h2><?php esc_html_e( 'Learner Access — Extend Manually', 'cta-lms' ); ?></h2>
-				<p class="description"><?php esc_html_e( 'Extend a learner\'s access without a request/approval workflow. Progress and purchase history are preserved.', 'cta-lms' ); ?></p>
-
-				<?php if ( empty( $exam_learners ) ) : ?>
-					<p><?php esc_html_e( 'No learners have purchased this program yet.', 'cta-lms' ); ?></p>
-				<?php else : ?>
-					<table class="widefat striped">
-						<thead>
-							<tr>
-								<th><?php esc_html_e( 'Learner', 'cta-lms' ); ?></th>
-								<th><?php esc_html_e( 'Purchased', 'cta-lms' ); ?></th>
-								<th><?php esc_html_e( 'Expires', 'cta-lms' ); ?></th>
-								<th><?php esc_html_e( 'Extend', 'cta-lms' ); ?></th>
-							</tr>
-						</thead>
-						<tbody>
-							<?php foreach ( $exam_learners as $learner ) : ?>
-								<tr>
-									<td>
-										<strong><?php echo esc_html( $learner->display_name ? $learner->display_name : __( 'User', 'cta-lms' ) . ' #' . (int) $learner->user_id ); ?></strong><br>
-										<span class="description"><?php echo esc_html( (string) $learner->user_email ); ?></span>
-									</td>
-									<td><?php echo esc_html( cta_lms_format_local_date( $learner->purchased_at, 'M j, Y' ) ); ?></td>
-									<td><?php echo esc_html( cta_lms_format_local_date( $learner->expires_at, 'M j, Y g:i A' ) ); ?></td>
-									<td>
-										<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-											<?php wp_nonce_field( 'cta_extend_exam_access' ); ?>
-											<input type="hidden" name="action" value="cta_extend_exam_access">
-											<input type="hidden" name="course_id" value="<?php echo esc_attr( (string) $course_id ); ?>">
-											<input type="hidden" name="user_id" value="<?php echo esc_attr( (string) $learner->user_id ); ?>">
-											<input type="number" name="extra_months" min="1" max="24" value="1" class="small-text" title="<?php esc_attr_e( 'Months to add', 'cta-lms' ); ?>">
-											<input type="text" name="extension_notes" class="regular-text" placeholder="<?php esc_attr_e( 'Notes (optional)', 'cta-lms' ); ?>">
-											<button type="submit" class="button"><?php esc_html_e( 'Extend', 'cta-lms' ); ?></button>
-										</form>
-									</td>
-								</tr>
-							<?php endforeach; ?>
-						</tbody>
-					</table>
-				<?php endif; ?>
-			</div>
-		<?php endif; ?>
 	<?php else : ?>
-		<div class="notice notice-info"><p><?php esc_html_e( 'Save the course first to add modules, quizzes, and downloadable resources.', 'cta-lms' ); ?></p></div>
+		<div class="notice notice-info"><p><?php esc_html_e( 'Save the course first to add modules and a quiz.', 'cta-lms' ); ?></p></div>
 	<?php endif; ?>
 </div>

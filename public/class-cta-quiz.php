@@ -125,12 +125,6 @@ class CTA_Quiz {
 		$attempt_count   = count( $attempts );
 		$last_attempt    = ! empty( $attempts ) ? $attempts[0] : null;
 		$view_state      = 'start';
-		$evaluation_questions = self::get_evaluation_questions();
-
-		// Evaluation is required before a certificate can exist; recover if insert succeeded but generate failed.
-		if ( $passed_attempt && $evaluation && ! $certificate ) {
-			$certificate = CTA_Certificates::generate( $user_id, $course_id, $evaluation );
-		}
 
 		if ( $certificate && $evaluation && $passed_attempt ) {
 			$view_state = 'certificate_ready';
@@ -138,15 +132,17 @@ class CTA_Quiz {
 			$view_state = 'evaluation';
 		} elseif ( $active_attempt ) {
 			$view_state = 'in_progress';
+		} elseif ( $passed_attempt && $evaluation ) {
+			$view_state = 'certificate_ready';
 		}
 
 		$dashboard_url = $this->get_dashboard_url();
 		$player_url    = $this->get_player_url( $course_id );
 		$quiz_handler  = $this;
 		$question_count = count( $questions );
-		// Quizzes are untimed by policy; ignore any legacy time_limit_mins values.
-		$time_limit_label = __( 'No limit', 'cta-lms' );
-		$attempts_label   = __( 'Unlimited', 'cta-lms' );
+		$time_limit_label = (int) $quiz->time_limit_mins > 0
+			? sprintf( __( '%d minutes', 'cta-lms' ), (int) $quiz->time_limit_mins )
+			: __( 'No limit', 'cta-lms' );
 
 		ob_start();
 		include CTA_PLUGIN_DIR . 'templates/quiz.php';
@@ -183,9 +179,6 @@ class CTA_Quiz {
 		if ( $this->get_passed_attempt( $attempts ) ) {
 			wp_send_json_error( array( 'message' => __( 'You have already passed this quiz.', 'cta-lms' ) ) );
 		}
-
-		// max_attempts of 0 (or any unset/legacy value) means unlimited failed retakes.
-		// Only a passing attempt blocks further starts.
 
 		global $wpdb;
 
@@ -303,14 +296,6 @@ class CTA_Quiz {
 		);
 
 		if ( $passed ) {
-			$course    = CTA_Database::get_course( (int) $attempt->course_id );
-			$next_step = 'evaluation';
-
-			// Exam prep: no CE evaluation / certificate path.
-			if ( class_exists( 'CTA_Exam_Access' ) && CTA_Exam_Access::is_exam_prep( $course ) ) {
-				$next_step = 'complete';
-			}
-
 			wp_send_json_success(
 				array(
 					'passed'     => true,
@@ -320,7 +305,7 @@ class CTA_Quiz {
 						__( 'Congratulations! You passed with %d%%', 'cta-lms' ),
 						$score
 					),
-					'next_step'  => $next_step,
+					'next_step'  => 'evaluation',
 					'passing_score' => (int) $quiz->passing_score,
 					'results'    => $revealed,
 				)
@@ -362,11 +347,6 @@ class CTA_Quiz {
 			wp_send_json_error( array( 'message' => $check->get_error_message() ) );
 		}
 
-		$course = isset( $check['course'] ) ? $check['course'] : CTA_Database::get_course( $course_id );
-		if ( class_exists( 'CTA_Exam_Access' ) && CTA_Exam_Access::is_exam_prep( $course ) ) {
-			wp_send_json_error( array( 'message' => __( 'Exam Preparation Programs do not require a CE evaluation or certificate.', 'cta-lms' ) ) );
-		}
-
 		/** @var object $quiz */
 		$quiz     = $check['quiz'];
 		$attempts = CTA_Database::get_user_quiz_attempts( $user_id, (int) $quiz->id );
@@ -379,26 +359,14 @@ class CTA_Quiz {
 			wp_send_json_error( array( 'message' => __( 'Evaluation already submitted.', 'cta-lms' ) ) );
 		}
 
-		$raw_responses = isset( $_POST['responses'] ) ? wp_unslash( $_POST['responses'] ) : array();
+		$rating             = $this->sanitize_rating( wp_unslash( $_POST['rating'] ?? 0 ) );
+		$content_quality    = $this->sanitize_rating( wp_unslash( $_POST['content_quality'] ?? 0 ) );
+		$instructor_rating  = $this->sanitize_rating( wp_unslash( $_POST['instructor_rating'] ?? 0 ) );
+		$would_recommend    = ! empty( $_POST['would_recommend'] ) && 'yes' === sanitize_text_field( wp_unslash( $_POST['would_recommend'] ) ) ? 1 : 0;
+		$comments           = sanitize_textarea_field( wp_unslash( $_POST['comments'] ?? '' ) );
 
-		if ( is_string( $raw_responses ) ) {
-			$decoded       = json_decode( $raw_responses, true );
-			$raw_responses = is_array( $decoded ) ? $decoded : array();
-		}
-
-		if ( ! is_array( $raw_responses ) ) {
-			$raw_responses = array();
-		}
-
-		$parsed = $this->sanitize_evaluation_responses( $raw_responses );
-
-		if ( is_wp_error( $parsed ) ) {
-			wp_send_json_error( array( 'message' => $parsed->get_error_message() ) );
-		}
-
-		$timezone = sanitize_text_field( wp_unslash( $_POST['timezone'] ?? '' ) );
-		if ( $timezone && ! $this->is_valid_timezone( $timezone ) ) {
-			$timezone = '';
+		if ( ! $rating || ! $content_quality || ! $instructor_rating ) {
+			wp_send_json_error( array( 'message' => __( 'Please complete all required rating fields.', 'cta-lms' ) ) );
 		}
 
 		global $wpdb;
@@ -408,30 +376,21 @@ class CTA_Quiz {
 			array(
 				'user_id'           => $user_id,
 				'course_id'         => $course_id,
-				'rating'            => (int) $parsed['rating'],
-				'content_quality'   => (int) $parsed['content_quality'],
-				'instructor_rating' => (int) $parsed['instructor_rating'],
-				'would_recommend'   => (int) $parsed['would_recommend'],
-				'comments'          => $parsed['comments'],
-				'responses'         => wp_json_encode( $parsed['responses'] ),
-				'timezone'          => $timezone,
+				'rating'            => $rating,
+				'content_quality'   => $content_quality,
+				'instructor_rating' => $instructor_rating,
+				'would_recommend'   => $would_recommend,
+				'comments'          => $comments,
 				'submitted_at'      => current_time( 'mysql' ),
 			),
-			array( '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s' )
+			array( '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s' )
 		);
 
 		if ( ! $inserted ) {
 			wp_send_json_error( array( 'message' => __( 'Unable to save evaluation.', 'cta-lms' ) ) );
 		}
 
-		$evaluation = $wpdb->get_row(
-			$wpdb->prepare(
-				"SELECT * FROM {$wpdb->prefix}cta_evaluations WHERE id = %d",
-				(int) $wpdb->insert_id
-			)
-		);
-
-		$certificate = CTA_Certificates::generate( $user_id, $course_id, $evaluation );
+		$certificate = CTA_Certificates::generate( $user_id, $course_id );
 
 		if ( ! $certificate ) {
 			wp_send_json_error( array( 'message' => __( 'Evaluation saved but certificate could not be generated.', 'cta-lms' ) ) );
@@ -440,142 +399,11 @@ class CTA_Quiz {
 		wp_send_json_success(
 			array(
 				'message'              => __( 'Thank you! Your certificate is ready.', 'cta-lms' ),
-				'certificate_id'       => (int) $certificate->id,
-				'certificate_number'   => $certificate->certificate_number,
-				'download_url'         => CTA_Certificates::get_print_url( (int) $certificate->id, true ),
+				'certificate_number' => $certificate->certificate_number,
+				'download_url'         => CTA_Database::get_certificate_url( $certificate ),
 				'dashboard_url'        => $this->get_dashboard_url(),
 			)
 		);
-	}
-
-	/**
-	 * Structured course evaluation questions (admin-configurable).
-	 *
-	 * Loaded from cta_evaluation_questions. Falls back to built-in placeholders
-	 * until the admin saves their approved CAMFT form.
-	 *
-	 * @return array
-	 */
-	public static function get_evaluation_questions() {
-		if ( class_exists( 'CTA_Evaluation_Questions' ) ) {
-			return CTA_Evaluation_Questions::get_form_questions();
-		}
-
-		return array();
-	}
-
-	/**
-	 * Sanitize and validate structured evaluation responses.
-	 *
-	 * @param array $raw_responses Submitted responses keyed by question ID.
-	 * @return array|WP_Error
-	 */
-	private function sanitize_evaluation_responses( $raw_responses ) {
-		$questions = self::get_evaluation_questions();
-		$clean     = array();
-		$summary   = array(
-			'rating'            => 0,
-			'content_quality'   => 0,
-			'instructor_rating' => 0,
-			'would_recommend'   => 0,
-			'comments'          => '',
-		);
-
-		foreach ( $questions as $question ) {
-			$id    = $question['id'];
-			$type  = isset( $question['type'] ) ? $question['type'] : 'rating';
-			$value = isset( $raw_responses[ $id ] ) ? $raw_responses[ $id ] : '';
-
-			if ( in_array( $type, array( 'rating', 'likert' ), true ) ) {
-				$rating = absint( $value );
-				if ( ! empty( $question['required'] ) && ( $rating < 1 || $rating > 5 ) ) {
-					return new WP_Error(
-						'missing_field',
-						sprintf(
-							/* translators: %s: question label */
-							__( 'Please answer: %s', 'cta-lms' ),
-							$question['label']
-						)
-					);
-				}
-				$clean[ $id ] = $rating;
-			} elseif ( in_array( $type, array( 'multiple_choice', 'yes_no' ), true ) ) {
-				$answer  = sanitize_text_field( (string) $value );
-				$allowed = array_map( 'strval', array_keys( (array) ( $question['options'] ?? array() ) ) );
-				if ( ! empty( $question['required'] ) && ( '' === $answer || ! in_array( $answer, $allowed, true ) ) ) {
-					return new WP_Error(
-						'missing_field',
-						sprintf(
-							/* translators: %s: question label */
-							__( 'Please answer: %s', 'cta-lms' ),
-							$question['label']
-						)
-					);
-				}
-				$clean[ $id ] = in_array( $answer, $allowed, true ) ? $answer : '';
-			} elseif ( 'textarea' === $type ) {
-				$text = sanitize_textarea_field( (string) $value );
-				if ( ! empty( $question['required'] ) && '' === trim( $text ) ) {
-					return new WP_Error(
-						'missing_field',
-						sprintf(
-							/* translators: %s: question label */
-							__( 'Please answer: %s', 'cta-lms' ),
-							$question['label']
-						)
-					);
-				}
-				$clean[ $id ] = $text;
-			} else {
-				$clean[ $id ] = sanitize_text_field( (string) $value );
-			}
-
-			if ( empty( $question['summary'] ) ) {
-				continue;
-			}
-
-			switch ( $question['summary'] ) {
-				case 'rating':
-				case 'content_quality':
-				case 'instructor_rating':
-					$summary[ $question['summary'] ] = (int) $clean[ $id ];
-					break;
-				case 'would_recommend':
-					$summary['would_recommend'] = ( 'yes' === $clean[ $id ] || '1' === (string) $clean[ $id ] ) ? 1 : 0;
-					break;
-				case 'comments':
-					$summary['comments'] = (string) $clean[ $id ];
-					break;
-			}
-		}
-
-		return array_merge(
-			$summary,
-			array(
-				'responses' => $clean,
-			)
-		);
-	}
-
-	/**
-	 * Validate an IANA timezone identifier.
-	 *
-	 * @param string $timezone Timezone string.
-	 * @return bool
-	 */
-	private function is_valid_timezone( $timezone ) {
-		$timezone = (string) $timezone;
-
-		if ( '' === $timezone ) {
-			return false;
-		}
-
-		try {
-			new DateTimeZone( $timezone );
-			return true;
-		} catch ( Exception $e ) {
-			return false;
-		}
 	}
 
 	/**
@@ -620,16 +448,9 @@ class CTA_Quiz {
 	private function validate_quiz_access( $user_id, $course_id, $require_complete = true ) {
 		$enrollment = CTA_Database::get_user_enrollment( $user_id, $course_id );
 		$quiz       = CTA_Database::get_quiz_by_course( $course_id );
-		$course     = CTA_Database::get_course( $course_id );
 
 		if ( ! $enrollment ) {
 			return new WP_Error( 'not_enrolled', __( 'You are not enrolled in this course.', 'cta-lms' ) );
-		}
-
-		if ( class_exists( 'CTA_Exam_Access' ) && CTA_Exam_Access::is_exam_prep( $course ) ) {
-			if ( ! CTA_Exam_Access::has_active_access( $user_id, $course_id ) ) {
-				return new WP_Error( 'exam_expired', __( 'Your access to this Exam Preparation Program has expired.', 'cta-lms' ) );
-			}
 		}
 
 		if ( $require_complete && (int) $enrollment->progress < 100 ) {
@@ -643,7 +464,6 @@ class CTA_Quiz {
 		return array(
 			'enrollment' => $enrollment,
 			'quiz'       => $quiz,
-			'course'     => $course,
 		);
 	}
 
@@ -674,9 +494,8 @@ class CTA_Quiz {
 			'quiz_id'         => (int) $quiz->id,
 			'attempt_id'      => (int) $attempt->id,
 			'course_id'       => (int) $attempt->course_id,
-			'time_limit_mins' => 0,
-			'passing_score'   => (int) $quiz->passing_score ?: 70,
-			'max_attempts'    => 0,
+			'time_limit_mins' => (int) $quiz->time_limit_mins,
+			'passing_score'   => (int) $quiz->passing_score,
 			'question_count'  => count( $safe ),
 			'questions'       => $safe,
 			'html'            => $this->render_quiz_questions( $quiz, $attempt, $questions ),

@@ -36,13 +36,11 @@ $empty_messages = array(
 <div class="wrap cta-admin-wrap">
 	<h1><?php esc_html_e( 'Supervision Approvals', 'cta-lms' ); ?></h1>
 	<p class="description">
-		<?php esc_html_e( 'Approval Status is application vetting. Plan Status is whether they purchased or were assigned a plan. Full dashboard/booking access requires both Approved and an active plan.', 'cta-lms' ); ?>
+		<?php esc_html_e( 'Review Registered Associates and supervision purchases. Approval unlocks the supervision dashboard, session booking, meeting links, and supervision materials.', 'cta-lms' ); ?>
 	</p>
 
 	<?php if ( 'approved' === $flash ) : ?>
-		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Associate approved. Supervision access unlocks once they have a purchased or admin-assigned plan.', 'cta-lms' ); ?></p></div>
-	<?php elseif ( 'assigned' === $flash ) : ?>
-		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Agency-paid plan assigned. If the Associate is already Approved, supervision access is now active.', 'cta-lms' ); ?></p></div>
+		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Associate approved. Supervision access is now unlocked.', 'cta-lms' ); ?></p></div>
 	<?php elseif ( 'rejected' === $flash ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Associate rejected. Supervision access remains locked.', 'cta-lms' ); ?></p></div>
 	<?php elseif ( 'error' === $flash ) : ?>
@@ -75,17 +73,16 @@ $empty_messages = array(
 			<tr>
 				<th><?php esc_html_e( 'Associate', 'cta-lms' ); ?></th>
 				<th><?php esc_html_e( 'Email', 'cta-lms' ); ?></th>
-				<th><?php esc_html_e( 'Approval Status', 'cta-lms' ); ?></th>
-				<th><?php esc_html_e( 'Plan Status', 'cta-lms' ); ?></th>
-				<th><?php esc_html_e( 'Access', 'cta-lms' ); ?></th>
-				<th><?php esc_html_e( 'Purchase / Assigned', 'cta-lms' ); ?></th>
+				<th><?php esc_html_e( 'Purchased Plan', 'cta-lms' ); ?></th>
+				<th><?php esc_html_e( 'Purchase Date', 'cta-lms' ); ?></th>
+				<th><?php esc_html_e( 'Status', 'cta-lms' ); ?></th>
 				<th><?php esc_html_e( 'Actions', 'cta-lms' ); ?></th>
 			</tr>
 		</thead>
 		<tbody>
 			<?php if ( empty( $purchase_records ) ) : ?>
 				<tr class="cta-approvals-empty">
-					<td colspan="7"><?php echo esc_html( $empty_messages[ $current_status ] ?? $empty_messages['all'] ); ?></td>
+					<td colspan="6"><?php echo esc_html( $empty_messages[ $current_status ] ?? $empty_messages['all'] ); ?></td>
 				</tr>
 			<?php else : ?>
 				<?php foreach ( $purchase_records as $record ) : ?>
@@ -96,83 +93,46 @@ $empty_messages = array(
 					$status_label     = CTA_Associate_Access::get_status_label( $approval_status );
 					$is_approved      = CTA_Associate_Access::STATUS_APPROVED === $approval_status;
 					$is_rejected      = CTA_Associate_Access::STATUS_REJECTED === $approval_status;
-					$has_plan         = ! empty( $record['has_plan'] );
-					$plan_status_key  = isset( $record['plan_status_key'] ) ? $record['plan_status_key'] : ( $has_plan ? 'purchased' : 'none' );
-					$plan_status_label = isset( $record['plan_status_label'] ) ? $record['plan_status_label'] : ( $has_plan ? $record['plan_name'] : __( 'No Plan', 'cta-lms' ) );
-					$access_granted   = ! empty( $record['access_granted'] );
-					$audit            = ! empty( $record['admin_plan_audit'] ) && is_array( $record['admin_plan_audit'] ) ? $record['admin_plan_audit'] : null;
-					$purchase_date    = ( $payment && ! empty( $payment->created_at ) && 'completed' === (string) ( $payment->status ?? '' ) )
-						? cta_lms_format_local_date( $payment->created_at, 'M j, Y g:i a' )
-						: ( $audit && ! empty( $audit['assigned_at'] )
-							? cta_lms_format_local_date( $audit['assigned_at'], 'M j, Y g:i a' )
+					$purchase_date    = ( $payment && ! empty( $payment->created_at ) )
+						? wp_date( 'M j, Y g:i a', strtotime( $payment->created_at ) )
+						: ( ! empty( $user->user_registered )
+							? wp_date( 'M j, Y', strtotime( $user->user_registered ) )
 							: '—' );
 					$plan_details     = is_array( $record['plan_details'] ) ? $record['plan_details'] : array();
 					$details_payload  = array(
-						'user_name'         => $user->display_name,
-						'user_email'        => $user->user_email,
-						'approval_status'   => $status_label,
-						'plan_status'       => $plan_status_label,
-						'access'            => $access_granted ? __( 'Full access', 'cta-lms' ) : __( 'Locked', 'cta-lms' ),
-						'plan_name'         => $record['plan_name'],
-						'purchase_date'     => $purchase_date,
-						'registered_date'   => ! empty( $user->user_registered )
-							? cta_lms_format_local_date( $user->user_registered, 'M j, Y g:i a' )
+						'user_name'        => $user->display_name,
+						'user_email'       => $user->user_email,
+						'plan_name'        => $record['plan_name'],
+						'purchase_date'    => $payment ? $purchase_date : __( 'No purchase yet', 'cta-lms' ),
+						'registered_date'  => ! empty( $user->user_registered )
+							? wp_date( 'M j, Y g:i a', strtotime( $user->user_registered ) )
 							: '',
-						'amount'            => ( $payment && 'completed' === (string) ( $payment->status ?? '' ) )
+						'amount'           => $payment
 							? ( '$' . number_format( (float) $payment->amount, 2 ) . ' ' . strtoupper( (string) $payment->currency ) )
 							: '',
-						'billing'           => $payment
+						'billing'          => $payment
 							? sanitize_text_field( (string) ( $plan_details['billing'] ?? $payment->payment_type ) )
 							: '',
-						'description'       => sanitize_text_field( (string) ( $plan_details['description'] ?? '' ) ),
-						'stripe_reference'  => $payment ? sanitize_text_field( (string) $payment->stripe_payment_id ) : '',
-						'assigned_by'       => $audit ? (string) ( $audit['assigned_by_name'] ?? '' ) : '',
-						'assigned_note'     => $audit ? (string) ( $audit['note'] ?? '' ) : '',
-						'status'            => $status_label,
-						'rejection_reason'  => $record['rejection_reason'],
+						'description'      => sanitize_text_field( (string) ( $plan_details['description'] ?? '' ) ),
+						'stripe_reference' => $payment ? sanitize_text_field( (string) $payment->stripe_payment_id ) : '',
+						'status'           => $status_label,
+						'rejection_reason' => $record['rejection_reason'],
 					);
 					?>
 					<tr
 						class="cta-approval-row"
 						data-user-id="<?php echo esc_attr( $user->ID ); ?>"
 						data-status="<?php echo esc_attr( $approval_status ); ?>"
-						data-has-plan="<?php echo $has_plan ? '1' : '0'; ?>"
-						data-plan-status="<?php echo esc_attr( $plan_status_key ); ?>"
 					>
 						<td><strong><?php echo esc_html( $user->display_name ); ?></strong></td>
 						<td><a href="mailto:<?php echo esc_attr( $user->user_email ); ?>"><?php echo esc_html( $user->user_email ); ?></a></td>
+						<td><?php echo esc_html( $record['plan_name'] ); ?></td>
+						<td><?php echo esc_html( $purchase_date ); ?></td>
 						<td>
 							<span class="cta-approval-status-badge cta-approval-status-badge--<?php echo esc_attr( $approval_status ); ?>">
 								<?php echo esc_html( $status_label ); ?>
 							</span>
 						</td>
-						<td>
-							<span class="cta-plan-status-badge cta-plan-status-badge--<?php echo esc_attr( $plan_status_key ); ?>">
-								<?php echo esc_html( $plan_status_label ); ?>
-							</span>
-							<?php if ( $audit && ! empty( $audit['assigned_by_name'] ) ) : ?>
-								<br><small class="description">
-									<?php
-									printf(
-										/* translators: 1: admin name, 2: datetime */
-										esc_html__( 'Assigned by %1$s on %2$s', 'cta-lms' ),
-										esc_html( $audit['assigned_by_name'] ),
-										esc_html( $purchase_date )
-									);
-									?>
-								</small>
-							<?php endif; ?>
-						</td>
-						<td>
-							<?php if ( $access_granted ) : ?>
-								<span class="cta-access-badge cta-access-badge--open"><?php esc_html_e( 'Full access', 'cta-lms' ); ?></span>
-							<?php elseif ( $is_approved && ! $has_plan ) : ?>
-								<span class="cta-access-badge cta-access-badge--awaiting"><?php esc_html_e( 'Awaiting plan', 'cta-lms' ); ?></span>
-							<?php else : ?>
-								<span class="cta-access-badge cta-access-badge--locked"><?php esc_html_e( 'Locked', 'cta-lms' ); ?></span>
-							<?php endif; ?>
-						</td>
-						<td><?php echo esc_html( $purchase_date ); ?></td>
 						<td class="cta-table-actions">
 							<button
 								type="button"
@@ -181,22 +141,6 @@ $empty_messages = array(
 							>
 								<?php esc_html_e( 'View Details', 'cta-lms' ); ?>
 							</button>
-
-							<?php if ( ! empty( $record['is_associate'] ) && ! $has_plan && ! $is_rejected ) : ?>
-								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="cta-approval-form cta-approval-form--assign">
-									<input type="hidden" name="action" value="cta_assign_associate_plan">
-									<input type="hidden" name="user_id" value="<?php echo esc_attr( $user->ID ); ?>">
-									<?php wp_nonce_field( 'cta_assign_plan_' . $user->ID, 'cta_assign_plan_nonce' ); ?>
-									<select name="plan_slug" class="cta-assign-plan-select" aria-label="<?php esc_attr_e( 'Agency-paid plan', 'cta-lms' ); ?>">
-										<option value="group"><?php echo esc_html( CTA_Supervision_Plans::get_name( CTA_Supervision_Plans::GROUP_SLUG ) ); ?></option>
-										<option value="hybrid"><?php echo esc_html( CTA_Supervision_Plans::get_name( CTA_Supervision_Plans::HYBRID_SLUG ) ); ?></option>
-									</select>
-									<input type="text" name="note" class="regular-text" placeholder="<?php esc_attr_e( 'Optional note (agency/employer)', 'cta-lms' ); ?>" />
-									<button type="submit" class="button cta-assign-associate-plan">
-										<?php esc_html_e( 'Assign Plan', 'cta-lms' ); ?>
-									</button>
-								</form>
-							<?php endif; ?>
 
 							<?php if ( ! empty( $record['is_associate'] ) && ! $is_approved ) : ?>
 								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="cta-approval-form cta-approval-form--approve">
@@ -232,7 +176,7 @@ $empty_messages = array(
 	<div id="cta-purchase-details-modal" class="cta-admin-modal" hidden>
 		<div class="cta-admin-modal__content">
 			<button type="button" class="cta-admin-modal__close" aria-label="<?php esc_attr_e( 'Close', 'cta-lms' ); ?>">&times;</button>
-			<h2><?php esc_html_e( 'Associate Access Details', 'cta-lms' ); ?></h2>
+			<h2><?php esc_html_e( 'Supervision Purchase Details', 'cta-lms' ); ?></h2>
 			<dl id="cta-purchase-details-list" class="cta-purchase-details-list"></dl>
 		</div>
 	</div>

@@ -28,6 +28,6 @@ $support_email = ! empty( $support_email ) ? $support_email : 'support@clinicalt
 		href="<?php echo esc_url( 'mailto:' . sanitize_email( $support_email ) ); ?>"
 		style="display:block;text-align:center;font-size:13px;color:#6B7280;margin-top:8px;margin-bottom:10px;text-decoration:underline;"
 	>
-		<?php echo esc_html__( 'Contact support about billing', 'cta-lms' ); ?>
+		<?php echo esc_html__( 'Cancel subscription — contact support', 'cta-lms' ); ?>
 	</a>
 <?php endif; ?>

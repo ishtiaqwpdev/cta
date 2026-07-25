@@ -2598,36 +2598,21 @@ button.pagination__item:disabled {
 .auth-page__logo {
   position: relative;
   z-index: 1;
-  align-self: flex-start;
-  flex-shrink: 0;
-  max-width: 220px;
-  margin-bottom: var(--space-xl);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   letter-spacing: var(--letter-spacing-wide);
   text-transform: uppercase;
   color: var(--color-white);
   line-height: var(--line-height-snug);
+  max-width: 260px;
 }
 
 .auth-page__logo a {
-  display: inline-flex;
-  align-items: center;
   color: var(--color-white);
 }
 
 .auth-page__logo a:hover {
   color: var(--color-white-subtle);
-}
-
-.auth-page__logo img {
-  display: block;
-  width: auto;
-  height: auto;
-  max-width: 200px;
-  max-height: 52px;
-  object-fit: contain;
-  object-position: left center;
 }
 
 .auth-page__brand-content {

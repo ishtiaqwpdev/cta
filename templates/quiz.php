@@ -9,12 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$cert_url = ( $certificate && class_exists( 'CTA_Certificates' ) )
-	? CTA_Certificates::get_print_url( (int) $certificate->id, true )
-	: '';
-if ( empty( $evaluation_questions ) || ! is_array( $evaluation_questions ) ) {
-	$evaluation_questions = CTA_Quiz::get_evaluation_questions();
-}
+$cert_url = $certificate ? CTA_Database::get_certificate_url( $certificate ) : '';
 ?>
 <div class="cta-plugin-wrapper">
 <div
@@ -23,8 +18,8 @@ if ( empty( $evaluation_questions ) || ! is_array( $evaluation_questions ) ) {
 	data-course-id="<?php echo esc_attr( $course->id ); ?>"
 	data-quiz-id="<?php echo esc_attr( $quiz->id ); ?>"
 	data-attempt-id="<?php echo esc_attr( $active_attempt ? $active_attempt->id : 0 ); ?>"
-	data-time-limit="0"
-	data-passing-score="<?php echo esc_attr( (int) $quiz->passing_score ?: 70 ); ?>"
+	data-time-limit="<?php echo esc_attr( (int) $quiz->time_limit_mins ); ?>"
+	data-passing-score="<?php echo esc_attr( (int) $quiz->passing_score ); ?>"
 	data-question-count="<?php echo esc_attr( $question_count ); ?>"
 	data-view-state="<?php echo esc_attr( $view_state ); ?>"
 >
@@ -35,7 +30,7 @@ if ( empty( $evaluation_questions ) || ! is_array( $evaluation_questions ) ) {
 			<?php endif; ?>
 		</p>
 		<h1 class="cta-quiz-course-title"><?php echo esc_html( $course->title ); ?></h1>
-		<div class="cta-quiz-timer" id="cta-quiz-timer" hidden aria-hidden="true"></div>
+		<div class="cta-quiz-timer" id="cta-quiz-timer" hidden aria-live="polite"></div>
 	</div>
 
 	<div class="cta-quiz-panel <?php echo 'start' === $view_state ? 'cta-quiz-panel--active' : ''; ?>" data-quiz-panel="start" <?php echo 'start' !== $view_state ? 'hidden' : ''; ?>>
@@ -43,21 +38,10 @@ if ( empty( $evaluation_questions ) || ! is_array( $evaluation_questions ) ) {
 			<h2><?php echo esc_html( $quiz->title ); ?></h2>
 			<div class="cta-quiz-info-grid">
 				<div><strong><?php echo esc_html__( 'Questions', 'cta-lms' ); ?></strong><span><?php echo esc_html( (string) $question_count ); ?></span></div>
-				<div><strong><?php echo esc_html__( 'Passing Score', 'cta-lms' ); ?></strong><span><?php echo esc_html( (int) $quiz->passing_score ?: 70 ); ?>%</span></div>
+				<div><strong><?php echo esc_html__( 'Passing Score', 'cta-lms' ); ?></strong><span><?php echo esc_html( (int) $quiz->passing_score ); ?>%</span></div>
 				<div><strong><?php echo esc_html__( 'Time Limit', 'cta-lms' ); ?></strong><span><?php echo esc_html( $time_limit_label ); ?></span></div>
-				<div><strong><?php echo esc_html__( 'Attempts', 'cta-lms' ); ?></strong><span><?php echo esc_html( $attempts_label ); ?></span></div>
+				<div><strong><?php echo esc_html__( 'Your Attempts', 'cta-lms' ); ?></strong><span><?php echo esc_html( (string) $attempt_count ); ?></span></div>
 			</div>
-			<?php if ( $attempt_count > 0 ) : ?>
-				<p class="cta-quiz-last-attempt">
-					<?php
-					printf(
-						/* translators: %d: number of previous attempts */
-						esc_html__( 'Previous attempts: %d', 'cta-lms' ),
-						(int) $attempt_count
-					);
-					?>
-				</p>
-			<?php endif; ?>
 			<?php if ( $last_attempt ) : ?>
 				<p class="cta-quiz-last-attempt">
 					<?php
@@ -101,62 +85,34 @@ if ( empty( $evaluation_questions ) || ! is_array( $evaluation_questions ) ) {
 	<div class="cta-quiz-panel <?php echo 'evaluation' === $view_state ? 'cta-quiz-panel--active' : ''; ?>" data-quiz-panel="evaluation" <?php echo 'evaluation' !== $view_state ? 'hidden' : ''; ?>>
 		<div class="card cta-quiz-evaluation">
 			<h2><?php echo esc_html__( 'Course Evaluation', 'cta-lms' ); ?></h2>
-			<p><?php echo esc_html__( 'Complete the course evaluation to receive your certificate. Your certificate will not be available until this form is submitted.', 'cta-lms' ); ?></p>
-			<form id="cta-evaluation-form" class="cta-evaluation-form" novalidate>
+			<p><?php echo esc_html__( 'Please complete this evaluation to receive your certificate.', 'cta-lms' ); ?></p>
+			<form id="cta-evaluation-form">
 				<?php
-				$current_section = '';
-				foreach ( $evaluation_questions as $question ) :
-					if ( $question['section'] !== $current_section ) :
-						$current_section = $question['section'];
-						?>
-						<h3 class="cta-evaluation-section__title"><?php echo esc_html( $current_section ); ?></h3>
-					<?php endif; ?>
-
-					<div class="form-group cta-evaluation-question" data-question-id="<?php echo esc_attr( $question['id'] ); ?>" data-question-type="<?php echo esc_attr( $question['type'] ); ?>">
-						<?php if ( 'textarea' === $question['type'] ) : ?>
-							<label class="form-label" for="eval-<?php echo esc_attr( $question['id'] ); ?>">
-								<?php echo esc_html( $question['label'] ); ?>
-								<?php if ( ! empty( $question['required'] ) ) : ?>
-									<span class="cta-required" aria-hidden="true">*</span>
-								<?php endif; ?>
-							</label>
-							<textarea
-								id="eval-<?php echo esc_attr( $question['id'] ); ?>"
-								name="responses[<?php echo esc_attr( $question['id'] ); ?>]"
-								class="form-input"
-								rows="4"
-								<?php echo ! empty( $question['required'] ) ? 'required' : ''; ?>
-							></textarea>
-						<?php else : ?>
-							<span class="form-label" id="eval-label-<?php echo esc_attr( $question['id'] ); ?>">
-								<?php echo esc_html( $question['label'] ); ?>
-								<?php if ( ! empty( $question['required'] ) ) : ?>
-									<span class="cta-required" aria-hidden="true">*</span>
-								<?php endif; ?>
-							</span>
-							<div class="cta-evaluation-options" role="radiogroup" aria-labelledby="eval-label-<?php echo esc_attr( $question['id'] ); ?>">
-								<?php
-								$options = ! empty( $question['options'] ) && is_array( $question['options'] )
-									? $question['options']
-									: ( in_array( $question['type'], array( 'rating', 'likert' ), true )
-										? ( class_exists( 'CTA_Evaluation_Questions' ) ? CTA_Evaluation_Questions::default_rating_options() : array() )
-										: array() );
-								foreach ( $options as $value => $option_label ) :
-									?>
-									<label class="cta-evaluation-option">
-										<input
-											type="radio"
-											name="responses[<?php echo esc_attr( $question['id'] ); ?>]"
-											value="<?php echo esc_attr( (string) $value ); ?>"
-											<?php echo ! empty( $question['required'] ) ? 'required' : ''; ?>
-										>
-										<span><?php echo esc_html( $option_label ); ?></span>
-									</label>
-								<?php endforeach; ?>
-							</div>
-						<?php endif; ?>
+				$rating_fields = array(
+					'rating'             => __( 'Overall Course Rating', 'cta-lms' ),
+					'content_quality'    => __( 'Content Quality', 'cta-lms' ),
+					'instructor_rating'  => __( 'Instructor Rating', 'cta-lms' ),
+				);
+				foreach ( $rating_fields as $field => $label ) :
+					?>
+					<div class="form-group">
+						<span class="form-label"><?php echo esc_html( $label ); ?></span>
+						<div class="cta-star-rating">
+							<?php for ( $i = 1; $i <= 5; $i++ ) : ?>
+								<label><input type="radio" name="<?php echo esc_attr( $field ); ?>" value="<?php echo esc_attr( (string) $i ); ?>" required> <?php echo esc_html( (string) $i ); ?></label>
+							<?php endfor; ?>
+						</div>
 					</div>
 				<?php endforeach; ?>
+				<div class="form-group">
+					<span class="form-label"><?php echo esc_html__( 'Would you recommend this course?', 'cta-lms' ); ?></span>
+					<label><input type="radio" name="would_recommend" value="yes" required> <?php echo esc_html__( 'Yes', 'cta-lms' ); ?></label>
+					<label><input type="radio" name="would_recommend" value="no" required> <?php echo esc_html__( 'No', 'cta-lms' ); ?></label>
+				</div>
+				<div class="form-group">
+					<label class="form-label" for="evaluation-comments"><?php echo esc_html__( 'Additional Comments (optional)', 'cta-lms' ); ?></label>
+					<textarea id="evaluation-comments" name="comments" class="form-input" rows="4"></textarea>
+				</div>
 				<button type="button" class="btn btn-primary" id="cta-submit-evaluation"><?php echo esc_html__( 'Submit Evaluation & Get Certificate', 'cta-lms' ); ?></button>
 			</form>
 		</div>
@@ -167,17 +123,13 @@ if ( empty( $evaluation_questions ) || ! is_array( $evaluation_questions ) ) {
 			<div class="cta-quiz-certificate-ready__icon" aria-hidden="true">🏆</div>
 			<h2><?php echo esc_html__( 'Your certificate is ready!', 'cta-lms' ); ?></h2>
 			<?php if ( $certificate ) : ?>
-				<p><?php echo esc_html__( 'Certificate number:', 'cta-lms' ); ?> <strong id="cta-certificate-number"><?php echo esc_html( $certificate->certificate_number ); ?></strong></p>
-			<?php else : ?>
-				<p><?php echo esc_html__( 'Certificate number:', 'cta-lms' ); ?> <strong id="cta-certificate-number"></strong></p>
+				<p><?php echo esc_html__( 'Certificate number:', 'cta-lms' ); ?> <strong><?php echo esc_html( $certificate->certificate_number ); ?></strong></p>
 			<?php endif; ?>
-			<div id="cta-certificate-actions">
-				<?php if ( $cert_url && $certificate ) : ?>
-					<a href="<?php echo esc_url( $cert_url ); ?>" class="btn btn-primary cta-download-cert-btn" data-certificate-id="<?php echo esc_attr( $certificate->id ); ?>" target="_blank" rel="noopener">
-						<?php echo esc_html__( 'Print / Save as PDF', 'cta-lms' ); ?>
-					</a>
-				<?php endif; ?>
-			</div>
+			<?php if ( $cert_url && $certificate ) : ?>
+				<a href="<?php echo esc_url( $cert_url ); ?>" class="btn btn-primary cta-download-cert-btn" data-certificate-id="<?php echo esc_attr( $certificate->id ); ?>" target="_blank" rel="noopener">
+					<?php echo esc_html__( 'Download Certificate', 'cta-lms' ); ?>
+				</a>
+			<?php endif; ?>
 			<?php if ( $dashboard_url ) : ?>
 				<a href="<?php echo esc_url( $dashboard_url ); ?>" class="btn btn-outline"><?php echo esc_html__( 'Return to Dashboard', 'cta-lms' ); ?></a>
 			<?php endif; ?>

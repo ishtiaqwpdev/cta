@@ -26,11 +26,6 @@ class CTA_Student_Dashboard {
 		add_action( 'wp_ajax_cta_complete_module', array( $this, 'ajax_mark_module_complete' ) );
 		add_action( 'wp_ajax_cta_download_cert', array( $this, 'ajax_download_certificate' ) );
 		add_action( 'wp_ajax_cta_save_profile', array( $this, 'ajax_save_profile' ) );
-		add_action( 'wp_ajax_cta_download_resource', array( $this, 'ajax_download_resource' ) );
-		add_action( 'admin_post_cta_serve_resource', array( 'CTA_Course_Materials', 'handle_serve_request' ) );
-		add_action( 'admin_post_nopriv_cta_serve_resource', array( 'CTA_Course_Materials', 'handle_serve_request' ) );
-		add_action( 'admin_post_cta_print_certificate', array( 'CTA_Certificates', 'handle_print_request' ) );
-		add_action( 'admin_post_nopriv_cta_print_certificate', array( 'CTA_Certificates', 'handle_print_request' ) );
 
 		add_filter( 'body_class', array( $this, 'add_body_class' ) );
 	}
@@ -92,7 +87,6 @@ class CTA_Student_Dashboard {
 		$enrollments = CTA_Database::get_user_enrollments( $user_id );
 		$in_progress = array();
 		$completed   = array();
-		$exam_prep   = array();
 		$certificates = array();
 		$total_ce    = 0.0;
 
@@ -108,25 +102,6 @@ class CTA_Student_Dashboard {
 			$total_modules = count( $modules );
 			$next_module   = $this->get_next_module( $modules, $completed_ids );
 			$certificate   = CTA_Database::get_enrollment_certificate( $user_id, (int) $enrollment->id );
-			$is_exam       = class_exists( 'CTA_Exam_Access' ) && CTA_Exam_Access::is_exam_prep( $course );
-			$access        = $is_exam ? CTA_Exam_Access::get_access_record( $user_id, (int) $course->id ) : null;
-			$has_access    = $is_exam ? CTA_Exam_Access::has_active_access( $user_id, (int) $course->id ) : true;
-			$resources     = CTA_Database::get_downloadable_resources( (int) $course->id );
-			$quiz          = CTA_Database::get_quiz_by_course( (int) $course->id );
-			$quiz_url      = '';
-
-			if ( $quiz ) {
-				$quiz_page = CTA_Emails::get_page_url( 'cta_quiz_page_id' );
-				if ( $quiz_page ) {
-					$quiz_url = add_query_arg(
-						array(
-							'course_id' => (int) $course->id,
-							'quiz_id'   => (int) $quiz->id,
-						),
-						$quiz_page
-					);
-				}
-			}
 
 			$item = (object) array(
 				'enrollment'      => $enrollment,
@@ -136,20 +111,9 @@ class CTA_Student_Dashboard {
 				'total_modules'   => $total_modules,
 				'completed_count' => count( $completed_ids ),
 				'next_module_id'  => $next_module ? (int) $next_module->id : 0,
-				'certificate'     => $is_exam ? null : $certificate,
-				'player_url'      => ( $is_exam && ! $has_access ) ? '' : $this->get_player_url( (int) $course->id, $next_module ? (int) $next_module->id : 0 ),
-				'is_exam_prep'    => $is_exam,
-				'has_active_access' => $has_access,
-				'access'          => $access,
-				'expires_at'      => $access && ! empty( $access->expires_at ) ? $access->expires_at : null,
-				'resources'       => $resources,
-				'quiz_url'        => ( $is_exam && ! $has_access ) ? '' : $quiz_url,
+				'certificate'     => $certificate,
+				'player_url'      => $this->get_player_url( (int) $course->id, $next_module ? (int) $next_module->id : 0 ),
 			);
-
-			if ( $is_exam ) {
-				$exam_prep[] = $item;
-				continue;
-			}
 
 			if ( 'completed' === $enrollment->status ) {
 				$completed[] = $item;
@@ -226,39 +190,7 @@ class CTA_Student_Dashboard {
 			return ob_get_clean();
 		}
 
-		// Exam prep: expiration gates content access; enrollment/progress remain.
-		if ( class_exists( 'CTA_Exam_Access' ) && CTA_Exam_Access::is_exam_prep( $course ) ) {
-			if ( ! CTA_Exam_Access::has_active_access( $user_id, $course_id ) ) {
-				$access = CTA_Exam_Access::get_access_record( $user_id, $course_id );
-				ob_start();
-				?>
-				<div class="cta-plugin-wrapper">
-					<div class="cta-empty-state cta-empty-state--locked">
-						<h2><?php esc_html_e( 'Access expired', 'cta-lms' ); ?></h2>
-						<p>
-							<?php
-							if ( $access && ! empty( $access->expires_at ) ) {
-								printf(
-									/* translators: %s: formatted expiration date */
-									esc_html__( 'Your access to this Exam Preparation Program expired on %s. Your progress has been preserved. Contact an administrator if you need an extension.', 'cta-lms' ),
-									esc_html( cta_lms_format_local_date( $access->expires_at, 'F j, Y' ) )
-								);
-							} else {
-								esc_html_e( 'Your access to this Exam Preparation Program has expired. Your progress has been preserved.', 'cta-lms' );
-							}
-							?>
-						</p>
-						<?php if ( $this->get_dashboard_url() ) : ?>
-							<a href="<?php echo esc_url( $this->get_dashboard_url() ); ?>" class="btn btn-primary"><?php esc_html_e( 'Back to Dashboard', 'cta-lms' ); ?></a>
-						<?php endif; ?>
-					</div>
-				</div>
-				<?php
-				return ob_get_clean();
-			}
-		}
-
-		if ( 'completed' === $enrollment->status && ! ( class_exists( 'CTA_Exam_Access' ) && CTA_Exam_Access::is_exam_prep( $course ) ) ) {
+		if ( 'completed' === $enrollment->status ) {
 			$dashboard_url = $this->get_dashboard_url();
 			ob_start();
 			?>
@@ -342,8 +274,6 @@ class CTA_Student_Dashboard {
 		$video_markup   = $this->get_module_video_markup( $module, $course );
 		$module_complete = in_array( (int) $module->id, $completed_ids, true );
 		$dashboard      = $this;
-		$resources      = CTA_Database::get_downloadable_resources( $course_id );
-		$is_exam_prep   = class_exists( 'CTA_Exam_Access' ) && CTA_Exam_Access::is_exam_prep( $course );
 
 		ob_start();
 		include CTA_PLUGIN_DIR . 'templates/dashboard-ce-player.php';
@@ -375,17 +305,6 @@ class CTA_Student_Dashboard {
 					'message' => __( 'Enrollment not found.', 'cta-lms' ),
 				)
 			);
-		}
-
-		$course = CTA_Database::get_course( $course_id );
-		if ( class_exists( 'CTA_Exam_Access' ) && CTA_Exam_Access::is_exam_prep( $course ) ) {
-			if ( ! CTA_Exam_Access::has_active_access( $user_id, $course_id ) ) {
-				wp_send_json_error(
-					array(
-						'message' => __( 'Your access to this Exam Preparation Program has expired.', 'cta-lms' ),
-					)
-				);
-			}
 		}
 
 		$modules = CTA_Database::get_course_modules( $course_id );
@@ -459,36 +378,6 @@ class CTA_Student_Dashboard {
 	}
 
 	/**
-	 * AJAX: gated download for course resources (enrollment or active exam access required).
-	 */
-	public function ajax_download_resource() {
-		check_ajax_referer( 'cta_nonce', 'nonce' );
-
-		if ( ! is_user_logged_in() ) {
-			wp_send_json_error( array( 'message' => __( 'Please log in to download this file.', 'cta-lms' ) ) );
-		}
-
-		$resource_id = absint( wp_unslash( $_POST['resource_id'] ?? 0 ) );
-		$user_id     = get_current_user_id();
-		$resource    = CTA_Database::get_downloadable_resource( $resource_id );
-
-		if ( ! $resource ) {
-			wp_send_json_error( array( 'message' => __( 'Resource not found.', 'cta-lms' ) ) );
-		}
-
-		if ( ! class_exists( 'CTA_Course_Materials' ) || ! CTA_Course_Materials::user_can_access( $user_id, $resource ) ) {
-			wp_send_json_error( array( 'message' => __( 'You must be enrolled to download this file.', 'cta-lms' ) ) );
-		}
-
-		wp_send_json_success(
-			array(
-				'download_url' => CTA_Course_Materials::get_serve_url( $resource_id ),
-				'title'        => $resource->title,
-			)
-		);
-	}
-
-	/**
 	 * AJAX: download certificate.
 	 */
 	public function ajax_download_certificate() {
@@ -514,13 +403,9 @@ class CTA_Student_Dashboard {
 			);
 		}
 
-		// Rebuild HTML with the student's current license number + logo before download.
-		CTA_Certificates::refresh_file( $certificate );
-		$certificate = CTA_Database::get_certificate( $certificate_id );
+		$download_url = CTA_Database::get_certificate_url( $certificate );
 
-		$print_url = CTA_Certificates::get_print_url( (int) $certificate->id, true );
-
-		if ( empty( $print_url ) ) {
+		if ( empty( $download_url ) ) {
 			wp_send_json_error(
 				array(
 					'message' => __( 'Certificate file is unavailable.', 'cta-lms' ),
@@ -530,7 +415,7 @@ class CTA_Student_Dashboard {
 
 		wp_send_json_success(
 			array(
-				'download_url'       => esc_url_raw( $print_url ),
+				'download_url'       => esc_url_raw( $download_url ),
 				'certificate_number' => $certificate->certificate_number,
 			)
 		);
@@ -548,24 +433,12 @@ class CTA_Student_Dashboard {
 
 		$user_id        = get_current_user_id();
 		$full_name      = sanitize_text_field( wp_unslash( $_POST['full_name'] ?? '' ) );
-		$license_number = cta_lms_sanitize_license_number( wp_unslash( $_POST['license_number'] ?? '' ) );
+		$license_number = sanitize_text_field( wp_unslash( $_POST['license_number'] ?? '' ) );
 		$license_type   = sanitize_text_field( wp_unslash( $_POST['license_type'] ?? '' ) );
-		$allowed_types  = cta_lms_get_license_types();
+		$allowed_types  = array( 'LMFT', 'LCSW', 'LPCC', 'LEP', 'AMFT', 'ASW', 'APCC' );
 
 		if ( '' === $full_name ) {
 			wp_send_json_error( array( 'message' => __( 'Full name is required.', 'cta-lms' ) ) );
-		}
-
-		if ( '' === $license_number ) {
-			wp_send_json_error( array( 'message' => __( 'License number is required.', 'cta-lms' ) ) );
-		}
-
-		if ( ! cta_lms_is_valid_license_number( $license_number ) ) {
-			wp_send_json_error(
-				array(
-					'message' => __( 'License number looks invalid. Include at least one letter or number (formats vary by license type).', 'cta-lms' ),
-				)
-			);
 		}
 
 		wp_update_user(
@@ -575,32 +448,23 @@ class CTA_Student_Dashboard {
 			)
 		);
 
-		if ( function_exists( 'cta_lms_sync_user_name_parts' ) ) {
-			cta_lms_sync_user_name_parts( $user_id, $full_name );
-		}
-
 		update_user_meta( $user_id, 'cta_license_number', $license_number );
 
 		if ( $license_type && in_array( $license_type, $allowed_types, true ) ) {
 			update_user_meta( $user_id, 'cta_license_type', $license_type );
 		}
 
-		// Keep issued certificate HTML in sync with the updated license number.
-		if ( class_exists( 'CTA_Certificates' ) ) {
-			CTA_Certificates::refresh_user_certificates( $user_id );
-		}
-
 		wp_send_json_success(
 			array(
-				'message'       => __( 'Your changes have been saved successfully.', 'cta-lms' ),
-				'displayName'   => $full_name,
+				'message'     => __( 'Your changes have been saved successfully.', 'cta-lms' ),
+				'displayName' => $full_name,
 				'licenseNumber' => $license_number,
 			)
 		);
 	}
 
 	/**
-	 * Finalize course completion after quiz pass AND evaluation submission.
+	 * Finalize course completion — called after quiz pass (chunk 11) or internally.
 	 *
 	 * @param int $enrollment_id Enrollment ID.
 	 * @param int $user_id       WordPress user ID.
@@ -622,12 +486,6 @@ class CTA_Student_Dashboard {
 		);
 
 		if ( ! $enrollment || 'completed' === $enrollment->status ) {
-			return false;
-		}
-
-		$evaluation = CTA_Database::get_course_evaluation( $user_id, (int) $enrollment->course_id );
-
-		if ( ! $evaluation ) {
 			return false;
 		}
 
@@ -801,11 +659,9 @@ class CTA_Student_Dashboard {
 	 * @return array
 	 */
 	private function get_dashboard_user_data( $user ) {
-		$license = cta_lms_get_user_license_number( $user->ID );
-		$name    = function_exists( 'cta_lms_get_user_legal_name' )
-			? cta_lms_get_user_legal_name( $user->ID )
-			: ( $user->display_name ? $user->display_name : $user->user_login );
-		$parts    = preg_split( '/\s+/', trim( $name ) );
+		$license = (string) get_user_meta( $user->ID, 'cta_license_number', true );
+		$name    = $user->display_name ? $user->display_name : $user->user_login;
+		$parts   = preg_split( '/\s+/', trim( $name ) );
 		$initials = '';
 
 		if ( ! empty( $parts[0] ) ) {

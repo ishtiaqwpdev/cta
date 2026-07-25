@@ -65,7 +65,7 @@ $notice = sanitize_text_field( wp_unslash( $_GET['cta_notice'] ?? '' ) );
 							<tr>
 								<td><?php echo esc_html( $row->display_name ? $row->display_name : __( 'Unknown', 'cta-lms' ) ); ?></td>
 								<td><?php echo esc_html( $row->course_title ? $row->course_title : '#' . (int) $row->course_id ); ?></td>
-								<td><?php echo esc_html( cta_lms_format_local_date( $row->enrolled_at, 'M j, Y' ) ); ?></td>
+								<td><?php echo esc_html( wp_date( 'M j, Y', strtotime( $row->enrolled_at ) ) ); ?></td>
 								<td><?php echo esc_html( $row->payment_status ? $row->payment_status : __( 'N/A', 'cta-lms' ) ); ?></td>
 							</tr>
 						<?php endforeach; ?>
@@ -93,7 +93,7 @@ $notice = sanitize_text_field( wp_unslash( $_GET['cta_notice'] ?? '' ) );
 							<tr>
 								<td><?php echo esc_html( $row->display_name ? $row->display_name : __( 'Unknown', 'cta-lms' ) ); ?></td>
 								<td><?php echo esc_html( ucfirst( $row->session_type ) ); ?></td>
-								<td><?php echo esc_html( cta_lms_format_session_datetime( $row->session_date, $row->session_time, 'M j, Y g:i A T' ) ); ?></td>
+								<td><?php echo esc_html( $row->session_date . ' ' . substr( (string) $row->session_time, 0, 5 ) ); ?></td>
 								<td><?php echo esc_html( ucfirst( $row->status ) ); ?></td>
 							</tr>
 						<?php endforeach; ?>

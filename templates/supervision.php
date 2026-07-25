@@ -5,7 +5,7 @@
  * @package CTA_LMS
  *
  * @var array       $sessions        Available session slot rows.
- * @var string      $user_status     guest|active|locked|inactive|pending_approval|rejected|awaiting_plan.
+ * @var string      $user_status     guest|active|locked|inactive|pending_approval.
  * @var bool        $is_logged_in    Whether user is logged in.
  * @var array       $user_bookings   User booking map (session key => booking ID).
  * @var float       $monthly_price   Group supervision monthly price.
@@ -27,12 +27,11 @@ $can_purchase_supervision = isset( $can_purchase_supervision ) ? (bool) $can_pur
 $register_url       = isset( $register_url ) ? $register_url : CTA_Associate_Access::get_associate_registration_url();
 $associate_required_message = CTA_Associate_Access::get_associate_required_message();
 
-$calendar_ts   = cta_lms_session_datetime( $calendar_month, '00:00:00' );
-$calendar_ts   = $calendar_ts ? $calendar_ts->getTimestamp() : strtotime( $calendar_month );
-$month_label   = cta_lms_date( 'F Y', $calendar_ts, cta_lms_get_timezone() );
-$days_in_month = (int) cta_lms_date( 't', $calendar_ts, cta_lms_get_timezone() );
-$first_weekday = (int) cta_lms_date( 'w', $calendar_ts, cta_lms_get_timezone() );
-$today         = cta_lms_current_date( 'Y-m-d' );
+$calendar_ts   = strtotime( $calendar_month );
+$month_label   = wp_date( 'F Y', $calendar_ts );
+$days_in_month = (int) wp_date( 't', $calendar_ts );
+$first_weekday = (int) wp_date( 'w', $calendar_ts );
+$today         = wp_date( 'Y-m-d' );
 $selected_date = ! empty( $session_dates ) ? min( $session_dates ) : $today;
 ?>
 <div class="cta-plugin-wrapper">
@@ -116,7 +115,7 @@ $selected_date = ! empty( $session_dates ) ? min( $session_dates ) : $today;
 							<?php echo esc_html__( 'Register as Associate', 'cta-lms' ); ?>
 						</a>
 					<?php else : ?>
-						<button type="button" class="btn btn-primary btn--lg service-card__cta cta-subscribe-btn" data-cta-supervision-subscribe data-course-title="<?php echo esc_attr( CTA_Supervision_Plans::get_name( CTA_Supervision_Plans::GROUP_SLUG ) ); ?>" data-price="<?php echo esc_attr( CTA_Supervision_Plans::get_price_label( CTA_Supervision_Plans::GROUP_SLUG ) ); ?>">
+						<button type="button" class="btn btn-primary btn--lg service-card__cta cta-subscribe-btn" data-cta-supervision-subscribe>
 							<?php echo esc_html__( 'Subscribe Now', 'cta-lms' ); ?>
 						</button>
 					<?php endif; ?>
@@ -170,7 +169,7 @@ $selected_date = ! empty( $session_dates ) ? min( $session_dates ) : $today;
 							<?php echo esc_html__( 'Register as Associate', 'cta-lms' ); ?>
 						</a>
 					<?php else : ?>
-						<button type="button" class="btn btn-primary btn--lg service-card__cta cta-subscribe-btn" data-cta-supervision-subscribe data-course-title="<?php echo esc_attr( CTA_Supervision_Plans::get_name( CTA_Supervision_Plans::GROUP_SLUG ) ); ?>" data-price="<?php echo esc_attr( CTA_Supervision_Plans::get_price_label( CTA_Supervision_Plans::GROUP_SLUG ) ); ?>">
+						<button type="button" class="btn btn-primary btn--lg service-card__cta cta-subscribe-btn" data-cta-supervision-subscribe>
 							<?php echo esc_html__( 'Subscribe to Book', 'cta-lms' ); ?>
 						</button>
 					<?php endif; ?>
@@ -253,12 +252,6 @@ $selected_date = ! empty( $session_dates ) ? min( $session_dates ) : $today;
 						<h3><?php echo esc_html__( 'Pending Approval', 'cta-lms' ); ?></h3>
 						<p><?php echo esc_html( CTA_Associate_Access::get_pending_message() ); ?></p>
 						<p><?php echo esc_html__( 'Session booking stays locked until your supervision application is approved.', 'cta-lms' ); ?></p>
-					<?php elseif ( 'awaiting_plan' === $user_status ) : ?>
-						<h3><?php echo esc_html__( 'Application Approved', 'cta-lms' ); ?></h3>
-						<p><?php echo esc_html( CTA_Associate_Access::get_approved_awaiting_plan_message() ); ?></p>
-					<?php elseif ( 'rejected' === $user_status ) : ?>
-						<h3><?php echo esc_html__( 'Supervision access unavailable', 'cta-lms' ); ?></h3>
-						<p><?php echo esc_html__( 'Your supervision application was not approved. Please contact support if you believe this is an error.', 'cta-lms' ); ?></p>
 					<?php elseif ( 'locked' === $user_status ) : ?>
 						<h3><?php echo esc_html__( 'Your supervision access is locked', 'cta-lms' ); ?></h3>
 						<p><?php echo esc_html__( 'Please contact support to restore booking access.', 'cta-lms' ); ?></p>
@@ -271,7 +264,7 @@ $selected_date = ! empty( $session_dates ) ? min( $session_dates ) : $today;
 					<?php else : ?>
 						<h3><?php echo esc_html__( 'Subscribe to book sessions', 'cta-lms' ); ?></h3>
 						<p><?php echo esc_html__( 'An active group supervision subscription is required to access the booking calendar.', 'cta-lms' ); ?></p>
-						<button type="button" class="btn btn-primary cta-subscribe-btn" data-cta-supervision-subscribe data-course-title="<?php echo esc_attr( CTA_Supervision_Plans::get_name( CTA_Supervision_Plans::GROUP_SLUG ) ); ?>" data-price="<?php echo esc_attr( CTA_Supervision_Plans::get_price_label( CTA_Supervision_Plans::GROUP_SLUG ) ); ?>">
+						<button type="button" class="btn btn-primary cta-subscribe-btn" data-cta-supervision-subscribe>
 							<?php echo esc_html__( 'Subscribe Now', 'cta-lms' ); ?>
 						</button>
 					<?php endif; ?>
@@ -314,10 +307,10 @@ $selected_date = ! empty( $session_dates ) ? min( $session_dates ) : $today;
 
 							<?php
 							for ( $day = 1; $day <= $days_in_month; $day++ ) :
-								$date_str    = sprintf( '%s-%02d', substr( (string) $calendar_month, 0, 7 ), $day );
-								$has_slots   = in_array( $date_str, $session_dates, true );
+								$date_str = gmdate( 'Y-m-d', strtotime( $calendar_month . ' +' . ( $day - 1 ) . ' days' ) );
+								$has_slots  = in_array( $date_str, $session_dates, true );
 								$is_selected = ( $date_str === $selected_date );
-								$classes     = array( 'booking-calendar__day', 'cta-calendar-day' );
+								$classes    = array( 'booking-calendar__day', 'cta-calendar-day' );
 
 								if ( $has_slots ) {
 									$classes[] = 'booking-calendar__day--available';

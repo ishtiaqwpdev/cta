@@ -326,7 +326,7 @@
       ">D</option>" +
       "</select></p>" +
       '<p><label>Explanation (shown after quiz)</label>' +
-      '<textarea class="large-text cta-q-explanation" rows="2" placeholder="Answer rationale / explanation (shown after answering)">' +
+      '<textarea class="large-text cta-q-explanation" rows="2" placeholder="Optional explanation">' +
       (data.explanation || "") +
       "</textarea></p>" +
       "</div>"
@@ -542,27 +542,6 @@
           .text(response.data && response.data.message ? response.data.message : ctaAdmin.i18n.stripeFailed);
       });
     });
-
-    $("#cta-ensure-portal").on("click", function () {
-      var $result = $("#cta-portal-test-result");
-      $result.removeClass("is-success is-error").text("Configuring portal...");
-
-      $.post(ctaAdmin.ajaxUrl, {
-        action: "cta_ensure_billing_portal",
-        nonce: ctaAdmin.nonce
-      }).done(function (response) {
-        if (response.success) {
-          $result.addClass("is-success").text(response.data.message || "Portal ready.");
-          return;
-        }
-
-        $result
-          .addClass("is-error")
-          .text(response.data && response.data.message ? response.data.message : "Portal configuration failed.");
-      }).fail(function () {
-        $result.addClass("is-error").text("Portal configuration failed.");
-      });
-    });
   }
 
   function initCertificatePreview() {
@@ -705,101 +684,10 @@
           "<p><strong>Courses Enrolled:</strong> " + data.courses_enrolled + "</p>" +
             "<p><strong>Courses Completed:</strong> " + data.courses_completed + "</p>" +
             "<p><strong>Certificates:</strong> " + data.certificates_count + "</p>" +
-            "<p><strong>Supervision Status:</strong> " + (data.supervision_status || "&mdash;") + "</p>" +
+            "<p><strong>Supervision Status:</strong> " + (data.supervision_status || "—") + "</p>" +
             "<p><strong>Total Paid:</strong> $" + data.total_paid + "</p>"
         );
       });
-    });
-  }
-
-  function initUserLicenseEdit() {
-    var $modal = $("#cta-user-license-modal");
-    var $form = $("#cta-user-license-form");
-    var $status = $("#cta-license-save-status");
-    var $activeRow = null;
-
-    if (!$modal.length || !$form.length || typeof ctaAdmin === "undefined") {
-      return;
-    }
-
-    $(document).on("click", ".cta-edit-user-license", function () {
-      var $row = $(this).closest("tr");
-      $activeRow = $row;
-
-      $("#cta-license-user-id").val($row.data("user-id") || "");
-      $("#cta-license-number-input").val($row.data("license-number") || "");
-      $("#cta-license-type-input").val($row.data("license-type") || "");
-      $("#cta-license-modal-user").text(
-        "Student: " + ($row.data("display-name") || "")
-      );
-      $status.text("");
-      $modal.prop("hidden", false);
-    });
-
-    $form.on("submit", function (e) {
-      e.preventDefault();
-
-      var licenseNumber = $.trim($("#cta-license-number-input").val() || "");
-      if (licenseNumber && !/[A-Za-z0-9]/.test(licenseNumber)) {
-        $status.text("Include at least one letter or number.");
-        return;
-      }
-
-      var $btn = $form.find('button[type="submit"]');
-      $btn.prop("disabled", true);
-      $status.text("Saving...");
-
-      $.post(ctaAdmin.ajaxUrl, {
-        action: "cta_admin_save_license",
-        nonce: ctaAdmin.nonce,
-        user_id: $("#cta-license-user-id").val(),
-        license_number: licenseNumber,
-        license_type: $("#cta-license-type-input").val() || ""
-      })
-        .done(function (response) {
-          if (!response.success) {
-            $status.text(
-              (response.data && response.data.message) || "Save failed."
-            );
-            return;
-          }
-
-          var data = response.data || {};
-          $status.text(data.message || "Saved.");
-
-          if ($activeRow && $activeRow.length) {
-            $activeRow.attr("data-license-number", data.license_number || "");
-            $activeRow.attr("data-license-type", data.license_type || "");
-            $activeRow.data("license-number", data.license_number || "");
-            $activeRow.data("license-type", data.license_type || "");
-
-            if (data.has_license) {
-              $activeRow
-                .find(".cta-user-license-number")
-                .text(data.license_number || "");
-            } else {
-              $activeRow
-                .find(".cta-user-license-number")
-                .html(
-                  '<span class="cta-status-badge cta-status-badge--draft">Missing</span>'
-                );
-            }
-
-            $activeRow
-              .find(".cta-user-license-type")
-              .text(data.license_type ? data.license_type : "\u2014");
-          }
-
-          setTimeout(function () {
-            $modal.prop("hidden", true);
-          }, 600);
-        })
-        .fail(function () {
-          $status.text("Something went wrong.");
-        })
-        .always(function () {
-          $btn.prop("disabled", false);
-        });
     });
   }
 
@@ -982,16 +870,12 @@
       var fields = [
         ["Associate", details.user_name],
         ["Email", details.user_email],
-        ["Approval Status", details.approval_status || details.status],
-        ["Plan Status", details.plan_status || details.plan_name],
-        ["Access", details.access],
         ["Plan", details.plan_name],
         ["Registered", details.registered_date],
-        ["Purchase / Assigned", details.purchase_date],
-        ["Assigned By", details.assigned_by],
-        ["Assignment Note", details.assigned_note],
+        ["Purchase Date", details.purchase_date],
         ["Amount", details.amount],
         ["Billing", details.billing],
+        ["Status", details.status],
         ["Description", details.description],
         ["Stripe Reference", details.stripe_reference],
         ["Rejection Reason", details.rejection_reason]
@@ -1023,19 +907,11 @@
     function handleFormSubmit(e) {
       var $form = $(this);
       var isApprove = $form.hasClass("cta-approval-form--approve");
-      var isAssign = $form.hasClass("cta-approval-form--assign");
       var userId = $form.find('input[name="user_id"]').val();
       var reason = $form.find('[name="reason"]').val() || "";
-      var planSlug = $form.find('[name="plan_slug"]').val() || "group";
-      var note = $form.find('[name="note"]').val() || "";
-      var $row = $form.closest("tr");
-
-      var confirmMsg = isAssign
-        ? (ctaAdmin.i18n && ctaAdmin.i18n.assignConfirm) ||
-          "Assign this agency-paid plan to the Associate?"
-        : isApprove
-          ? ctaAdmin.i18n.approveConfirm
-          : ctaAdmin.i18n.rejectConfirm;
+      var confirmMsg = isApprove
+        ? ctaAdmin.i18n.approveConfirm
+        : ctaAdmin.i18n.rejectConfirm;
 
       if (!window.confirm(confirmMsg)) {
         e.preventDefault();
@@ -1049,24 +925,17 @@
 
       e.preventDefault();
 
-      var $buttons = $row.length ? $row.find("button, select, input") : $form.find("button, select, input");
+      var $row = $form.closest("tr");
+      var $buttons = $row.length ? $row.find("button") : $form.find("button");
 
       $buttons.prop("disabled", true);
 
-      var payload = {
-        action: isAssign
-          ? "cta_assign_associate_plan"
-          : isApprove
-            ? "cta_approve_associate"
-            : "cta_reject_associate",
+      $.post(ctaAdmin.ajaxUrl, {
+        action: isApprove ? "cta_approve_associate" : "cta_reject_associate",
         nonce: ctaAdmin.nonce,
         user_id: userId,
-        reason: reason,
-        plan_slug: planSlug,
-        note: note
-      };
-
-      $.post(ctaAdmin.ajaxUrl, payload)
+        reason: reason
+      })
         .done(function (response) {
           if (!response || !response.success) {
             $buttons.prop("disabled", false);
@@ -1081,19 +950,12 @@
           showNotice(
             "success",
             (response.data && response.data.message) ||
-              (isAssign
-                ? ctaAdmin.i18n.assignSuccess
-                : isApprove
-                  ? ctaAdmin.i18n.approveSuccess
-                  : ctaAdmin.i18n.rejectSuccess)
+              (isApprove
+                ? ctaAdmin.i18n.approveSuccess
+                : ctaAdmin.i18n.rejectSuccess)
           );
 
           $rejectModal.prop("hidden", true);
-
-          if (isAssign) {
-            reloadApprovalsPage($table.attr("data-current-status") || "all");
-            return;
-          }
 
           // Keep the record visible: reload so Approved/Rejected tabs stay in sync.
           reloadApprovalsPage(isApprove ? "approved" : "rejected");
@@ -1112,227 +974,6 @@
     $rejectModal.on("submit", ".cta-approval-form", handleFormSubmit);
   }
 
-  function initResourcesPanel() {
-    var $panel = $("#cta-resources-panel");
-    if (!$panel.length || typeof ctaAdmin === "undefined") {
-      return;
-    }
-
-    var courseId = $panel.data("course-id");
-    var $list = $("#cta-resources-list");
-
-    if ($list.length && $.fn.sortable) {
-      $list.sortable({
-        handle: ".cta-drag-handle",
-        update: function () {
-          var order = [];
-          $list.find("tr[data-resource-id]").each(function () {
-            order.push($(this).data("resource-id"));
-          });
-          $.post(ctaAdmin.ajaxUrl, {
-            action: "cta_reorder_resources",
-            nonce: ctaAdmin.nonce,
-            course_id: courseId,
-            order: order
-          });
-        }
-      });
-    }
-
-    var allowedResourceExt = ["pdf", "doc", "docx"];
-    var maxResourceBytes = 20 * 1024 * 1024;
-
-    function resourceFileExtension(filename) {
-      if (!filename || filename.indexOf(".") === -1) {
-        return "";
-      }
-      return String(filename.split(".").pop()).toLowerCase();
-    }
-
-    $("#cta-resource-select-file").on("click", function (e) {
-      e.preventDefault();
-      if (typeof wp === "undefined" || !wp.media) {
-        window.alert("Media library is unavailable.");
-        return;
-      }
-
-      var frame = wp.media({
-        title: "Select course material (PDF, DOC, or DOCX \u2014 max 20MB)",
-        button: { text: "Use this file" },
-        multiple: false,
-        library: {
-          type: [
-            "application/pdf",
-            "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          ]
-        }
-      });
-
-      frame.on("select", function () {
-        var attachment = frame.state().get("selection").first().toJSON();
-        var filename = attachment.filename || attachment.title || "";
-        var ext = resourceFileExtension(filename);
-        var filesize = typeof attachment.filesizeInBytes === "number"
-          ? attachment.filesizeInBytes
-          : (typeof attachment.filesize === "number" ? attachment.filesize : 0);
-
-        if (allowedResourceExt.indexOf(ext) === -1) {
-          window.alert("Only PDF, DOC, and DOCX files are allowed for course materials.");
-          return;
-        }
-
-        if (filesize > maxResourceBytes) {
-          window.alert("File exceeds the 20MB size limit. Please upload a smaller PDF, DOC, or DOCX file.");
-          return;
-        }
-
-        $("#cta-resource-attachment-id").val(attachment.id || "");
-        $("#cta-resource-file-url").val(attachment.url || "");
-        $("#cta-resource-file-label").text(filename || "File selected");
-        if (!$("#cta-resource-file-type").val() && ext) {
-          $("#cta-resource-file-type").val(ext);
-        }
-        if (!$("#cta-resource-title").val() && attachment.title) {
-          $("#cta-resource-title").val(attachment.title);
-        }
-      });
-
-      frame.open();
-    });
-
-    function resetResourceForm() {
-      $("#cta-resource-id").val("");
-      $("#cta-resource-attachment-id").val("");
-      $("#cta-resource-file-url").val("");
-      $("#cta-resource-title").val("");
-      $("#cta-resource-module").val("0");
-      $("#cta-resource-file-type").val("");
-      $("#cta-resource-practice").prop("checked", false);
-      $("#cta-resource-file-label").text("");
-      $("#cta-resource-form-heading").text("Add Material");
-      $("#cta-resource-submit").text("Add Material");
-      $("#cta-resource-cancel-edit").hide();
-    }
-
-    $panel.on("click", ".cta-edit-resource", function () {
-      var $row = $(this).closest("tr");
-      $("#cta-resource-id").val($row.data("resource-id") || "");
-      $("#cta-resource-title").val($row.data("title") || "");
-      $("#cta-resource-module").val(String($row.data("module-id") || "0"));
-      $("#cta-resource-file-type").val($row.data("file-type") || "");
-      $("#cta-resource-practice").prop("checked", String($row.data("practice")) === "1");
-      $("#cta-resource-attachment-id").val("");
-      $("#cta-resource-file-url").val("");
-      $("#cta-resource-file-label").text(
-        "Current file kept unless you select a replacement"
-      );
-      $("#cta-resource-form-heading").text("Edit / Replace Material");
-      $("#cta-resource-submit").text("Update Material");
-      $("#cta-resource-cancel-edit").show();
-      $("html, body").animate({ scrollTop: $("#cta-resource-form").offset().top - 80 }, 200);
-    });
-
-    $("#cta-resource-cancel-edit").on("click", function () {
-      resetResourceForm();
-    });
-  }
-
-  function initAdminSubscriptionControls() {
-    $(document).on("click", ".cta-admin-sync-sub", function () {
-      var userId = $(this).data("user-id");
-      var $btn = $(this);
-      $btn.prop("disabled", true);
-      $.post(ctaAdmin.ajaxUrl, {
-        action: "cta_admin_sync_subscription",
-        nonce: ctaAdmin.nonce,
-        user_id: userId
-      })
-        .done(function (response) {
-          window.alert(
-            response.success
-              ? response.data.message
-              : (response.data && response.data.message) || "Sync failed."
-          );
-          if (response.success) {
-            window.location.reload();
-          }
-        })
-        .fail(function () {
-          window.alert("Sync failed. Please try again.");
-        })
-        .always(function () {
-          $btn.prop("disabled", false);
-        });
-    });
-
-    $(document).on("click", ".cta-admin-reactivate-sub", function () {
-      if (!window.confirm("Reactivate this subscription so auto-renewal continues?")) {
-        return;
-      }
-      var userId = $(this).data("user-id");
-      var $btn = $(this);
-      $btn.prop("disabled", true);
-      $.post(ctaAdmin.ajaxUrl, {
-        action: "cta_admin_reactivate_subscription",
-        nonce: ctaAdmin.nonce,
-        user_id: userId
-      })
-        .done(function (response) {
-          window.alert(
-            response.success
-              ? response.data.message
-              : (response.data && response.data.message) || "Reactivate failed."
-          );
-          if (response.success) {
-            window.location.reload();
-          }
-        })
-        .fail(function () {
-          window.alert("Reactivate failed. Please try again.");
-        })
-        .always(function () {
-          $btn.prop("disabled", false);
-        });
-    });
-
-    $(document).on("click", ".cta-admin-cancel-sub", function () {
-      var mode = $(this).data("mode") || "at_period_end";
-      var msg =
-        mode === "immediately"
-          ? "Cancel this subscription immediately in Stripe? Access will end now."
-          : "Cancel at period end? The student keeps access until the paid period ends.";
-      if (!window.confirm(msg)) {
-        return;
-      }
-      var userId = $(this).data("user-id");
-      var $btn = $(this);
-      $btn.prop("disabled", true);
-      $.post(ctaAdmin.ajaxUrl, {
-        action: "cta_admin_cancel_subscription",
-        nonce: ctaAdmin.nonce,
-        user_id: userId,
-        mode: mode
-      })
-        .done(function (response) {
-          window.alert(
-            response.success
-              ? response.data.message
-              : (response.data && response.data.message) || "Cancel failed."
-          );
-          if (response.success) {
-            window.location.reload();
-          }
-        })
-        .fail(function () {
-          window.alert("Cancel failed. Please try again.");
-        })
-        .always(function () {
-          $btn.prop("disabled", false);
-        });
-    });
-  }
-
   $(function () {
     if (typeof ctaAdmin === "undefined") {
       return;
@@ -1345,15 +986,12 @@
     try { initCourseVideoSource(); } catch (e) {}
     try { initModulesPanel(); } catch (e) {}
     try { initQuizPanel(); } catch (e) {}
-    try { initResourcesPanel(); } catch (e) {}
     try { initStripeTest(); } catch (e) {}
     try { initCertificatePreview(); } catch (e) {}
     try { initEmailSettings(); } catch (e) {}
     try { initUserStats(); } catch (e) {}
-    try { initUserLicenseEdit(); } catch (e) {}
     try { initModals(); } catch (e) {}
     try { initBookings(); } catch (e) {}
     try { initAssociateApprovals(); } catch (e) {}
-    try { initAdminSubscriptionControls(); } catch (e) {}
   });
 })(jQuery);
