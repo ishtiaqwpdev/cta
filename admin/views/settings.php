@@ -61,7 +61,36 @@ $notice = sanitize_text_field( wp_unslash( $_GET['cta_notice'] ?? '' ) );
 							<input type="checkbox" name="cta_payments_bypass" value="yes" <?php checked( get_option( 'cta_payments_bypass', 'yes' ), 'yes' ); ?>>
 							<?php esc_html_e( 'Skip payments (instant enroll / subscribe without Stripe)', 'cta-lms' ); ?>
 						</label>
-						<p class="description"><?php esc_html_e( 'Enable while testing. Turn off before going live and configure Stripe keys above.', 'cta-lms' ); ?></p>
+						<p class="description"><?php esc_html_e( 'Enable only for UI demos without Stripe. This is NOT Stripe test mode. Turn this OFF to use real Stripe Checkout and the Customer Billing Portal (with Stripe test keys if you are still testing payments).', 'cta-lms' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th><?php esc_html_e( 'Customer Billing Portal', 'cta-lms' ); ?></th>
+					<td>
+						<p class="description" style="margin-top:0;">
+							<?php esc_html_e( "Students use Manage Subscription to open Stripe's Customer Portal (update payment method, view invoices, cancel auto-renewal at period end, and reactivate). The portal configuration is created automatically in your Stripe account on first use.", 'cta-lms' ); ?>
+						</p>
+						<?php
+						$portal_config = (string) get_option( 'cta_stripe_portal_configuration_id', '' );
+						if ( $portal_config ) :
+							?>
+							<p>
+								<code><?php echo esc_html( $portal_config ); ?></code>
+							</p>
+						<?php endif; ?>
+						<p>
+							<button type="button" class="button" id="cta-ensure-portal"><?php esc_html_e( 'Ensure Portal Configuration', 'cta-lms' ); ?></button>
+							<span id="cta-portal-test-result" class="cta-inline-result"></span>
+						</p>
+						<p class="description">
+							<?php
+							printf(
+								/* translators: %s: Stripe dashboard URL */
+								esc_html__( 'Webhook events required: checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, invoice.paid, invoice.payment_failed. Dashboard: %s', 'cta-lms' ),
+								'https://dashboard.stripe.com/' . ( 'live' === get_option( 'cta_stripe_mode', 'test' ) ? '' : 'test/' ) . 'settings/billing/portal'
+							);
+							?>
+						</p>
 					</td>
 				</tr>
 			</table>
@@ -89,6 +118,23 @@ $notice = sanitize_text_field( wp_unslash( $_GET['cta_notice'] ?? '' ) );
 		<div class="cta-admin-panel">
 			<h2><?php esc_html_e( 'CTA Configuration', 'cta-lms' ); ?></h2>
 			<table class="form-table">
+				<tr>
+					<th><label for="cta_timezone"><?php esc_html_e( 'Display Timezone', 'cta-lms' ); ?></label></th>
+					<td>
+						<select id="cta_timezone" name="cta_timezone">
+							<?php
+							$current_tz = (string) get_option( 'cta_timezone', 'America/Los_Angeles' );
+							$zones      = timezone_identifiers_list();
+							foreach ( $zones as $zone ) :
+								?>
+								<option value="<?php echo esc_attr( $zone ); ?>" <?php selected( $current_tz, $zone ); ?>><?php echo esc_html( $zone ); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<p class="description">
+							<?php esc_html_e( 'All booking times, dashboards, emails, and admin timestamps display in this timezone. Default: America/Los_Angeles (Pacific Time).', 'cta-lms' ); ?>
+						</p>
+					</td>
+				</tr>
 				<tr>
 					<th><label for="cta_camft_provider_number"><?php esc_html_e( 'CAMFT CEPA Provider Number', 'cta-lms' ); ?></label></th>
 					<td><input type="text" class="regular-text" id="cta_camft_provider_number" name="cta_camft_provider_number" value="<?php echo esc_attr( get_option( 'cta_camft_provider_number', '' ) ); ?>"></td>

@@ -50,8 +50,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 				<?php foreach ( $sessions as $session ) : ?>
 					<tr>
 						<td><?php echo esc_html( $session->display_name ? $session->display_name : __( 'Unknown', 'cta-lms' ) ); ?></td>
-						<td><?php echo esc_html( $session->session_date ); ?></td>
-						<td><?php echo esc_html( substr( (string) $session->session_time, 0, 5 ) ); ?></td>
+						<td><?php echo esc_html( cta_lms_format_session_date( $session->session_date, 'M j, Y' ) ); ?></td>
+						<td><?php echo esc_html( cta_lms_format_session_time( $session->session_date, $session->session_time, 'g:i A T' ) ); ?></td>
 						<td><?php echo esc_html( ucfirst( $session->session_type ) ); ?></td>
 						<td><?php echo esc_html( ucfirst( $session->status ) ); ?></td>
 					</tr>
@@ -77,6 +77,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 			<p>
 				<label for="cta-session-time"><?php esc_html_e( 'Time', 'cta-lms' ); ?></label><br>
 				<input type="time" id="cta-session-time" required>
+				<span class="description"><?php echo esc_html( sprintf( /* translators: %s: timezone name */ __( 'Enter time in %s (Pacific by default).', 'cta-lms' ), cta_lms_get_timezone_string() ) ); ?></span>
 			</p>
 			<p>
 				<label for="cta-session-type"><?php esc_html_e( 'Type', 'cta-lms' ); ?></label><br>

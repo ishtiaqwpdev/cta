@@ -37,6 +37,26 @@ class CTA_Memberships {
 
 		$bundles = CTA_Database::get_all_bundles();
 
+		foreach ( $bundles as $bundle ) {
+			if ( 'subscription' !== (string) $bundle->plan_type ) {
+				continue;
+			}
+
+			$slug = (string) ( $bundle->slug ?? '' );
+			$name = (string) ( $bundle->name ?? '' );
+
+			if (
+				in_array( $slug, array( CTA_Supervision_Plans::ALL_ACCESS_BUNDLE_SLUG, CTA_Supervision_Plans::LEGACY_HYBRID_BUNDLE_SLUG ), true )
+				|| false !== stripos( $name, 'Hybrid' )
+				|| false !== stripos( $name, 'All-Access Program' )
+			) {
+				$bundle->name        = CTA_Supervision_Plans::get_name( CTA_Supervision_Plans::HYBRID_SLUG );
+				$bundle->price       = CTA_Supervision_Plans::get_price( CTA_Supervision_Plans::HYBRID_SLUG );
+				$bundle->description = CTA_Supervision_Plans::get_plan( CTA_Supervision_Plans::HYBRID_SLUG )['description'];
+				$bundle->slug        = CTA_Supervision_Plans::ALL_ACCESS_BUNDLE_SLUG;
+			}
+		}
+
 		$user_bundles = array();
 
 		if ( is_user_logged_in() ) {
@@ -56,10 +76,15 @@ class CTA_Memberships {
 
 		$all_courses             = CTA_Database::get_all_courses( 'published' );
 		$courses_map             = array();
-		$published_course_count  = count( $all_courses );
+		$published_course_count  = 0;
 
 		foreach ( $all_courses as $course ) {
+			// CE-only memberships must not count or display exam prep products.
+			if ( class_exists( 'CTA_Exam_Access' ) && CTA_Exam_Access::is_exam_prep( $course ) ) {
+				continue;
+			}
 			$courses_map[ (int) $course->id ] = $course;
+			++$published_course_count;
 		}
 
 		$login_url                = $this->get_login_url();
@@ -101,7 +126,7 @@ class CTA_Memberships {
 
 		$user_id = get_current_user_id();
 
-		// Hybrid / supervision-inclusive bundles require a Registered Associate account.
+		// All-Access / supervision-inclusive bundles require a Registered Associate account.
 		if ( $this->bundle_includes_supervision( $bundle ) ) {
 			CTA_Associate_Access::require_associate_for_purchase( $user_id );
 		}

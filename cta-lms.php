@@ -9,12 +9,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// Prevent double-bootstrap (two plugin folders) from fatalling the site.
+if ( defined( 'CTA_LMS_BOOTSTRAPPED' ) ) {
+	return;
+}
+define( 'CTA_LMS_BOOTSTRAPPED', true );
+
 if ( ! defined( 'CTA_PLUGIN_FILE' ) ) {
 	define( 'CTA_PLUGIN_FILE', __FILE__ );
 }
 
 if ( ! defined( 'CTA_VERSION' ) ) {
-	define( 'CTA_VERSION', '1.0.37' );
+	define( 'CTA_VERSION', '1.0.61' );
 }
 
 if ( ! defined( 'CTA_PLUGIN_DIR' ) ) {
@@ -29,34 +35,37 @@ if ( ! defined( 'CTA_PLUGIN_BASENAME' ) ) {
 	define( 'CTA_PLUGIN_BASENAME', plugin_basename( CTA_PLUGIN_FILE ) );
 }
 
-/**
- * Load a plugin file if it exists.
- *
- * @param string $relative_path Path relative to plugin root.
- */
-function cta_lms_require( $relative_path ) {
-	$path = CTA_PLUGIN_DIR . ltrim( $relative_path, '/' );
+if ( ! function_exists( 'cta_lms_require' ) ) {
+	/**
+	 * Load a plugin file if it exists.
+	 *
+	 * @param string $relative_path Path relative to plugin root.
+	 * @return bool
+	 */
+	function cta_lms_require( $relative_path ) {
+		$path = CTA_PLUGIN_DIR . ltrim( $relative_path, '/' );
 
-	if ( ! file_exists( $path ) ) {
-		if ( is_admin() ) {
-			add_action(
-				'admin_notices',
-				static function () use ( $relative_path ) {
-					echo '<div class="notice notice-error"><p>';
-					printf(
-						/* translators: %s: missing file path */
-						esc_html__( 'CTA LMS is missing a required file: %s', 'cta-lms' ),
-						esc_html( $relative_path )
-					);
-					echo '</p></div>';
-				}
-			);
+		if ( ! file_exists( $path ) ) {
+			if ( is_admin() ) {
+				add_action(
+					'admin_notices',
+					static function () use ( $relative_path ) {
+						echo '<div class="notice notice-error"><p>';
+						printf(
+							/* translators: %s: missing file path */
+							esc_html__( 'CTA LMS is missing a required file: %s', 'cta-lms' ),
+							esc_html( $relative_path )
+						);
+						echo '</p></div>';
+					}
+				);
+			}
+			return false;
 		}
-		return false;
-	}
 
-	require_once $path;
-	return true;
+		require_once $path;
+		return true;
+	}
 }
 
 // Load Composer autoloader (Stripe SDK) when present.
@@ -65,12 +74,19 @@ if ( file_exists( CTA_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
 }
 
 $cta_required_files = array(
+	'includes/cta-timezone.php',
+	'includes/cta-encoding.php',
 	'includes/class-cta-activator.php',
 	'includes/class-cta-deactivator.php',
 	'includes/class-cta-roles.php',
 	'includes/class-cta-associate-access.php',
+	'includes/class-cta-exam-access.php',
+	'includes/class-cta-course-materials.php',
+	'includes/class-cta-evaluation-questions.php',
 	'includes/class-cta-database.php',
+	'includes/class-cta-supervision-plans.php',
 	'includes/class-cta-emails.php',
+	'includes/class-cta-pages.php',
 	'includes/class-cta-loader.php',
 	'includes/class-cta-stripe.php',
 	'public/class-cta-shortcodes.php',
@@ -117,25 +133,49 @@ if ( ! function_exists( 'cta_lms_init' ) ) {
 			return;
 		}
 
-		$loader = new CTA_Loader();
-		$loader->run();
+		try {
+			$loader = new CTA_Loader();
+			$loader->run();
 
-		new CTA_Shortcodes();
-		new CTA_Auth();
-		new CTA_Courses();
-		cta_get_stripe();
-		new CTA_Memberships();
-		new CTA_Supervision();
-		new CTA_Student_Dashboard();
-		new CTA_Supervision_Dashboard();
-		new CTA_Quiz();
+			if ( class_exists( 'CTA_Pages' ) ) {
+				CTA_Pages::init();
+			}
 
-		if ( is_admin() ) {
-			new CTA_Admin();
+			new CTA_Shortcodes();
+			new CTA_Auth();
+			new CTA_Courses();
+			cta_get_stripe();
+			new CTA_Memberships();
+			new CTA_Supervision();
+			new CTA_Student_Dashboard();
+			new CTA_Supervision_Dashboard();
+			new CTA_Quiz();
+
+			if ( is_admin() && class_exists( 'CTA_Admin' ) ) {
+				new CTA_Admin();
+			}
+		} catch ( Throwable $e ) {
+			if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+				error_log( 'CTA LMS init error: ' . $e->getMessage() );
+			}
+			if ( is_admin() ) {
+				add_action(
+					'admin_notices',
+					static function () use ( $e ) {
+						echo '<div class="notice notice-error"><p>';
+						echo esc_html__( 'CTA LMS failed to initialize. Check the debug log or reinstall the plugin.', 'cta-lms' );
+						echo '</p></div>';
+					}
+				);
+			}
 		}
 	}
 }
-add_action( 'plugins_loaded', 'cta_lms_init' );
+
+if ( function_exists( 'cta_lms_init' ) && ! has_action( 'plugins_loaded', 'cta_lms_init' ) ) {
+	add_action( 'plugins_loaded', 'cta_lms_init' );
+}
 
 if ( ! function_exists( 'cta_maybe_upgrade_db' ) ) {
 	/**
@@ -144,21 +184,420 @@ if ( ! function_exists( 'cta_maybe_upgrade_db' ) ) {
 	function cta_maybe_upgrade_db() {
 		$installed = get_option( 'cta_lms_version', '0' );
 
-		if ( version_compare( $installed, CTA_VERSION, '>=' ) ) {
+		if ( version_compare( (string) $installed, CTA_VERSION, '>=' ) ) {
 			return;
 		}
 
-		if ( class_exists( 'CTA_Database' ) ) {
-			CTA_Database::create_tables();
+		// Prevent overlapping upgrade work in the same request.
+		if ( get_transient( 'cta_lms_upgrading' ) ) {
+			return;
+		}
+		set_transient( 'cta_lms_upgrading', 1, 120 );
+
+		try {
+			if ( class_exists( 'CTA_Database' ) ) {
+				CTA_Database::create_tables();
+			}
+
+			// Quizzes are untimed with unlimited retakes by product policy.
+			if ( version_compare( $installed, '1.0.39', '<' ) && class_exists( 'CTA_Database' ) ) {
+				global $wpdb;
+				$table = $wpdb->prefix . 'cta_quizzes';
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				$wpdb->query( "UPDATE {$table} SET time_limit_mins = 0, max_attempts = 0" );
+			}
+
+			// Re-normalize any leftover legacy quiz caps (e.g. max_attempts=3) on upgrade to 1.0.50+.
+			if ( version_compare( $installed, '1.0.50', '<' ) && class_exists( 'CTA_Database' ) ) {
+				global $wpdb;
+				$table = $wpdb->prefix . 'cta_quizzes';
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				$wpdb->query( "UPDATE {$table} SET time_limit_mins = 0, max_attempts = 0, passing_score = 70" );
+			}
+
+			// Align supervision plan names/prices (Group $260, All-Access $350).
+			// Re-run through 1.0.53 so sites already past 1.0.40 still heal mismatched meta.
+			if ( version_compare( $installed, '1.0.53', '<' ) && class_exists( 'CTA_Supervision_Plans' ) ) {
+				CTA_Supervision_Plans::sync_all_access_bundle();
+				CTA_Supervision_Plans::migrate_legacy_names();
+			}
+
+			// Demote Approved associates who have no purchase and no agency-assigned plan.
+			if ( version_compare( $installed, '1.0.41', '<' ) && class_exists( 'CTA_Associate_Access' ) ) {
+				$query = new WP_User_Query(
+					array(
+						'role'       => 'cta_associate',
+						'number'     => 500,
+						'meta_key'   => 'cta_approval_status',
+						'meta_value' => CTA_Associate_Access::STATUS_APPROVED,
+						'fields'     => 'ID',
+					)
+				);
+
+				foreach ( (array) $query->get_results() as $user_id ) {
+					$user_id = absint( $user_id );
+					if ( ! $user_id || CTA_Associate_Access::has_qualifying_plan( $user_id ) ) {
+						continue;
+					}
+
+					update_user_meta( $user_id, 'cta_approval_status', CTA_Associate_Access::STATUS_PENDING );
+					$supervision = (string) get_user_meta( $user_id, 'cta_supervision_status', true );
+					if ( 'active' === $supervision ) {
+						update_user_meta( $user_id, 'cta_supervision_status', CTA_Associate_Access::STATUS_PENDING );
+					}
+				}
+			}
+
+			// Ensure display timezone option exists (default Pacific Time).
+			if ( version_compare( $installed, '1.0.42', '<' ) ) {
+				add_option( 'cta_timezone', 'America/Los_Angeles' );
+			}
+
+			// Re-assert Pacific default when option is empty (never change intentional custom zones).
+			if ( version_compare( $installed, '1.0.56', '<' ) ) {
+				$tz = (string) get_option( 'cta_timezone', '' );
+				if ( '' === $tz ) {
+					update_option( 'cta_timezone', 'America/Los_Angeles' );
+				}
+			}
+
+			// Public marketing pages + nav cleanup (CE catalog, supervision booking, hide quiz).
+			if ( version_compare( $installed, '1.0.45', '<' ) && class_exists( 'CTA_Pages' ) ) {
+				CTA_Pages::sync_public_pages();
+				delete_option( 'cta_pages_synced_' . CTA_VERSION );
+			}
+
+			// Exam Preparation Programs: schema columns, access/resources tables, seed programs.
+			if ( version_compare( $installed, '1.0.47', '<' ) && class_exists( 'CTA_Database' ) ) {
+				CTA_Database::maybe_add_exam_prep_columns();
+				if ( class_exists( 'CTA_Exam_Access' ) ) {
+					CTA_Exam_Access::seed_default_programs();
+				}
+			}
+
+			// Course materials: module attachment + protected file path columns.
+			if ( version_compare( $installed, '1.0.48', '<' ) && class_exists( 'CTA_Database' ) ) {
+				CTA_Database::maybe_add_resource_columns();
+				if ( class_exists( 'CTA_Course_Materials' ) ) {
+					CTA_Course_Materials::get_protected_root();
+				}
+			}
+
+			// Admin-configurable CE evaluation question bank.
+			if ( version_compare( $installed, '1.0.51', '<' ) && class_exists( 'CTA_Evaluation_Questions' ) ) {
+				CTA_Evaluation_Questions::install();
+			}
+
+			// Force UTF-8 + repair any mojibake already stored in options/tables/meta.
+			// Re-run through 1.0.59: 1.0.57 used wrong evaluation columns and could fatal
+			// on hosts that throw mysqli exceptions for unknown columns.
+			if ( version_compare( $installed, '1.0.59', '<' ) ) {
+				if ( function_exists( 'cta_lms_ensure_utf8_environment' ) ) {
+					cta_lms_ensure_utf8_environment();
+				}
+				if ( function_exists( 'cta_lms_repair_stored_utf8_content' ) ) {
+					cta_lms_repair_stored_utf8_content();
+				}
+			}
+		} catch ( Throwable $e ) {
+			if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+				error_log( 'CTA LMS upgrade error: ' . $e->getMessage() );
+			}
 		}
 
+		// Always stamp the version so a failed one-shot migration cannot boot-loop the site.
 		update_option( 'cta_lms_version', CTA_VERSION );
+		delete_transient( 'cta_lms_upgrading' );
 	}
 }
-add_action( 'plugins_loaded', 'cta_maybe_upgrade_db', 5 );
 
-add_action( 'init', array( 'CTA_Emails', 'register_cron' ) );
-add_action( 'cta_send_session_reminders', array( 'CTA_Emails', 'send_daily_reminders' ) );
+if ( function_exists( 'cta_maybe_upgrade_db' ) && ! has_action( 'plugins_loaded', 'cta_maybe_upgrade_db' ) ) {
+	add_action( 'plugins_loaded', 'cta_maybe_upgrade_db', 5 );
+}
+
+if ( function_exists( 'cta_lms_register_encoding_hooks' ) ) {
+	cta_lms_register_encoding_hooks();
+}
+
+if ( class_exists( 'CTA_Emails' ) ) {
+	add_action( 'init', array( 'CTA_Emails', 'register_cron' ) );
+	add_action( 'cta_send_session_reminders', array( 'CTA_Emails', 'send_daily_reminders' ) );
+}
+
+if ( ! function_exists( 'cta_lms_find_media_url_by_filename' ) ) {
+	/**
+	 * Find a Media Library attachment URL by attached filename (basename match).
+	 *
+	 * @param string $filename File basename, e.g. CTA_Horizontal_Logo.png.
+	 * @return string Attachment URL or empty string.
+	 */
+	function cta_lms_find_media_url_by_filename( $filename ) {
+		global $wpdb;
+
+		$filename = sanitize_file_name( (string) $filename );
+		if ( '' === $filename ) {
+			return '';
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$attachment_id = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT post_id FROM {$wpdb->postmeta}
+				WHERE meta_key = '_wp_attached_file'
+				AND meta_value LIKE %s
+				ORDER BY post_id DESC
+				LIMIT 1",
+				'%' . $wpdb->esc_like( $filename )
+			)
+		);
+
+		if ( ! $attachment_id ) {
+			return '';
+		}
+
+		$url = wp_get_attachment_url( $attachment_id );
+		return $url ? (string) $url : '';
+	}
+}
+
+if ( ! function_exists( 'cta_lms_get_logo_url' ) ) {
+	/**
+	 * Resolve the first available CTA logo URL for certificates, headers, and emails.
+	 *
+	 * Prefers a Media Library attachment for CTA_Horizontal_Logo.png when present.
+	 *
+	 * @param string $preference Preferred variant: default|white|placeholder|auth.
+	 * @return string
+	 */
+	function cta_lms_get_logo_url( $preference = 'default' ) {
+		$horizontal_filename = 'CTA_Horizontal_Logo.png';
+		$horizontal_logo     = 'https://cta.techosuppglobal.com/wp-content/uploads/2026/06/CTA_Horizontal_Logo.png';
+
+		$custom = (string) get_option( 'cta_logo_url', '' );
+		if ( '' !== $custom ) {
+			/**
+			 * Filter the resolved CTA logo URL.
+			 *
+			 * @param string $url        Logo URL.
+			 * @param string $preference Requested variant.
+			 */
+			return (string) apply_filters( 'cta_lms_logo_url', esc_url_raw( $custom ), $preference );
+		}
+
+		// Explicit attachment ID from settings (if ever stored).
+		$attachment_id = absint( get_option( 'cta_logo_attachment_id', 0 ) );
+		if ( $attachment_id ) {
+			$attached = wp_get_attachment_url( $attachment_id );
+			if ( $attached ) {
+				return (string) apply_filters( 'cta_lms_logo_url', $attached, $preference );
+			}
+		}
+
+		if ( 'white' === $preference ) {
+			$white_path = CTA_PLUGIN_DIR . 'assets/img/logo-white.png';
+			if ( file_exists( $white_path ) ) {
+				return (string) apply_filters( 'cta_lms_logo_url', CTA_PLUGIN_URL . 'assets/img/logo-white.png', $preference );
+			}
+		}
+
+		// Prefer Media Library copy of the horizontal logo over a hardcoded remote URL.
+		$media_url = cta_lms_find_media_url_by_filename( $horizontal_filename );
+		if ( $media_url ) {
+			return (string) apply_filters( 'cta_lms_logo_url', $media_url, $preference );
+		}
+
+		// Resolve known upload URL to an attachment ID when possible.
+		if ( function_exists( 'attachment_url_to_postid' ) ) {
+			$known_id = absint( attachment_url_to_postid( $horizontal_logo ) );
+			if ( $known_id ) {
+				$known_attached = wp_get_attachment_url( $known_id );
+				if ( $known_attached ) {
+					return (string) apply_filters( 'cta_lms_logo_url', $known_attached, $preference );
+				}
+			}
+		}
+
+		$local_horizontal = CTA_PLUGIN_DIR . 'assets/img/logo-horizontal.png';
+		if ( file_exists( $local_horizontal ) ) {
+			return (string) apply_filters( 'cta_lms_logo_url', CTA_PLUGIN_URL . 'assets/img/logo-horizontal.png', $preference );
+		}
+
+		return (string) apply_filters( 'cta_lms_logo_url', $horizontal_logo, $preference );
+	}
+}
+
+if ( ! function_exists( 'cta_lms_get_user_legal_name' ) ) {
+	/**
+	 * Resolve a user's legal / display full name for certificates.
+	 *
+	 * Prefers first+last name meta, then display_name when it is not just the
+	 * username/login handle (avoids certificates showing account usernames).
+	 *
+	 * @param int $user_id User ID.
+	 * @return string
+	 */
+	function cta_lms_get_user_legal_name( $user_id ) {
+		$user_id = absint( $user_id );
+		$user    = $user_id ? get_userdata( $user_id ) : false;
+
+		if ( ! $user ) {
+			return '';
+		}
+
+		$first = trim( (string) get_user_meta( $user_id, 'first_name', true ) );
+		$last  = trim( (string) get_user_meta( $user_id, 'last_name', true ) );
+
+		if ( '' !== $first && '' !== $last ) {
+			return trim( $first . ' ' . $last );
+		}
+
+		$display = trim( (string) $user->display_name );
+		$login   = trim( (string) $user->user_login );
+
+		if ( '' !== $display && 0 !== strcasecmp( $display, $login ) ) {
+			return $display;
+		}
+
+		if ( '' !== $first ) {
+			return $first;
+		}
+		if ( '' !== $last ) {
+			return $last;
+		}
+
+		if ( '' !== $display ) {
+			return $display;
+		}
+
+		$nicename = trim( (string) $user->user_nicename );
+		if ( '' !== $nicename && 0 !== strcasecmp( $nicename, $login ) ) {
+			return $nicename;
+		}
+
+		return $login;
+	}
+}
+
+if ( ! function_exists( 'cta_lms_sync_user_name_parts' ) ) {
+	/**
+	 * Keep WP first/last name meta aligned with a full legal name string.
+	 *
+	 * @param int    $user_id   User ID.
+	 * @param string $full_name Full name from Account Settings / registration.
+	 */
+	function cta_lms_sync_user_name_parts( $user_id, $full_name ) {
+		$user_id   = absint( $user_id );
+		$full_name = trim( sanitize_text_field( (string) $full_name ) );
+
+		if ( ! $user_id || '' === $full_name ) {
+			return;
+		}
+
+		$parts = preg_split( '/\s+/', $full_name, 2 );
+		$first = isset( $parts[0] ) ? $parts[0] : '';
+		$last  = isset( $parts[1] ) ? $parts[1] : '';
+
+		update_user_meta( $user_id, 'first_name', $first );
+		update_user_meta( $user_id, 'last_name', $last );
+	}
+}
+
+if ( ! function_exists( 'cta_lms_get_user_license_number' ) ) {
+	/**
+	 * Resolve a user's license / registration number from user meta.
+	 *
+	 * Primary key: cta_license_number (Account Settings + admin Users).
+	 * Falls back to legacy keys if present.
+	 *
+	 * @param int $user_id User ID.
+	 * @return string Sanitized license number (may be empty).
+	 */
+	function cta_lms_get_user_license_number( $user_id ) {
+		$user_id = absint( $user_id );
+		if ( ! $user_id ) {
+			return '';
+		}
+
+		$keys = array( 'cta_license_number', 'license_number', 'cta_registration_number' );
+
+		foreach ( $keys as $key ) {
+			$value = cta_lms_sanitize_license_number( (string) get_user_meta( $user_id, $key, true ) );
+			if ( '' !== $value ) {
+				// Normalize onto the canonical key when found via a legacy key.
+				if ( 'cta_license_number' !== $key ) {
+					update_user_meta( $user_id, 'cta_license_number', $value );
+				}
+				return $value;
+			}
+		}
+
+		return '';
+	}
+}
+
+if ( ! function_exists( 'cta_lms_get_license_types' ) ) {
+	/**
+	 * Allowed license / registration type codes.
+	 *
+	 * @return string[]
+	 */
+	function cta_lms_get_license_types() {
+		return array( 'LMFT', 'LCSW', 'LPCC', 'LEP', 'AMFT', 'ASW', 'APCC' );
+	}
+}
+
+if ( ! function_exists( 'cta_lms_sanitize_license_number' ) ) {
+	/**
+	 * Sanitize a license / registration number (formats vary by type).
+	 *
+	 * @param string $value Raw value.
+	 * @return string
+	 */
+	function cta_lms_sanitize_license_number( $value ) {
+		$value = sanitize_text_field( $value );
+		$value = preg_replace( '/\s+/', ' ', $value );
+		return is_string( $value ) ? trim( $value ) : '';
+	}
+}
+
+if ( ! function_exists( 'cta_lms_is_valid_license_number' ) ) {
+	/**
+	 * Basic license-number validation (not a strict format — types vary).
+	 *
+	 * Empty is allowed (admin may clear; certificates show N/A).
+	 * Non-empty values must include at least one letter or digit and stay within length.
+	 *
+	 * @param string $value Sanitized license number.
+	 * @return bool
+	 */
+	function cta_lms_is_valid_license_number( $value ) {
+		$value = (string) $value;
+
+		if ( '' === $value ) {
+			return true;
+		}
+
+		if ( strlen( $value ) > 64 ) {
+			return false;
+		}
+
+		// Reject entries that are only punctuation / symbols.
+		return (bool) preg_match( '/[A-Za-z0-9]/', $value );
+	}
+}
+
+if ( ! function_exists( 'cta_lms_user_has_license_number' ) ) {
+	/**
+	 * Whether a user has a non-empty license number on file.
+	 *
+	 * @param int $user_id User ID.
+	 * @return bool
+	 */
+	function cta_lms_user_has_license_number( $user_id ) {
+		return '' !== cta_lms_get_user_license_number( $user_id );
+	}
+}
 
 if ( ! function_exists( 'cta_lms_get_icon' ) ) {
 	/**
@@ -258,43 +697,58 @@ if ( ! function_exists( 'cta_lms_find_page_id_by_shortcode' ) ) {
 	function cta_lms_find_page_id_by_shortcode( $shortcode ) {
 		static $cache = array();
 
+		$shortcode = preg_replace( '/[^a-z0-9_]/', '', strtolower( (string) $shortcode ) );
+
+		if ( '' === $shortcode ) {
+			return 0;
+		}
+
 		if ( isset( $cache[ $shortcode ] ) ) {
 			return $cache[ $shortcode ];
 		}
 
-		$page_ids = get_posts(
-			array(
-				'post_type'      => 'page',
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
+		global $wpdb;
+
+		$like = '%[' . $wpdb->esc_like( $shortcode ) . '%';
+
+		// Fast path: one SQL match on post_content (avoids loading every page into PHP).
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$page_id = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT ID FROM {$wpdb->posts}
+				WHERE post_type = 'page'
+				AND post_status = 'publish'
+				AND post_content LIKE %s
+				ORDER BY ID ASC
+				LIMIT 1",
+				$like
 			)
 		);
 
-		foreach ( $page_ids as $page_id ) {
-			$post = get_post( $page_id );
-
-			if ( ! $post instanceof WP_Post ) {
-				continue;
-			}
-
-			if ( has_shortcode( $post->post_content, $shortcode ) ) {
-				$cache[ $shortcode ] = (int) $page_id;
-				return $cache[ $shortcode ];
-			}
-
-			if ( metadata_exists( 'post', $page_id, '_elementor_data' ) ) {
-				$elementor_data = get_post_meta( $page_id, '_elementor_data', true );
-
-				if ( is_string( $elementor_data ) && false !== strpos( $elementor_data, '[' . $shortcode ) ) {
-					$cache[ $shortcode ] = (int) $page_id;
-					return $cache[ $shortcode ];
-				}
-			}
+		if ( $page_id ) {
+			$cache[ $shortcode ] = $page_id;
+			return $page_id;
 		}
 
-		$cache[ $shortcode ] = 0;
-		return 0;
+		// Fallback: Elementor stores shortcodes in post meta, not post_content.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$page_id = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT p.ID
+				FROM {$wpdb->posts} p
+				INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
+				WHERE p.post_type = 'page'
+				AND p.post_status = 'publish'
+				AND pm.meta_key = '_elementor_data'
+				AND pm.meta_value LIKE %s
+				ORDER BY p.ID ASC
+				LIMIT 1",
+				$like
+			)
+		);
+
+		$cache[ $shortcode ] = $page_id > 0 ? $page_id : 0;
+		return $cache[ $shortcode ];
 	}
 }
 
@@ -379,8 +833,11 @@ if ( ! function_exists( 'cta_lms_admin_notices' ) ) {
 		}
 
 		echo '</ul><p>';
-		esc_html_e( 'Steps: Deactivate all CTA LMS plugins → delete the old folder via FTP/File Manager → WP Pusher pull → activate once.', 'cta-lms' );
+		esc_html_e( 'Steps: Keep only CTA Academy LMS active, then delete every other CTA LMS copy from Plugins.', 'cta-lms' );
 		echo '</p></div>';
 	}
 }
-add_action( 'admin_notices', 'cta_lms_admin_notices' );
+
+if ( function_exists( 'cta_lms_admin_notices' ) && ! has_action( 'admin_notices', 'cta_lms_admin_notices' ) ) {
+	add_action( 'admin_notices', 'cta_lms_admin_notices' );
+}

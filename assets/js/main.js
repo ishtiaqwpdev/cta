@@ -1,5 +1,5 @@
 /**
- * CTA Design System â€” Main JavaScript
+ * CTA Design System -- Main JavaScript
  * Clinical Training and Supervision Academy
  */
 
@@ -261,7 +261,7 @@
   }
 
   /**
-   * Supervision associate dashboard â€” uploads, deletes, portal, cancel booking.
+   * Supervision associate dashboard -- uploads, deletes, portal, cancel booking.
    */
   function initCtaSupervisionDashboard() {
     var root = document.querySelector(".cta-supervision-dashboard");
@@ -798,7 +798,7 @@
   }
 
   /**
-   * Dashboard settings save (mock â€” no backend yet)
+   * Dashboard settings save (mock -- no backend yet)
    */
   function initDashboardSettings() {
     document.querySelectorAll(".dashboard-settings-form").forEach(function (form) {
@@ -902,7 +902,7 @@
       if (video.classList.contains("course-player__video--playing")) return;
 
       video.classList.add("course-player__video--playing");
-      showPlayerNotice("Video playingâ€¦ (demo preview)", "info");
+      showPlayerNotice("Video playing\u2026 (demo preview)", "info");
 
       setTimeout(function () {
         video.classList.remove("course-player__video--playing");
@@ -1021,7 +1021,7 @@
   }
 
   /**
-   * Course catalog â€” category filters, sort, search
+   * Course catalog -- category filters, sort, search
    */
   function initCatalogFilters() {
     if (document.getElementById("cta-courses-grid")) {
@@ -1464,7 +1464,7 @@
   }
 
   /**
-   * Policies page sticky sidebar â€” active section highlight
+   * Policies page sticky sidebar -- active section highlight
    * Container: [data-policies-page]
    * Nav links: [data-policies-nav]
    * Sections: .legal-section[id]
@@ -1676,7 +1676,7 @@
       "<div><label style=\"display:block; font-size:13px; color:#374151; margin-bottom:6px; font-weight:600;\">Expiry</label>" +
       '<input type="text" value="12/28" readonly style="width:100%; padding:12px; border:1px solid #D1D5DB; font-size:15px; font-family:\'Montserrat\',sans-serif; color:#6B7280; background:#F9FAFB;"></div>' +
       "<div><label style=\"display:block; font-size:13px; color:#374151; margin-bottom:6px; font-weight:600;\">CVC</label>" +
-      '<input type="text" value="•••" readonly style="width:100%; padding:12px; border:1px solid #D1D5DB; font-size:15px; font-family:\'Montserrat\',sans-serif; color:#6B7280; background:#F9FAFB;"></div>' +
+      '<input type="text" value="&bull;&bull;&bull;" readonly style="width:100%; padding:12px; border:1px solid #D1D5DB; font-size:15px; font-family:\'Montserrat\',sans-serif; color:#6B7280; background:#F9FAFB;"></div>' +
       "</div>" +
       '<button id="cta-demo-pay" type="button" style="' +
       "width:100%; padding:14px; background:#3266A9; color:#fff;" +
@@ -1686,7 +1686,7 @@
       price +
       "</button>" +
       '<p style="text-align:center; font-size:12px; color:#9CA3AF; margin-top:12px;">' +
-      "Demo mode â€” no real payment processed" +
+      "Demo mode &mdash; no real payment processed" +
       "</p>" +
       "</div>" +
       '<div id="cta-demo-step2" style="display:none; text-align:center; padding:20px 0;">' +
@@ -1850,9 +1850,12 @@
     var statusBg = isActive ? "#DCFCE7" : "#FEE2E2";
     var statusColor = isActive ? "#16A34A" : "#DC2626";
     var stripeConfigured = !!(data && data.stripe_configured);
-    var footerText = stripeConfigured
-      ? "Renew your subscription to restore billing access."
-      : "Demo mode â€” Stripe billing portal not configured yet";
+    var paymentsBypass = !!(data && data.payments_bypass);
+    var footerText = paymentsBypass
+      ? "Testing Mode is on &mdash; turn off Skip payments in CTA LMS settings to open the real Stripe portal"
+      : stripeConfigured
+      ? "Subscribe with Stripe to unlock the Customer Billing Portal."
+      : "Stripe is not configured &mdash; add API keys in CTA LMS settings";
     var supportBlock = supportEmail
       ? '<a href="mailto:' + supportEmail + '" style="color:#3266A9;text-decoration:none;">' + supportEmail + "</a>"
       : "support";
@@ -1864,11 +1867,21 @@
         '<a href="' +
         renewUrl +
         '" class="cta-renew-btn" style="display:block;width:100%;padding:14px;background:#16A34A;color:#fff;text-align:center;font-weight:600;font-size:15px;font-family:\'Montserrat\',sans-serif;text-decoration:none;margin-bottom:10px;border:none;cursor:pointer;border-radius:10px;">\uD83D\uDD04 Renew Subscription</a>';
-    } else if (supportEmail) {
+    } else if (supportEmail && !paymentsBypass) {
       actionBlock =
         '<a href="mailto:' +
         supportEmail +
-        '" style="display:block;text-align:center;font-size:13px;color:#6B7280;margin-top:8px;margin-bottom:10px;text-decoration:underline;">Cancel subscription â€” contact support</a>';
+        '" style="display:block;text-align:center;font-size:13px;color:#6B7280;margin-top:8px;margin-bottom:10px;text-decoration:underline;">Contact support about billing</a>';
+    }
+
+    var helpText = paymentsBypass
+      ? "Testing Mode (Skip payments) is enabled, so Manage Subscription cannot open Stripe&rsquo;s Customer Billing Portal. An admin must turn Testing Mode OFF in CTA LMS &rarr; Settings, then use Stripe test keys + a real test subscription."
+      : stripeConfigured
+      ? "No Stripe customer is linked to this account yet. Complete a subscription checkout first, then Manage Subscription will open Stripe&rsquo;s Customer Portal."
+      : "Stripe API keys are missing. After keys are saved and Testing Mode is off, Manage Subscription will open the real billing portal.";
+
+    if (data && data.message) {
+      helpText = data.message;
     }
 
     var modalHtml =
@@ -1890,9 +1903,9 @@
       (price ? '<p style="margin:0 0 12px;color:#374151;"><strong>Plan:</strong> ' + price + "</p>" : "") +
       (nextBilling && isActive ? '<p style="margin:0;color:#374151;"><strong>Next billing:</strong> ' + nextBilling + "</p>" : "") +
       "</div>" +
-      '<p style="font-size:14px;color:#6B7280;line-height:1.6;margin:0 0 20px;">In demo mode, online billing changes are simulated. Contact ' +
-      supportBlock +
-      " to update payment details or cancel your plan.</p>" +
+      '<p style="font-size:14px;color:#6B7280;line-height:1.6;margin:0 0 20px;">' +
+      helpText +
+      "</p>" +
       actionBlock +
       '<button type="button" id="cta-demo-sub-close" style="width:100%;padding:14px;background:#3266A9;color:#fff;border:none;font-size:16px;font-weight:600;cursor:pointer;font-family:\'Montserrat\',sans-serif;border-radius:10px;">Close</button>' +
       '<p style="text-align:center;font-size:12px;color:#9CA3AF;margin-top:12px;">' + footerText + "</p>" +
@@ -1916,7 +1929,7 @@
   }
 
   /**
-   * Stripe checkout â€” course purchase, subscriptions, and bundles.
+   * Stripe checkout -- course purchase, subscriptions, and bundles.
    */
   function initCtaStripePayments() {
     if (typeof jQuery === "undefined" || typeof ctaAjax === "undefined") {
@@ -2244,7 +2257,7 @@
   }
 
   /**
-   * WordPress CE course player â€” mark module complete.
+   * WordPress CE course player -- mark module complete.
    */
   function initCtaWpCoursePlayer() {
     var markBtn = document.getElementById("cta-mark-complete");
@@ -2351,12 +2364,18 @@
     var courseId = app.getAttribute("data-course-id");
     var quizId = app.getAttribute("data-quiz-id");
     var attemptId = parseInt(app.getAttribute("data-attempt-id"), 10) || 0;
-    var timeLimitMins = parseInt(app.getAttribute("data-time-limit"), 10) || 0;
+    // Quizzes are untimed -- never start a countdown, even if legacy markup has a limit.
+    var timeLimitMins = 0;
     var passingScore = parseInt(app.getAttribute("data-passing-score"), 10) || 70;
     var questionCount = parseInt(app.getAttribute("data-question-count"), 10) || 0;
     var timerEl = document.getElementById("cta-quiz-timer");
     var timerInterval = null;
-    var secondsRemaining = timeLimitMins > 0 ? timeLimitMins * 60 : 0;
+    var secondsRemaining = 0;
+
+    if (timerEl) {
+      timerEl.hidden = true;
+      timerEl.setAttribute("aria-hidden", "true");
+    }
 
     var panels = {
       start: app.querySelector('[data-quiz-panel="start"]'),
@@ -2392,28 +2411,12 @@
     }
 
     function startTimer() {
-      if (timeLimitMins <= 0 || !timerEl) {
-        return;
+      // Intentionally disabled: course quizzes have no time limit.
+      stopTimer();
+      if (timerEl) {
+        timerEl.hidden = true;
+        timerEl.textContent = "";
       }
-
-      timerEl.hidden = false;
-      timerEl.classList.remove("cta-quiz-timer--warning");
-
-      timerInterval = setInterval(function () {
-        secondsRemaining -= 1;
-        timerEl.textContent = formatTime(Math.max(secondsRemaining, 0));
-
-        if (secondsRemaining <= 300 && secondsRemaining > 0) {
-          timerEl.classList.add("cta-quiz-timer--warning");
-        }
-
-        if (secondsRemaining <= 0) {
-          stopTimer();
-          submitQuiz(true);
-        }
-      }, 1000);
-
-      timerEl.textContent = formatTime(secondsRemaining);
     }
 
     function countAnswered() {
@@ -2518,13 +2521,14 @@
 
       if (passed) {
         html +=
-          '<div class="cta-quiz-result__icon cta-quiz-result__icon--pass" aria-hidden="true">âœ“</div>' +
+          '<div class="cta-quiz-result__icon cta-quiz-result__icon--pass" aria-hidden="true">\u2713</div>' +
           "<h2>Congratulations! You passed!</h2>" +
           "<p>Score: " + data.score + "%</p>" +
+          "<p><strong>Complete the course evaluation to receive your certificate.</strong></p>" +
           '<button type="button" class="btn btn-primary" id="cta-continue-evaluation">Continue to Course Evaluation</button>';
       } else {
         html +=
-          '<div class="cta-quiz-result__icon cta-quiz-result__icon--fail" aria-hidden="true">âœ•</div>' +
+          '<div class="cta-quiz-result__icon cta-quiz-result__icon--fail" aria-hidden="true">\u2715</div>' +
           "<h2>You did not pass this time</h2>" +
           "<p>Score: " +
           data.score +
@@ -2587,7 +2591,7 @@
 
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.textContent = autoSubmit ? "Time expired â€” submitting..." : "Submitting...";
+        submitBtn.textContent = autoSubmit ? "Time expired \u2014 submitting\u2026" : "Submitting...";
       }
 
       $.post(ctaAjax.ajaxUrl, {
@@ -2650,14 +2654,13 @@
             attemptId = response.data.attempt_id;
             app.setAttribute("data-attempt-id", String(attemptId));
 
-            if (response.data.time_limit_mins) {
-              timeLimitMins = parseInt(response.data.time_limit_mins, 10) || 0;
-              secondsRemaining = timeLimitMins * 60;
-            }
-
             if (response.data.question_count) {
               questionCount = parseInt(response.data.question_count, 10) || questionCount;
             }
+
+            // Keep quizzes untimed regardless of server payload.
+            timeLimitMins = 0;
+            secondsRemaining = 0;
 
             var questionsWrap = document.getElementById("cta-quiz-questions");
             if (questionsWrap && response.data.html) {
@@ -2691,15 +2694,44 @@
           return;
         }
 
-        var rating = form.querySelector('input[name="rating"]:checked');
-        var contentQuality = form.querySelector('input[name="content_quality"]:checked');
-        var instructorRating = form.querySelector('input[name="instructor_rating"]:checked');
-        var wouldRecommend = form.querySelector('input[name="would_recommend"]:checked');
-        var comments = form.querySelector("#evaluation-comments");
+        var responses = {};
+        var questions = form.querySelectorAll(".cta-evaluation-question");
+        var missing = false;
 
-        if (!rating || !contentQuality || !instructorRating || !wouldRecommend) {
-          window.alert("Please complete all required fields.");
+        questions.forEach(function (questionEl) {
+          var questionId = questionEl.getAttribute("data-question-id");
+          var questionType = questionEl.getAttribute("data-question-type");
+          if (!questionId) {
+            return;
+          }
+
+          if (questionType === "textarea") {
+            var textarea = questionEl.querySelector("textarea");
+            responses[questionId] = textarea ? textarea.value : "";
+            return;
+          }
+
+          var selected = questionEl.querySelector('input[type="radio"]:checked');
+          var requiredInput = questionEl.querySelector("input[required]");
+
+          if (requiredInput && !selected) {
+            missing = true;
+            return;
+          }
+
+          responses[questionId] = selected ? selected.value : "";
+        });
+
+        if (missing) {
+          window.alert("Please complete all required evaluation questions.");
           return;
+        }
+
+        var studentTimezone = "";
+        try {
+          studentTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+        } catch (err) {
+          studentTimezone = "";
         }
 
         evalBtn.disabled = true;
@@ -2709,11 +2741,8 @@
           action: "cta_submit_evaluation",
           nonce: ctaAjax.nonce,
           course_id: courseId,
-          rating: rating.value,
-          content_quality: contentQuality.value,
-          instructor_rating: instructorRating.value,
-          would_recommend: wouldRecommend.value,
-          comments: comments ? comments.value : ""
+          responses: responses,
+          timezone: studentTimezone
         })
           .done(function (response) {
             if (!response.success || !response.data) {
@@ -2731,14 +2760,31 @@
 
             var certPanel = panels.certificate;
             if (certPanel) {
-              var numberEl = certPanel.querySelector("strong");
+              var numberEl = document.getElementById("cta-certificate-number");
               if (numberEl && response.data.certificate_number) {
                 numberEl.textContent = response.data.certificate_number;
               }
 
+              var actions = document.getElementById("cta-certificate-actions");
               var downloadBtn = certPanel.querySelector(".cta-download-cert-btn");
+
+              if (!downloadBtn && actions && response.data.download_url) {
+                downloadBtn = document.createElement("a");
+                downloadBtn.className = "btn btn-primary cta-download-cert-btn";
+                downloadBtn.target = "_blank";
+                downloadBtn.rel = "noopener";
+                downloadBtn.textContent = "Print / Save as PDF";
+                actions.appendChild(downloadBtn);
+              }
+
               if (downloadBtn && response.data.download_url) {
                 downloadBtn.href = response.data.download_url;
+                if (response.data.certificate_id) {
+                  downloadBtn.setAttribute(
+                    "data-certificate-id",
+                    String(response.data.certificate_id)
+                  );
+                }
               }
 
               certPanel.classList.add("cta-quiz-certificate-ready--animate");
@@ -2778,6 +2824,14 @@
         return;
       }
 
+      var licenseVal = ($("#settings-license").val() || "").trim();
+      if (licenseVal && !/[A-Za-z0-9]/.test(licenseVal)) {
+        window.alert(
+          "License number looks invalid. Include at least one letter or number."
+        );
+        return;
+      }
+
       var btn = form.querySelector('[type="submit"]');
       var originalText = btn ? btn.textContent : "";
 
@@ -2790,7 +2844,7 @@
         action: "cta_save_profile",
         nonce: ctaAjax.nonce,
         full_name: $("#settings-name").val() || "",
-        license_number: $("#settings-license").val() || "",
+        license_number: licenseVal,
         license_type: $("#settings-license-type").val() || ""
       })
         .done(function (response) {
@@ -2848,7 +2902,7 @@
       var certId = btn.data("certificate-id");
       var originalHtml = btn.html();
 
-      btn.prop("disabled", true).text("Downloading...");
+      btn.prop("disabled", true).text("Opening...");
 
       $.post(ctaAjax.ajaxUrl, {
         action: "cta_download_cert",
@@ -2865,12 +2919,45 @@
           window.alert(
             response.data && response.data.message
               ? response.data.message
-              : "Unable to download certificate."
+              : "Unable to open certificate."
           );
           btn.prop("disabled", false).html(originalHtml);
         })
         .fail(function () {
           window.alert("Something went wrong. Please try again.");
+          btn.prop("disabled", false).html(originalHtml);
+        });
+    });
+
+    $(document).on("click", ".cta-download-resource", function (e) {
+      e.preventDefault();
+
+      var btn = $(this);
+      var resourceId = btn.data("resource-id");
+      var originalHtml = btn.html();
+
+      btn.prop("disabled", true);
+
+      $.post(ctaAjax.ajaxUrl, {
+        action: "cta_download_resource",
+        nonce: ctaAjax.nonce,
+        resource_id: resourceId
+      })
+        .done(function (response) {
+          if (response.success && response.data && response.data.download_url) {
+            window.open(response.data.download_url, "_blank");
+          } else {
+            window.alert(
+              response.data && response.data.message
+                ? response.data.message
+                : "Unable to download file."
+            );
+          }
+        })
+        .fail(function () {
+          window.alert("Something went wrong. Please try again.");
+        })
+        .always(function () {
           btn.prop("disabled", false).html(originalHtml);
         });
     });
@@ -2932,7 +3019,8 @@
           category: category,
           search: search,
           sort: sort,
-          limit: limit
+          limit: limit,
+          product_type: $(".cta-course-catalog").attr("data-product-type") || "ce"
         },
         success: function (response) {
           if (response.success) {

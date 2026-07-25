@@ -4,7 +4,8 @@
  *
  * @package CTA_LMS
  *
- * @var array  $courses         Course objects from the database.
+ * @var array  $courses         CE course objects (default grid).
+ * @var array  $exam_courses    Exam preparation programs (separate section).
  * @var array  $categories      Unique category names.
  * @var string $active_category Active category filter.
  * @var string $search          Current search term.
@@ -17,18 +18,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 $course_count = is_array( $courses ) ? count( $courses ) : 0;
+$exam_courses = isset( $exam_courses ) && is_array( $exam_courses ) ? $exam_courses : array();
 $grid_class   = 'cta-courses-grid cta-courses-grid--cols-' . absint( $columns );
 ?>
 <div class="cta-plugin-wrapper">
-<div class="cta-lms cta-course-catalog" data-limit="<?php echo esc_attr( (int) $limit ); ?>">
+<div class="cta-lms cta-course-catalog" data-limit="<?php echo esc_attr( (int) $limit ); ?>" data-product-type="ce">
 	<div class="cta-catalog-inner">
-	<?php if ( empty( $courses ) ) : ?>
+	<?php if ( empty( $courses ) && empty( $exam_courses ) ) : ?>
 		<div class="cta-empty-state">
 			<div class="cta-empty-state__icon" aria-hidden="true">&#128218;</div>
 			<h3><?php echo esc_html__( 'No courses available yet', 'cta-lms' ); ?></h3>
 			<p><?php echo esc_html__( 'Check back soon — courses are being added.', 'cta-lms' ); ?></p>
 		</div>
 	<?php else : ?>
+		<?php if ( ! empty( $courses ) ) : ?>
 		<div class="cta-filter-bar">
 			<div class="cta-filter-bar__row">
 				<input
@@ -50,6 +53,7 @@ $grid_class   = 'cta-courses-grid cta-courses-grid--cols-' . absint( $columns );
 					</button>
 
 					<?php foreach ( $categories as $cat ) : ?>
+						<?php if ( 'Exam Preparation' === $cat ) { continue; } ?>
 						<button
 							type="button"
 							class="cta-pill <?php echo ( $active_category === $cat ) ? 'cta-pill--active' : ''; ?>"
@@ -89,6 +93,21 @@ $grid_class   = 'cta-courses-grid cta-courses-grid--cols-' . absint( $columns );
 				<?php include CTA_PLUGIN_DIR . 'templates/partials/course-card.php'; ?>
 			<?php endforeach; ?>
 		</div>
+		<?php endif; ?>
+
+		<?php if ( ! empty( $exam_courses ) ) : ?>
+			<section class="cta-exam-prep-catalog" style="margin-top:3rem;">
+				<header class="cta-exam-prep-catalog__header" style="margin-bottom:1.5rem;">
+					<h2><?php echo esc_html__( 'Exam Preparation Programs', 'cta-lms' ); ?></h2>
+					<p><?php echo esc_html__( 'Non-CE study programs with timed access to instructional content, workbooks, practice tests, and mock exams.', 'cta-lms' ); ?></p>
+				</header>
+				<div class="<?php echo esc_attr( $grid_class ); ?>">
+					<?php foreach ( $exam_courses as $course ) : ?>
+						<?php include CTA_PLUGIN_DIR . 'templates/partials/course-card.php'; ?>
+					<?php endforeach; ?>
+				</div>
+			</section>
+		<?php endif; ?>
 	<?php endif; ?>
 	</div>
 </div>

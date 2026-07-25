@@ -95,6 +95,473 @@ class CTA_Stripe {
 	}
 
 	/**
+	 * Resolve Stripe customer ID for a WordPress user (meta, then payments table).
+	 *
+	 * @param int $user_id User ID.
+	 * @return string
+	 */
+	public function resolve_stripe_customer_id( $user_id ) {
+		$user_id = absint( $user_id );
+
+		if ( ! $user_id ) {
+			return '';
+		}
+
+		$customer_id = (string) get_user_meta( $user_id, 'cta_stripe_customer_id', true );
+
+		if ( $customer_id ) {
+			return $customer_id;
+		}
+
+		global $wpdb;
+
+		$customer_id = (string) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT stripe_customer_id FROM {$wpdb->prefix}cta_payments
+				WHERE user_id = %d
+				AND stripe_customer_id IS NOT NULL
+				AND stripe_customer_id != ''
+				ORDER BY created_at DESC
+				LIMIT 1",
+				$user_id
+			)
+		);
+
+		if ( $customer_id ) {
+			update_user_meta( $user_id, 'cta_stripe_customer_id', $customer_id );
+		}
+
+		return $customer_id;
+	}
+
+	/**
+	 * Feature flags for the Stripe Customer Billing Portal.
+	 *
+	 * Enables: invoice history, payment method update, cancel at period end
+	 * (student keeps access until paid period ends; portal also offers reactivate
+	 * while cancel_at_period_end is pending).
+	 *
+	 * @return array<string,mixed>
+	 */
+	private function get_billing_portal_features() {
+		return array(
+			'customer_update'       => array(
+				'enabled'         => true,
+				'allowed_updates' => array( 'email', 'address', 'phone', 'tax_id' ),
+			),
+			'invoice_history'       => array(
+				'enabled' => true,
+			),
+			'payment_method_update' => array(
+				'enabled' => true,
+			),
+			'subscription_cancel'   => array(
+				'enabled'             => true,
+				'mode'                => 'at_period_end',
+				'proration_behavior'  => 'none',
+				'cancellation_reason' => array(
+					'enabled' => true,
+					'options' => array(
+						'too_expensive',
+						'missing_features',
+						'switched_service',
+						'unused',
+						'other',
+					),
+				),
+			),
+			'subscription_pause'    => array(
+				'enabled' => false,
+			),
+			'subscription_update'   => array(
+				'enabled' => false,
+			),
+		);
+	}
+
+	/**
+	 * Ensure a Stripe Customer Portal configuration exists with self-service features.
+	 *
+	 * Creates or updates a dedicated CTA portal configuration (not a random
+	 * Dashboard default that may lack cancel / invoice features).
+	 *
+	 * @return string|WP_Error Configuration ID or error.
+	 */
+	public function ensure_billing_portal_configuration() {
+		if ( ! $this->is_configured() ) {
+			return new WP_Error(
+				'stripe_not_configured',
+				__( 'Stripe is not configured.', 'cta-lms' )
+			);
+		}
+
+		if ( ! class_exists( '\Stripe\BillingPortal\Configuration' ) ) {
+			return '';
+		}
+
+		$features = $this->get_billing_portal_features();
+		$existing = (string) get_option( 'cta_stripe_portal_configuration_id', '' );
+
+		if ( $existing ) {
+			try {
+				$config = \Stripe\BillingPortal\Configuration::update(
+					$existing,
+					array(
+						'business_profile' => array(
+							'headline' => __( 'Manage your CTA subscription', 'cta-lms' ),
+						),
+						'features'         => $features,
+					)
+				);
+
+				if ( ! empty( $config->id ) ) {
+					update_option( 'cta_stripe_portal_configuration_id', (string) $config->id );
+					return (string) $config->id;
+				}
+			} catch ( Exception $e ) {
+				// Create a fresh configuration below.
+			}
+		}
+
+		try {
+			$config = \Stripe\BillingPortal\Configuration::create(
+				array(
+					'business_profile' => array(
+						'headline' => __( 'Manage your CTA subscription', 'cta-lms' ),
+					),
+					'features'         => $features,
+				)
+			);
+
+			if ( empty( $config->id ) ) {
+				return new WP_Error(
+					'portal_config_failed',
+					__( 'Unable to create Stripe Customer Portal configuration.', 'cta-lms' )
+				);
+			}
+
+			update_option( 'cta_stripe_portal_configuration_id', (string) $config->id );
+
+			return (string) $config->id;
+		} catch ( Exception $e ) {
+			return new WP_Error(
+				'portal_config_failed',
+				sprintf(
+					/* translators: %s: Stripe error message */
+					__( 'Unable to configure Stripe Customer Portal: %s', 'cta-lms' ),
+					$e->getMessage()
+				)
+			);
+		}
+	}
+
+	/**
+	 * Create a Stripe Customer Billing Portal session URL for a user.
+	 *
+	 * @param int    $user_id    User ID.
+	 * @param string $return_url URL to return to after portal.
+	 * @return string|WP_Error Portal URL or error.
+	 */
+	public function create_billing_portal_session( $user_id, $return_url = '' ) {
+		$user_id = absint( $user_id );
+
+		if ( ! $user_id ) {
+			return new WP_Error( 'invalid_user', __( 'Invalid user.', 'cta-lms' ) );
+		}
+
+		if ( self::is_payments_bypass_enabled() ) {
+			return new WP_Error(
+				'payments_bypass',
+				__( 'Stripe billing portal is unavailable while payment bypass mode is enabled. Turn off Testing Mode in CTA LMS settings.', 'cta-lms' )
+			);
+		}
+
+		if ( ! $this->is_configured() ) {
+			return new WP_Error(
+				'stripe_not_configured',
+				__( 'Stripe is not configured. Add your Stripe API keys in CTA LMS settings.', 'cta-lms' )
+			);
+		}
+
+		if ( ! class_exists( '\Stripe\BillingPortal\Session' ) ) {
+			return new WP_Error(
+				'stripe_sdk',
+				__( 'Stripe SDK is missing Billing Portal support. Run composer install.', 'cta-lms' )
+			);
+		}
+
+		$customer_id = $this->resolve_stripe_customer_id( $user_id );
+
+		if ( ! $customer_id ) {
+			return new WP_Error(
+				'no_customer',
+				__( 'No Stripe customer is linked to this account yet. Complete a subscription purchase first.', 'cta-lms' )
+			);
+		}
+
+		if ( '' === $return_url ) {
+			$return_url = home_url( '/' );
+		}
+
+		$params = array(
+			'customer'   => $customer_id,
+			'return_url' => esc_url_raw( $return_url ),
+		);
+
+		$config_id = $this->ensure_billing_portal_configuration();
+
+		if ( is_wp_error( $config_id ) ) {
+			return $config_id;
+		}
+
+		if ( is_string( $config_id ) && '' !== $config_id ) {
+			$params['configuration'] = $config_id;
+		}
+
+		try {
+			$session = \Stripe\BillingPortal\Session::create( $params );
+
+			if ( empty( $session->url ) ) {
+				return new WP_Error(
+					'portal_failed',
+					__( 'Stripe did not return a billing portal URL.', 'cta-lms' )
+				);
+			}
+
+			return (string) $session->url;
+		} catch ( Exception $e ) {
+			return new WP_Error(
+				'portal_failed',
+				sprintf(
+					/* translators: %s: Stripe error message */
+					__( 'Unable to open billing portal: %s', 'cta-lms' ),
+					$e->getMessage()
+				)
+			);
+		}
+	}
+
+	/**
+	 * Resolve the Stripe subscription ID stored for a user.
+	 *
+	 * @param int $user_id User ID.
+	 * @return string
+	 */
+	public function resolve_supervision_subscription_id( $user_id ) {
+		$user_id = absint( $user_id );
+
+		if ( ! $user_id ) {
+			return '';
+		}
+
+		$subscription_id = (string) get_user_meta( $user_id, 'cta_supervision_subscription_id', true );
+
+		if ( $subscription_id && 0 !== strpos( $subscription_id, 'bypass-' ) ) {
+			return $subscription_id;
+		}
+
+		$bundle_id = (string) get_user_meta( $user_id, 'cta_bundle_subscription_id', true );
+
+		if ( $bundle_id && 0 !== strpos( $bundle_id, 'bypass-' ) ) {
+			return $bundle_id;
+		}
+
+		return '';
+	}
+
+	/**
+	 * Pull the latest Stripe subscription for a user and sync local meta.
+	 *
+	 * @param int $user_id User ID.
+	 * @return true|WP_Error
+	 */
+	public function sync_user_subscription_from_stripe( $user_id ) {
+		$user_id = absint( $user_id );
+
+		if ( ! $user_id ) {
+			return new WP_Error( 'invalid_user', __( 'Invalid user.', 'cta-lms' ) );
+		}
+
+		if ( ! $this->is_configured() || ! class_exists( '\Stripe\Subscription' ) ) {
+			return new WP_Error( 'stripe_not_configured', __( 'Stripe is not configured.', 'cta-lms' ) );
+		}
+
+		$subscription_id = $this->resolve_supervision_subscription_id( $user_id );
+
+		if ( ! $subscription_id ) {
+			return new WP_Error(
+				'no_subscription',
+				__( 'No Stripe subscription is linked to this account.', 'cta-lms' )
+			);
+		}
+
+		try {
+			$subscription = \Stripe\Subscription::retrieve( $subscription_id );
+			$this->sync_subscription_status_from_stripe( $subscription );
+			return true;
+		} catch ( Exception $e ) {
+			return new WP_Error(
+				'sync_failed',
+				sprintf(
+					/* translators: %s: Stripe error message */
+					__( 'Unable to sync subscription from Stripe: %s', 'cta-lms' ),
+					$e->getMessage()
+				)
+			);
+		}
+	}
+
+	/**
+	 * Admin: cancel a student's Stripe subscription.
+	 *
+	 * @param int    $user_id User ID.
+	 * @param string $mode    at_period_end|immediately.
+	 * @return true|WP_Error
+	 */
+	public function admin_cancel_subscription( $user_id, $mode = 'at_period_end' ) {
+		$user_id = absint( $user_id );
+		$mode    = ( 'immediately' === $mode ) ? 'immediately' : 'at_period_end';
+
+		if ( ! $user_id ) {
+			return new WP_Error( 'invalid_user', __( 'Invalid user.', 'cta-lms' ) );
+		}
+
+		if ( ! $this->is_configured() || ! class_exists( '\Stripe\Subscription' ) ) {
+			return new WP_Error( 'stripe_not_configured', __( 'Stripe is not configured.', 'cta-lms' ) );
+		}
+
+		$subscription_id = $this->resolve_supervision_subscription_id( $user_id );
+
+		if ( ! $subscription_id ) {
+			// Local-only cancellation (agency / bypass / already detached from Stripe).
+			update_user_meta( $user_id, 'cta_supervision_status', 'cancelled' );
+			update_user_meta( $user_id, 'cta_supervision_cancel_at_period_end', '0' );
+			return true;
+		}
+
+		try {
+			if ( 'immediately' === $mode ) {
+				$subscription = \Stripe\Subscription::retrieve( $subscription_id );
+				$subscription->cancel();
+				$this->handle_subscription_cancelled( $subscription );
+			} else {
+				$subscription = \Stripe\Subscription::update(
+					$subscription_id,
+					array( 'cancel_at_period_end' => true )
+				);
+				$this->sync_subscription_status_from_stripe( $subscription );
+			}
+
+			return true;
+		} catch ( Exception $e ) {
+			return new WP_Error(
+				'cancel_failed',
+				sprintf(
+					/* translators: %s: Stripe error message */
+					__( 'Unable to cancel subscription in Stripe: %s', 'cta-lms' ),
+					$e->getMessage()
+				)
+			);
+		}
+	}
+
+	/**
+	 * Admin: clear cancel_at_period_end so renewal continues.
+	 *
+	 * @param int $user_id User ID.
+	 * @return true|WP_Error
+	 */
+	public function admin_reactivate_subscription( $user_id ) {
+		$user_id = absint( $user_id );
+
+		if ( ! $user_id ) {
+			return new WP_Error( 'invalid_user', __( 'Invalid user.', 'cta-lms' ) );
+		}
+
+		if ( ! $this->is_configured() || ! class_exists( '\Stripe\Subscription' ) ) {
+			return new WP_Error( 'stripe_not_configured', __( 'Stripe is not configured.', 'cta-lms' ) );
+		}
+
+		$subscription_id = $this->resolve_supervision_subscription_id( $user_id );
+
+		if ( ! $subscription_id ) {
+			return new WP_Error(
+				'no_subscription',
+				__( 'No Stripe subscription is linked to this account.', 'cta-lms' )
+			);
+		}
+
+		try {
+			$subscription = \Stripe\Subscription::update(
+				$subscription_id,
+				array( 'cancel_at_period_end' => false )
+			);
+			$this->sync_subscription_status_from_stripe( $subscription );
+			return true;
+		} catch ( Exception $e ) {
+			return new WP_Error(
+				'reactivate_failed',
+				sprintf(
+					/* translators: %s: Stripe error message */
+					__( 'Unable to reactivate subscription in Stripe: %s', 'cta-lms' ),
+					$e->getMessage()
+				)
+			);
+		}
+	}
+
+	/**
+	 * Sync local subscription meta from a Stripe subscription object.
+	 *
+	 * Keeps access active through the paid period when cancel_at_period_end is set.
+	 *
+	 * @param object $subscription Stripe subscription.
+	 */
+	public function sync_subscription_status_from_stripe( $subscription ) {
+		$subscription_id = sanitize_text_field( $subscription->id ?? '' );
+
+		if ( ! $subscription_id ) {
+			return;
+		}
+
+		$user_id = $this->get_user_id_by_subscription( $subscription_id );
+
+		if ( ! $user_id ) {
+			return;
+		}
+
+		$status             = sanitize_text_field( $subscription->status ?? '' );
+		$cancel_at_period_end = ! empty( $subscription->cancel_at_period_end );
+		$period_end         = ! empty( $subscription->current_period_end ) ? (int) $subscription->current_period_end : 0;
+
+		if ( $period_end > 0 ) {
+			update_user_meta( $user_id, 'cta_supervision_period_end', $period_end );
+		}
+
+		update_user_meta( $user_id, 'cta_supervision_cancel_at_period_end', $cancel_at_period_end ? '1' : '0' );
+
+		if ( in_array( $status, array( 'active', 'trialing' ), true ) ) {
+			$current_local = (string) get_user_meta( $user_id, 'cta_supervision_status', true );
+
+			// Do not override Associate Pending Approval with Active from Stripe alone.
+			if ( 'pending_approval' !== $current_local ) {
+				update_user_meta( $user_id, 'cta_supervision_status', 'active' );
+			}
+			return;
+		}
+
+		if ( in_array( $status, array( 'past_due', 'unpaid' ), true ) ) {
+			update_user_meta( $user_id, 'cta_supervision_status', 'past_due' );
+			return;
+		}
+
+		if ( in_array( $status, array( 'canceled', 'cancelled', 'incomplete_expired' ), true ) ) {
+			update_user_meta( $user_id, 'cta_supervision_status', 'cancelled' );
+			update_user_meta( $user_id, 'cta_supervision_cancel_at_period_end', '0' );
+		}
+	}
+
+	/**
 	 * Get publishable key for frontend.
 	 *
 	 * @return string
@@ -109,7 +576,48 @@ class CTA_Stripe {
 	 * @return float
 	 */
 	public function get_supervision_monthly_price() {
-		return (float) get_option( 'cta_supervision_monthly_price', 260.0 );
+		return CTA_Supervision_Plans::get_group_price();
+	}
+
+	/**
+	 * Monthly price for a supervision plan slug.
+	 *
+	 * @param string $plan Plan slug (group|hybrid).
+	 * @return float
+	 */
+	public function get_supervision_plan_price( $plan = 'group' ) {
+		return CTA_Supervision_Plans::get_price( $plan );
+	}
+
+	/**
+	 * Ensure All-Access subscription bundles use the canonical name and price.
+	 *
+	 * @param object $bundle Bundle row.
+	 * @return object
+	 */
+	private function normalize_supervision_bundle( $bundle ) {
+		if ( ! $bundle || 'subscription' !== (string) ( $bundle->plan_type ?? '' ) ) {
+			return $bundle;
+		}
+
+		$slug = (string) ( $bundle->slug ?? '' );
+		$name = (string) ( $bundle->name ?? '' );
+
+		if (
+			! in_array( $slug, array( CTA_Supervision_Plans::ALL_ACCESS_BUNDLE_SLUG, CTA_Supervision_Plans::LEGACY_HYBRID_BUNDLE_SLUG ), true )
+			&& false === stripos( $name, 'Hybrid' )
+			&& false === stripos( $name, 'All-Access Program' )
+			&& false === stripos( $name, 'Supervision + CE' )
+		) {
+			return $bundle;
+		}
+
+		$bundle->name        = CTA_Supervision_Plans::get_name( CTA_Supervision_Plans::HYBRID_SLUG );
+		$bundle->price       = CTA_Supervision_Plans::get_price( CTA_Supervision_Plans::HYBRID_SLUG );
+		$bundle->description = CTA_Supervision_Plans::get_plan( CTA_Supervision_Plans::HYBRID_SLUG )['description'];
+		$bundle->slug        = CTA_Supervision_Plans::ALL_ACCESS_BUNDLE_SLUG;
+
+		return $bundle;
 	}
 
 	/**
@@ -338,7 +846,7 @@ class CTA_Stripe {
 		global $wpdb;
 
 		$user_id = get_current_user_id();
-		$price   = $this->get_supervision_monthly_price();
+		$price   = CTA_Supervision_Plans::get_group_price();
 
 		if ( $price <= 0 ) {
 			wp_send_json_error(
@@ -375,14 +883,15 @@ class CTA_Stripe {
 			$supervision_page = home_url( '/' );
 		}
 
+		$group_plan   = CTA_Supervision_Plans::get_plan( CTA_Supervision_Plans::GROUP_SLUG );
 		$product_name = (string) get_option( 'cta_supervision_product_name', '' );
 		if ( '' === $product_name ) {
-			$product_name = __( 'Clinical Supervision — Monthly', 'cta-lms' );
+			$product_name = $group_plan['name'];
 		}
 
 		$product_desc = (string) get_option( 'cta_supervision_product_description', '' );
 		if ( '' === $product_desc ) {
-			$product_desc = __( 'Monthly group supervision subscription', 'cta-lms' );
+			$product_desc = $group_plan['description'];
 		}
 
 		$success_url = $this->build_checkout_success_url(
@@ -395,35 +904,42 @@ class CTA_Stripe {
 		$cancel_url = add_query_arg( 'subscription', 'cancelled', $supervision_page );
 
 		try {
-			$session = \Stripe\Checkout\Session::create(
-				array(
-					'payment_method_types' => array( 'card' ),
-					'mode'                 => 'subscription',
-					'customer_email'       => wp_get_current_user()->user_email,
-					'line_items'           => array(
-						array(
-							'price_data' => array(
-								'currency'     => 'usd',
-								'unit_amount'  => (int) round( $price * 100 ),
-								'recurring'    => array(
-									'interval' => 'month',
-								),
-								'product_data' => array(
-									'name'        => $product_name,
-									'description' => $product_desc,
-								),
+			$session_args = array(
+				'payment_method_types' => array( 'card' ),
+				'mode'                 => 'subscription',
+				'line_items'           => array(
+					array(
+						'price_data' => array(
+							'currency'     => 'usd',
+							'unit_amount'  => (int) round( $price * 100 ),
+							'recurring'    => array(
+								'interval' => 'month',
 							),
-							'quantity' => 1,
+							'product_data' => array(
+								'name'        => $product_name,
+								'description' => $product_desc,
+							),
 						),
+						'quantity' => 1,
 					),
-					'metadata'    => array(
-						'user_id'      => (string) $user_id,
-						'product_type' => 'supervision',
-					),
-					'success_url' => $success_url,
-					'cancel_url'  => $cancel_url,
-				)
+				),
+				'metadata'    => array(
+					'user_id'      => (string) $user_id,
+					'product_type' => 'supervision',
+				),
+				'success_url' => $success_url,
+				'cancel_url'  => $cancel_url,
 			);
+
+			$existing_customer = $this->resolve_stripe_customer_id( $user_id );
+
+			if ( $existing_customer ) {
+				$session_args['customer'] = $existing_customer;
+			} else {
+				$session_args['customer_email'] = wp_get_current_user()->user_email;
+			}
+
+			$session = \Stripe\Checkout\Session::create( $session_args );
 
 			$wpdb->insert(
 				$wpdb->prefix . 'cta_payments',
@@ -527,12 +1043,20 @@ class CTA_Stripe {
 				$this->handle_checkout_completed( $event->data->object );
 				break;
 
+			case 'customer.subscription.updated':
+				$this->sync_subscription_status_from_stripe( $event->data->object );
+				break;
+
 			case 'customer.subscription.deleted':
 				$this->handle_subscription_cancelled( $event->data->object );
 				break;
 
 			case 'invoice.payment_failed':
 				$this->handle_subscription_payment_failed( $event->data->object );
+				break;
+
+			case 'invoice.paid':
+				$this->handle_subscription_invoice_paid( $event->data->object );
 				break;
 		}
 
@@ -569,6 +1093,11 @@ class CTA_Stripe {
 				$this->create_enrollment( $user_id, $course_id, sanitize_text_field( $session->id ) );
 
 				$course = CTA_Database::get_course( $course_id );
+				if ( $course && class_exists( 'CTA_Exam_Access' ) && CTA_Exam_Access::is_exam_prep( $course ) ) {
+					$months = ! empty( $course->access_period_months ) ? (int) $course->access_period_months : 6;
+					CTA_Exam_Access::grant_access( $user_id, $course_id, $months );
+				}
+
 				if ( $course ) {
 					CTA_Emails::send(
 						'payment_receipt',
@@ -613,20 +1142,26 @@ class CTA_Stripe {
 				);
 
 				$subscription_id = sanitize_text_field( $session->subscription ?? '' );
+				$customer_id     = sanitize_text_field( $session->customer ?? '' );
+
+				if ( $customer_id ) {
+					update_user_meta( $user_id, 'cta_stripe_customer_id', $customer_id );
+				}
 
 				if ( $subscription_id ) {
 					$wpdb->update(
 						$wpdb->prefix . 'cta_payments',
 						array(
-							'stripe_payment_id' => $subscription_id,
-							'status'            => 'completed',
+							'stripe_payment_id'  => $subscription_id,
+							'stripe_customer_id' => $customer_id ? $customer_id : null,
+							'status'             => 'completed',
 						),
 						array(
 							'user_id'      => $user_id,
 							'product_id'   => $bundle_id,
 							'product_type' => 'bundle',
 						),
-						array( '%s', '%s' ),
+						array( '%s', '%s', '%s' ),
 						array( '%d', '%d', '%s' )
 					);
 
@@ -642,6 +1177,8 @@ class CTA_Stripe {
 	 * @param object $bundle Bundle row from database.
 	 */
 	public function create_bundle_checkout_session( $bundle ) {
+		$bundle = $this->normalize_supervision_bundle( $bundle );
+
 		if ( ! $this->is_stripe_configured() ) {
 			if ( ! empty( $_POST['demo_confirm'] ) ) {
 				$this->bypass_bundle_purchase( $bundle );
@@ -692,7 +1229,6 @@ class CTA_Stripe {
 			$session_args = array(
 				'payment_method_types' => array( 'card' ),
 				'mode'                 => $mode,
-				'customer_email'       => $user->user_email,
 				'metadata'             => array(
 					'user_id'      => (string) $user_id,
 					'bundle_id'    => (string) $bundle->id,
@@ -702,6 +1238,14 @@ class CTA_Stripe {
 				'success_url'          => $success_url,
 				'cancel_url'           => $cancel_url,
 			);
+
+			$existing_customer = $this->resolve_stripe_customer_id( $user_id );
+
+			if ( $existing_customer ) {
+				$session_args['customer'] = $existing_customer;
+			} else {
+				$session_args['customer_email'] = $user->user_email;
+			}
 
 			if ( 'monthly' === $billing && ! empty( $bundle->stripe_price_id ) ) {
 				$session_args['line_items'] = array(
@@ -811,9 +1355,17 @@ class CTA_Stripe {
 			$included_ids = array();
 		}
 
+		// CE memberships/bundles must never silently include exam prep products.
+		if ( class_exists( 'CTA_Exam_Access' ) ) {
+			$included_ids = CTA_Exam_Access::filter_ce_only_course_ids( $included_ids );
+		}
+
 		if ( 'annual' === $bundle->plan_type || 'yearly' === $billing || 'subscription' === $bundle->plan_type ) {
 			$all_courses = CTA_Database::get_all_courses( 'published' );
 			foreach ( $all_courses as $course ) {
+				if ( class_exists( 'CTA_Exam_Access' ) && CTA_Exam_Access::is_exam_prep( $course ) ) {
+					continue;
+				}
 				$this->enroll_user_in_course( $user_id, (int) $course->id, $payment_id );
 			}
 		} else {
@@ -823,16 +1375,21 @@ class CTA_Stripe {
 		}
 
 		if ( 'subscription' === $bundle->plan_type ) {
+			$all_access_name  = CTA_Supervision_Plans::get_name( CTA_Supervision_Plans::HYBRID_SLUG );
+			$all_access_price = (float) $bundle->price > 0
+				? (float) $bundle->price
+				: CTA_Supervision_Plans::get_price( CTA_Supervision_Plans::HYBRID_SLUG );
+
 			$wpdb->update(
 				$wpdb->prefix . 'cta_payments',
 				array(
-					'plan_name'    => $bundle->name,
+					'plan_name'    => $all_access_name,
 					'plan_details' => wp_json_encode(
 						array(
-							'plan_slug'    => 'hybrid',
+							'plan_slug'    => CTA_Supervision_Plans::HYBRID_SLUG,
 							'bundle_id'    => (int) $bundle->id,
 							'billing'      => sanitize_text_field( $bundle->billing_cycle ),
-							'price'        => (float) $bundle->price,
+							'price'        => $all_access_price,
 							'product_type' => 'bundle',
 							'description'  => wp_strip_all_tags( (string) $bundle->description ),
 						)
@@ -852,14 +1409,14 @@ class CTA_Stripe {
 				array(
 					'subscription_id'    => (string) get_user_meta( $user_id, 'cta_bundle_subscription_id', true ),
 					'customer_id'        => (string) get_user_meta( $user_id, 'cta_stripe_customer_id', true ),
-					'amount'             => (float) $bundle->price,
-					'plan_slug'          => 'hybrid',
-					'plan_name'          => $bundle->name,
+					'amount'             => $all_access_price,
+					'plan_slug'          => CTA_Supervision_Plans::HYBRID_SLUG,
+					'plan_name'          => $all_access_name,
 					'plan_details'       => array(
-						'plan_slug'    => 'hybrid',
+						'plan_slug'    => CTA_Supervision_Plans::HYBRID_SLUG,
 						'bundle_id'    => (int) $bundle->id,
 						'billing'      => sanitize_text_field( $bundle->billing_cycle ),
-						'price'        => (float) $bundle->price,
+						'price'        => $all_access_price,
 						'product_type' => 'bundle',
 						'description'  => wp_strip_all_tags( (string) $bundle->description ),
 					),
@@ -1068,19 +1625,26 @@ class CTA_Stripe {
 		);
 
 		$plan_slug = sanitize_key( $args['plan_slug'] );
-		if ( ! in_array( $plan_slug, array( 'group', 'hybrid' ), true ) ) {
-			$plan_slug = 'group';
+		if ( ! in_array( $plan_slug, array( CTA_Supervision_Plans::GROUP_SLUG, CTA_Supervision_Plans::HYBRID_SLUG ), true ) ) {
+			$plan_slug = CTA_Supervision_Plans::GROUP_SLUG;
 		}
+		$plan_slug = CTA_Supervision_Plans::normalize_slug( $plan_slug );
 
 		$plan_name = sanitize_text_field( $args['plan_name'] );
 		if ( '' === $plan_name ) {
-			$plan_name = (string) get_option( 'cta_supervision_product_name', '' );
-		}
-		if ( '' === $plan_name ) {
-			$plan_name = __( 'Group Supervision', 'cta-lms' );
+			$plan_name = CTA_Supervision_Plans::get_name( $plan_slug );
+		} else {
+			$plan_name = CTA_Supervision_Plans::canonicalize_name( $plan_name );
+			// Keep slug aligned with the canonicalized name.
+			if ( CTA_Supervision_Plans::name_indicates_all_access( $plan_name ) ) {
+				$plan_slug = CTA_Supervision_Plans::HYBRID_SLUG;
+			}
 		}
 
 		$amount = (float) $args['amount'];
+		if ( $amount <= 0 ) {
+			$amount = CTA_Supervision_Plans::get_price( $plan_slug );
+		}
 
 		$plan_details = is_array( $args['plan_details'] ) ? $args['plan_details'] : array();
 		$plan_details = wp_parse_args(
@@ -1240,6 +1804,7 @@ class CTA_Stripe {
 	 * @param object $bundle Bundle row.
 	 */
 	public function bypass_bundle_purchase( $bundle ) {
+		$bundle = $this->normalize_supervision_bundle( $bundle );
 		$user_id    = get_current_user_id();
 		$payment_id = 'bypass-bundle-' . time();
 		$billing    = sanitize_text_field( $bundle->billing_cycle );
@@ -1323,6 +1888,8 @@ class CTA_Stripe {
 			)
 		);
 
+		$created_or_restored = false;
+
 		if ( $existing ) {
 			if ( 'active' === $existing->status || 'completed' === $existing->status ) {
 				if ( $payment_id ) {
@@ -1334,61 +1901,72 @@ class CTA_Stripe {
 						array( '%d' )
 					);
 				}
-				return true;
-			}
+				$created_or_restored = true;
+			} else {
+				$updated = $wpdb->update(
+					$table,
+					array(
+						'status'     => 'active',
+						'progress'   => 0,
+						'payment_id' => sanitize_text_field( $payment_id ),
+					),
+					array( 'id' => (int) $existing->id ),
+					array( '%s', '%d', '%s' ),
+					array( '%d' )
+				);
 
-			$updated = $wpdb->update(
+				$created_or_restored = false !== $updated;
+			}
+		} else {
+			$inserted = $wpdb->insert(
 				$table,
 				array(
+					'user_id'    => $user_id,
+					'course_id'  => $course_id,
 					'status'     => 'active',
 					'progress'   => 0,
 					'payment_id' => sanitize_text_field( $payment_id ),
 				),
-				array( 'id' => (int) $existing->id ),
-				array( '%s', '%d', '%s' ),
-				array( '%d' )
+				array( '%d', '%d', '%s', '%d', '%s' )
 			);
 
-			return false !== $updated;
-		}
+			if ( ! $inserted ) {
+				// Unique-key race: another request may have inserted first.
+				$retry = $wpdb->get_var(
+					$wpdb->prepare(
+						"SELECT id FROM {$table}
+						WHERE user_id = %d AND course_id = %d
+						LIMIT 1",
+						$user_id,
+						$course_id
+					)
+				);
 
-		$inserted = $wpdb->insert(
-			$table,
-			array(
-				'user_id'    => $user_id,
-				'course_id'  => $course_id,
-				'status'     => 'active',
-				'progress'   => 0,
-				'payment_id' => sanitize_text_field( $payment_id ),
-			),
-			array( '%d', '%d', '%s', '%d', '%s' )
-		);
+				$created_or_restored = (bool) $retry;
+			} else {
+				$created_or_restored = true;
 
-		if ( ! $inserted ) {
-			// Unique-key race: another request may have inserted first.
-			$retry = $wpdb->get_var(
-				$wpdb->prepare(
-					"SELECT id FROM {$table}
-					WHERE user_id = %d AND course_id = %d
-					LIMIT 1",
+				CTA_Emails::send(
+					'enrollment_confirmation',
 					$user_id,
-					$course_id
-				)
-			);
-
-			return (bool) $retry;
+					array(
+						'course_id'  => $course_id,
+						'payment_id' => $payment_id,
+					)
+				);
+			}
 		}
 
-		CTA_Emails::send(
-			'enrollment_confirmation',
-			$user_id,
-			array(
-				'course_id'  => $course_id,
-				'payment_id' => $payment_id,
-			)
-		);
+		// Exam prep: always ensure timed access row exists (progress stays in enrollments).
+		if ( $created_or_restored && class_exists( 'CTA_Exam_Access' ) ) {
+			$course = CTA_Database::get_course( $course_id );
+			if ( $course && CTA_Exam_Access::is_exam_prep( $course ) ) {
+				$months = ! empty( $course->access_period_months ) ? (int) $course->access_period_months : 6;
+				CTA_Exam_Access::grant_access( $user_id, $course_id, $months );
+			}
+		}
 
-		return true;
+		return $created_or_restored;
 	}
 
 	/**
@@ -1486,7 +2064,32 @@ class CTA_Stripe {
 
 		if ( $user_id ) {
 			update_user_meta( $user_id, 'cta_supervision_status', 'cancelled' );
+			update_user_meta( $user_id, 'cta_supervision_cancel_at_period_end', '0' );
 			CTA_Emails::send( 'supervision_locked', $user_id );
+		}
+	}
+
+	/**
+	 * Restore access after a successful subscription invoice payment.
+	 *
+	 * @param object $invoice Stripe invoice object.
+	 */
+	private function handle_subscription_invoice_paid( $invoice ) {
+		$subscription_id = sanitize_text_field( $invoice->subscription ?? '' );
+
+		if ( ! $subscription_id || ! class_exists( '\Stripe\Subscription' ) ) {
+			return;
+		}
+
+		try {
+			$subscription = \Stripe\Subscription::retrieve( $subscription_id );
+			$this->sync_subscription_status_from_stripe( $subscription );
+		} catch ( Exception $e ) {
+			$user_id = $this->get_user_id_by_subscription( $subscription_id );
+			if ( $user_id ) {
+				update_user_meta( $user_id, 'cta_supervision_status', 'active' );
+				update_user_meta( $user_id, 'cta_supervision_cancel_at_period_end', '0' );
+			}
 		}
 	}
 
@@ -1505,12 +2108,15 @@ class CTA_Stripe {
 		$user_id = $this->get_user_id_by_subscription( $subscription_id );
 
 		if ( $user_id ) {
-			update_user_meta( $user_id, 'cta_supervision_status', 'locked' );
+			update_user_meta( $user_id, 'cta_supervision_status', 'past_due' );
+			$plan_slug = class_exists( 'CTA_Supervision_Plans' )
+				? CTA_Supervision_Plans::resolve_user_plan_slug( $user_id )
+				: 'group';
 			CTA_Emails::send(
 				'payment_failed',
 				$user_id,
 				array(
-					'subscription_plan' => __( 'Group Supervision', 'cta-lms' ),
+					'subscription_plan' => CTA_Supervision_Plans::get_name( $plan_slug ),
 				)
 			);
 		}
@@ -1529,7 +2135,6 @@ class CTA_Stripe {
 			$wpdb->prepare(
 				"SELECT user_id FROM {$wpdb->prefix}cta_payments
 				WHERE stripe_payment_id = %s
-				AND product_type = 'supervision'
 				LIMIT 1",
 				$subscription_id
 			)
@@ -1548,7 +2153,20 @@ class CTA_Stripe {
 			)
 		);
 
-		return ! empty( $users ) ? (int) $users[0] : 0;
+		if ( ! empty( $users[0] ) ) {
+			return (int) $users[0];
+		}
+
+		$users = get_users(
+			array(
+				'meta_key'   => 'cta_bundle_subscription_id',
+				'meta_value' => $subscription_id,
+				'number'     => 1,
+				'fields'     => 'ID',
+			)
+		);
+
+		return ! empty( $users[0] ) ? (int) $users[0] : 0;
 	}
 
 	/**

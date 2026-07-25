@@ -26,8 +26,13 @@ foreach ( $tables as $table ) {
 }
 
 // Remove custom roles
-require_once plugin_dir_path( __FILE__ ) . 'includes/class-cta-roles.php';
-CTA_Roles::remove_roles();
+$roles_file = plugin_dir_path( __FILE__ ) . 'includes/class-cta-roles.php';
+if ( file_exists( $roles_file ) ) {
+	require_once $roles_file;
+	if ( class_exists( 'CTA_Roles' ) && method_exists( 'CTA_Roles', 'remove_roles' ) ) {
+		CTA_Roles::remove_roles();
+	}
+}
 
 // Delete plugin options
 delete_option( 'cta_lms_version' );
@@ -48,7 +53,13 @@ delete_option( 'cta_stripe_secret_key' );
 delete_option( 'cta_stripe_publishable_key' );
 delete_option( 'cta_stripe_webhook_secret' );
 delete_option( 'cta_stripe_mode' );
+delete_option( 'cta_stripe_portal_configuration_id' );
+delete_option( 'cta_payments_bypass' );
 delete_option( 'cta_supervision_monthly_price' );
+delete_option( 'cta_supervision_all_access_price' );
+delete_option( 'cta_supervision_product_name' );
+delete_option( 'cta_supervision_product_description' );
+delete_option( 'cta_timezone' );
 delete_option( 'cta_cepa_provider_number' );
 delete_option( 'cta_admin_name' );
 delete_option( 'cta_support_email' );

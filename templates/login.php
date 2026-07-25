@@ -58,6 +58,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 						<img
 							src="<?php echo esc_url( $logo_url ); ?>"
 							alt="<?php echo esc_attr( $site_name ); ?>"
+							width="200"
+							height="52"
+							decoding="async"
 							onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
 						>
 						<span style="display:none;"><?php echo esc_html( $site_name ); ?></span>

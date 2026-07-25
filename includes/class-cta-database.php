@@ -41,10 +41,15 @@ class CTA_Database {
   thumbnail_url varchar(500) DEFAULT NULL,
   vimeo_id varchar(100) DEFAULT NULL,
   video_url varchar(500) DEFAULT NULL,
+  product_type varchar(20) NOT NULL DEFAULT 'ce',
+  access_period_months int(11) NOT NULL DEFAULT 6,
+  awards_ce_hours tinyint(1) NOT NULL DEFAULT 1,
+  has_ce_certificate tinyint(1) NOT NULL DEFAULT 1,
   created_at datetime DEFAULT CURRENT_TIMESTAMP,
   updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY  (id),
-  UNIQUE KEY slug (slug)
+  UNIQUE KEY slug (slug),
+  KEY product_type (product_type)
 ) $charset_collate;";
 
 		$table_modules = $wpdb->prefix . 'cta_course_modules';
@@ -179,7 +184,7 @@ class CTA_Database {
   title varchar(255) NOT NULL,
   passing_score int(11) DEFAULT 70,
   time_limit_mins int(11) DEFAULT 0,
-  max_attempts int(11) DEFAULT 3,
+  max_attempts int(11) DEFAULT 0,
   status varchar(20) DEFAULT 'active',
   created_at datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY  (id),
@@ -226,14 +231,53 @@ class CTA_Database {
   id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   user_id bigint(20) unsigned NOT NULL,
   course_id bigint(20) unsigned NOT NULL,
-  rating int(11) NOT NULL,
-  content_quality int(11) NOT NULL,
-  instructor_rating int(11) NOT NULL,
+  rating int(11) NOT NULL DEFAULT 0,
+  content_quality int(11) NOT NULL DEFAULT 0,
+  instructor_rating int(11) NOT NULL DEFAULT 0,
   would_recommend tinyint(1) NOT NULL DEFAULT 0,
   comments text,
+  responses longtext,
+  timezone varchar(100) NOT NULL DEFAULT '',
   submitted_at datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY  (id),
   UNIQUE KEY user_course (user_id,course_id)
+) $charset_collate;";
+
+		$table_exam_access = $wpdb->prefix . 'cta_exam_access';
+		$sql_exam_access   = "CREATE TABLE $table_exam_access (
+  id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  user_id bigint(20) unsigned NOT NULL,
+  course_id bigint(20) unsigned NOT NULL,
+  purchased_at datetime DEFAULT CURRENT_TIMESTAMP,
+  expires_at datetime DEFAULT NULL,
+  original_expires_at datetime DEFAULT NULL,
+  extended_by_admin_id bigint(20) unsigned DEFAULT NULL,
+  extension_notes text,
+  created_at datetime DEFAULT CURRENT_TIMESTAMP,
+  updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY  (id),
+  UNIQUE KEY user_course (user_id,course_id),
+  KEY user_id (user_id),
+  KEY course_id (course_id),
+  KEY expires_at (expires_at)
+) $charset_collate;";
+
+		$table_resources = $wpdb->prefix . 'cta_downloadable_resources';
+		$sql_resources   = "CREATE TABLE $table_resources (
+  id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  course_id bigint(20) unsigned NOT NULL,
+  module_id bigint(20) unsigned NOT NULL DEFAULT 0,
+  attachment_id bigint(20) unsigned NOT NULL DEFAULT 0,
+  title varchar(255) NOT NULL,
+  file_url varchar(500) NOT NULL,
+  file_path varchar(500) DEFAULT NULL,
+  file_type varchar(50) DEFAULT NULL,
+  order_index int(11) DEFAULT 0,
+  is_practice_test tinyint(1) NOT NULL DEFAULT 0,
+  created_at datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY  (id),
+  KEY course_id (course_id),
+  KEY module_id (module_id)
 ) $charset_collate;";
 
 		dbDelta( $sql_courses );
@@ -248,6 +292,71 @@ class CTA_Database {
 		dbDelta( $sql_quiz_questions );
 		dbDelta( $sql_quiz_attempts );
 		dbDelta( $sql_evaluations );
+		dbDelta( $sql_exam_access );
+		dbDelta( $sql_resources );
+
+		self::maybe_add_exam_prep_columns();
+		self::maybe_add_resource_columns();
+
+		if ( class_exists( 'CTA_Evaluation_Questions' ) ) {
+			CTA_Evaluation_Questions::install();
+		}
+	}
+
+	/**
+	 * Ensure exam-prep columns exist on cta_courses (dbDelta-safe fallback).
+	 *
+	 * Uses SHOW COLUMNS rather than DROP/rebuild so existing CE data is preserved.
+	 */
+	public static function maybe_add_exam_prep_columns() {
+		global $wpdb;
+
+		$table   = $wpdb->prefix . 'cta_courses';
+		$columns = array(
+			'product_type'         => "ALTER TABLE {$table} ADD COLUMN product_type varchar(20) NOT NULL DEFAULT 'ce'",
+			'access_period_months' => "ALTER TABLE {$table} ADD COLUMN access_period_months int(11) NOT NULL DEFAULT 6",
+			'awards_ce_hours'      => "ALTER TABLE {$table} ADD COLUMN awards_ce_hours tinyint(1) NOT NULL DEFAULT 1",
+			'has_ce_certificate'   => "ALTER TABLE {$table} ADD COLUMN has_ce_certificate tinyint(1) NOT NULL DEFAULT 1",
+		);
+
+		foreach ( $columns as $column => $sql ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$exists = $wpdb->get_results( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column ) );
+			if ( empty( $exists ) ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.NotPrepared
+				$wpdb->query( $sql );
+			}
+		}
+	}
+
+	/**
+	 * Ensure downloadable resource columns exist (module + protected path).
+	 */
+	public static function maybe_add_resource_columns() {
+		global $wpdb;
+
+		$table   = $wpdb->prefix . 'cta_downloadable_resources';
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$exists  = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+
+		if ( $exists !== $table ) {
+			return;
+		}
+
+		$columns = array(
+			'module_id'     => "ALTER TABLE {$table} ADD COLUMN module_id bigint(20) unsigned NOT NULL DEFAULT 0",
+			'attachment_id' => "ALTER TABLE {$table} ADD COLUMN attachment_id bigint(20) unsigned NOT NULL DEFAULT 0",
+			'file_path'     => "ALTER TABLE {$table} ADD COLUMN file_path varchar(500) DEFAULT NULL",
+		);
+
+		foreach ( $columns as $column => $sql ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$col_exists = $wpdb->get_results( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column ) );
+			if ( empty( $col_exists ) ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.NotPrepared
+				$wpdb->query( $sql );
+			}
+		}
 	}
 
 	/**
@@ -373,17 +482,7 @@ class CTA_Database {
 				'is_featured'      => 1,
 				'sort_order'       => 4,
 			),
-			array(
-				'name'             => 'Supervision + CE Hybrid Plan',
-				'slug'             => 'supervision-ce-hybrid',
-				'description'      => 'Group supervision sessions plus full CE course library access.',
-				'plan_type'        => 'subscription',
-				'price'            => 350.00,
-				'billing_cycle'    => 'monthly',
-				'included_courses' => wp_json_encode( array() ),
-				'is_featured'      => 0,
-				'sort_order'       => 5,
-			),
+			CTA_Supervision_Plans::get_all_access_bundle_seed(),
 		);
 
 		foreach ( $bundles as $bundle ) {
@@ -396,7 +495,10 @@ class CTA_Database {
 	}
 
 	/**
-	 * Fetch the latest supervision payment for a user.
+	 * Fetch the latest supervision-related payment for a user.
+	 *
+	 * Includes direct supervision subscriptions and Supervision + CE All-Access
+	 * (hybrid) bundle purchases.
 	 *
 	 * @param int         $user_id WordPress user ID.
 	 * @param string|null $status  Optional payment status filter.
@@ -407,13 +509,14 @@ class CTA_Database {
 
 		$table   = $wpdb->prefix . 'cta_payments';
 		$user_id = absint( $user_id );
+		$status  = $status ? sanitize_text_field( $status ) : '';
 
 		if ( ! $user_id ) {
 			return null;
 		}
 
 		if ( $status ) {
-			return $wpdb->get_row(
+			$direct = $wpdb->get_row(
 				$wpdb->prepare(
 					"SELECT * FROM {$table}
 					WHERE user_id = %d
@@ -422,7 +525,47 @@ class CTA_Database {
 					ORDER BY created_at DESC, id DESC
 					LIMIT 1",
 					$user_id,
-					sanitize_text_field( $status )
+					$status
+				)
+			);
+		} else {
+			$direct = $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT * FROM {$table}
+					WHERE user_id = %d
+					AND product_type = 'supervision'
+					ORDER BY created_at DESC, id DESC
+					LIMIT 1",
+					$user_id
+				)
+			);
+		}
+
+		if ( $direct ) {
+			return $direct;
+		}
+
+		if ( $status ) {
+			return $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT * FROM {$table}
+					WHERE user_id = %d
+					AND product_type = 'bundle'
+					AND status = %s
+					AND (
+						plan_details LIKE %s
+						OR plan_name LIKE %s
+						OR plan_name LIKE %s
+						OR plan_name LIKE %s
+					)
+					ORDER BY created_at DESC, id DESC
+					LIMIT 1",
+					$user_id,
+					$status,
+					'%"plan_slug":"hybrid"%',
+					'%Hybrid%',
+					'%All-Access Program%',
+					'%Supervision + CE%'
 				)
 			);
 		}
@@ -431,10 +574,20 @@ class CTA_Database {
 			$wpdb->prepare(
 				"SELECT * FROM {$table}
 				WHERE user_id = %d
-				AND product_type = 'supervision'
+				AND product_type = 'bundle'
+				AND (
+					plan_details LIKE %s
+					OR plan_name LIKE %s
+					OR plan_name LIKE %s
+					OR plan_name LIKE %s
+				)
 				ORDER BY created_at DESC, id DESC
 				LIMIT 1",
-				$user_id
+				$user_id,
+				'%"plan_slug":"hybrid"%',
+				'%Hybrid%',
+				'%All-Access Program%',
+				'%Supervision + CE%'
 			)
 		);
 	}
@@ -473,6 +626,98 @@ class CTA_Database {
 			$wpdb->prepare(
 				"SELECT * FROM {$table} WHERE status = %s ORDER BY created_at DESC",
 				$status
+			)
+		);
+	}
+
+	/**
+	 * Fetch courses filtered by product type and optional status.
+	 *
+	 * @param string      $product_type ce|exam_prep.
+	 * @param string|null $status       Optional status filter (null = all).
+	 * @return array
+	 */
+	public static function get_courses_by_product_type( $product_type, $status = 'published' ) {
+		global $wpdb;
+
+		$table        = $wpdb->prefix . 'cta_courses';
+		$product_type = sanitize_text_field( $product_type );
+
+		if ( null === $status || '' === $status || 'all' === $status ) {
+			return $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT * FROM {$table} WHERE product_type = %s ORDER BY created_at DESC",
+					$product_type
+				)
+			);
+		}
+
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT * FROM {$table} WHERE product_type = %s AND status = %s ORDER BY created_at DESC",
+				$product_type,
+				sanitize_text_field( $status )
+			)
+		);
+	}
+
+	/**
+	 * Downloadable resources for a course (workbooks, handouts, practice tests).
+	 *
+	 * @param int      $course_id           Course ID.
+	 * @param bool     $practice_tests_only When true, only is_practice_test = 1.
+	 * @param int|null $module_id           Optional module filter (0 = course-level only, null = all).
+	 * @return array
+	 */
+	public static function get_downloadable_resources( $course_id, $practice_tests_only = false, $module_id = null ) {
+		global $wpdb;
+
+		$course_id = absint( $course_id );
+
+		if ( ! $course_id ) {
+			return array();
+		}
+
+		$table  = $wpdb->prefix . 'cta_downloadable_resources';
+		$where  = array( 'course_id = %d' );
+		$values = array( $course_id );
+
+		if ( $practice_tests_only ) {
+			$where[] = 'is_practice_test = 1';
+		}
+
+		if ( null !== $module_id ) {
+			$where[]  = 'module_id = %d';
+			$values[] = absint( $module_id );
+		}
+
+		$sql = 'SELECT * FROM ' . $table . ' WHERE ' . implode( ' AND ', $where ) . ' ORDER BY order_index ASC, id ASC';
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $values ) );
+
+		return $rows ? $rows : array();
+	}
+
+	/**
+	 * Fetch a single downloadable resource by ID.
+	 *
+	 * @param int $resource_id Resource ID.
+	 * @return object|null
+	 */
+	public static function get_downloadable_resource( $resource_id ) {
+		global $wpdb;
+
+		$resource_id = absint( $resource_id );
+
+		if ( ! $resource_id ) {
+			return null;
+		}
+
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM {$wpdb->prefix}cta_downloadable_resources WHERE id = %d",
+				$resource_id
 			)
 		);
 	}

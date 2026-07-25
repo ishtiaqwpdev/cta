@@ -33,8 +33,16 @@ class CTA_Admin {
 		add_action( 'admin_post_cta_toggle_course', array( $this, 'toggle_course_status' ) );
 		add_action( 'admin_post_cta_save_settings', array( $this, 'save_settings' ) );
 		add_action( 'admin_post_cta_save_email_settings', array( $this, 'save_email_settings' ) );
+		add_action( 'admin_post_cta_extend_exam_access', array( $this, 'extend_exam_access' ) );
+		add_action( 'admin_post_cta_save_resource', array( $this, 'save_resource' ) );
+		add_action( 'admin_post_cta_delete_resource', array( $this, 'delete_resource' ) );
+		add_action( 'admin_post_cta_save_evaluation_question', array( $this, 'save_evaluation_question' ) );
+		add_action( 'admin_post_cta_delete_evaluation_question', array( $this, 'delete_evaluation_question' ) );
+		add_action( 'admin_post_cta_reorder_evaluation_questions', array( $this, 'reorder_evaluation_questions' ) );
+		add_action( 'wp_ajax_cta_reorder_resources', array( $this, 'ajax_reorder_resources' ) );
 
 		add_action( 'wp_ajax_cta_admin_get_stats', array( $this, 'ajax_get_stats' ) );
+		add_action( 'wp_ajax_cta_admin_save_license', array( $this, 'ajax_save_user_license' ) );
 		add_action( 'wp_ajax_cta_save_module', array( $this, 'ajax_save_module' ) );
 		add_action( 'wp_ajax_cta_delete_module', array( $this, 'ajax_delete_module' ) );
 		add_action( 'wp_ajax_cta_reorder_modules', array( $this, 'ajax_reorder_modules' ) );
@@ -42,14 +50,20 @@ class CTA_Admin {
 		add_action( 'wp_ajax_cta_admin_add_session', array( $this, 'ajax_add_session' ) );
 		add_action( 'wp_ajax_cta_admin_cancel_session', array( $this, 'ajax_cancel_session' ) );
 		add_action( 'wp_ajax_cta_test_stripe_connection', array( $this, 'ajax_test_stripe_connection' ) );
+		add_action( 'wp_ajax_cta_ensure_billing_portal', array( $this, 'ajax_ensure_billing_portal' ) );
+		add_action( 'wp_ajax_cta_admin_cancel_subscription', array( $this, 'ajax_admin_cancel_subscription' ) );
+		add_action( 'wp_ajax_cta_admin_reactivate_subscription', array( $this, 'ajax_admin_reactivate_subscription' ) );
+		add_action( 'wp_ajax_cta_admin_sync_subscription', array( $this, 'ajax_admin_sync_subscription' ) );
 		add_action( 'wp_ajax_cta_preview_certificate', array( $this, 'ajax_preview_certificate' ) );
 		add_action( 'wp_ajax_cta_preview_email', array( $this, 'ajax_preview_email' ) );
 		add_action( 'wp_ajax_cta_save_quiz', array( $this, 'ajax_save_quiz' ) );
 		add_action( 'wp_ajax_cta_load_quiz', array( $this, 'ajax_load_quiz' ) );
 		add_action( 'wp_ajax_cta_approve_associate', array( $this, 'ajax_approve_associate' ) );
 		add_action( 'wp_ajax_cta_reject_associate', array( $this, 'ajax_reject_associate' ) );
+		add_action( 'wp_ajax_cta_assign_associate_plan', array( $this, 'ajax_assign_associate_plan' ) );
 		add_action( 'admin_post_cta_approve_associate', array( $this, 'handle_approve_associate' ) );
 		add_action( 'admin_post_cta_reject_associate', array( $this, 'handle_reject_associate' ) );
+		add_action( 'admin_post_cta_assign_associate_plan', array( $this, 'handle_assign_associate_plan' ) );
 	}
 
 	/**
@@ -137,6 +151,15 @@ class CTA_Admin {
 			'manage_options',
 			'cta-lms-settings',
 			array( $this, 'render_settings' )
+		);
+
+		add_submenu_page(
+			'cta-lms',
+			__( 'Course Evaluation', 'cta-lms' ),
+			__( 'Course Evaluation', 'cta-lms' ),
+			'manage_options',
+			'cta-lms-evaluation',
+			array( $this, 'render_evaluation' )
 		);
 
 		add_submenu_page(
@@ -297,10 +320,13 @@ class CTA_Admin {
 					'stripeTesting'  => __( 'Testing connection...', 'cta-lms' ),
 					'stripeSuccess'  => __( 'Stripe connection successful.', 'cta-lms' ),
 					'stripeFailed'   => __( 'Stripe connection failed.', 'cta-lms' ),
-					'approveConfirm' => __( 'Approve this Associate and unlock supervision access?', 'cta-lms' ),
+					'approveConfirm' => __( 'Approve this Associate application? Dashboard access unlocks only after they also have a purchased or admin-assigned plan.', 'cta-lms' ),
 					'rejectConfirm'  => __( 'Reject this Associate? They will remain locked out of booking, meeting links, and resources.', 'cta-lms' ),
 					'approveSuccess' => __( 'Associate approved.', 'cta-lms' ),
 					'rejectSuccess'  => __( 'Associate rejected.', 'cta-lms' ),
+					'approveNoPlan'  => __( 'Approval saved. Plan is still required for dashboard access.', 'cta-lms' ),
+					'assignSuccess'  => __( 'Plan assigned. If already Approved, supervision access is now active.', 'cta-lms' ),
+					'assignConfirm'  => __( 'Assign this agency-paid plan to the Associate?', 'cta-lms' ),
 					'actionFailed'   => __( 'Unable to update approval status. Please try again.', 'cta-lms' ),
 				),
 			)
@@ -338,8 +364,13 @@ class CTA_Admin {
 	public function render_courses() {
 		global $wpdb;
 
-		$status = sanitize_text_field( wp_unslash( $_GET['status'] ?? 'all' ) );
-		$search = sanitize_text_field( wp_unslash( $_GET['s'] ?? '' ) );
+		$status       = sanitize_text_field( wp_unslash( $_GET['status'] ?? 'all' ) );
+		$search       = sanitize_text_field( wp_unslash( $_GET['s'] ?? '' ) );
+		$product_type = sanitize_text_field( wp_unslash( $_GET['product_type'] ?? 'ce' ) );
+		if ( ! in_array( $product_type, array( 'ce', 'exam_prep', 'all' ), true ) ) {
+			$product_type = 'ce';
+		}
+
 		$table  = $wpdb->prefix . 'cta_courses';
 		$where  = array( '1=1' );
 		$params = array();
@@ -347,6 +378,11 @@ class CTA_Admin {
 		if ( in_array( $status, array( 'published', 'draft' ), true ) ) {
 			$where[]  = 'status = %s';
 			$params[] = $status;
+		}
+
+		if ( 'all' !== $product_type ) {
+			$where[]  = 'product_type = %s';
+			$params[] = $product_type;
 		}
 
 		if ( $search ) {
@@ -373,12 +409,24 @@ class CTA_Admin {
 			$enrollment_counts[ (int) $row->course_id ] = (int) $row->total;
 		}
 
+		$access_counts = array();
+		if ( 'exam_prep' === $product_type || 'all' === $product_type ) {
+			$access_rows = $wpdb->get_results(
+				"SELECT course_id, COUNT(*) AS total FROM {$wpdb->prefix}cta_exam_access GROUP BY course_id"
+			);
+			foreach ( (array) $access_rows as $row ) {
+				$access_counts[ (int) $row->course_id ] = (int) $row->total;
+			}
+		}
+
 		$this->load_view(
 			'courses.php',
 			array(
 				'courses'           => $courses ? $courses : array(),
 				'enrollment_counts' => $enrollment_counts,
+				'access_counts'     => $access_counts,
 				'status_filter'     => $status,
+				'product_type'      => $product_type,
 				'search'            => $search,
 			)
 		);
@@ -393,7 +441,13 @@ class CTA_Admin {
 		$modules   = $course_id ? CTA_Database::get_course_modules( $course_id ) : array();
 		$quiz      = $course_id ? $this->get_course_quiz( $course_id ) : null;
 		$quiz_questions = ( $quiz ) ? CTA_Database::get_quiz_questions( (int) $quiz->id ) : array();
+		$resources = $course_id ? CTA_Database::get_downloadable_resources( $course_id ) : array();
 		$objectives = array();
+
+		$default_product_type = sanitize_text_field( wp_unslash( $_GET['product_type'] ?? 'ce' ) );
+		if ( ! in_array( $default_product_type, array( 'ce', 'exam_prep' ), true ) ) {
+			$default_product_type = 'ce';
+		}
 
 		if ( $course && ! empty( $course->learning_objectives ) ) {
 			$decoded = json_decode( (string) $course->learning_objectives, true );
@@ -406,16 +460,35 @@ class CTA_Admin {
 			$objectives = array( '' );
 		}
 
+		$exam_learners = array();
+		if ( $course && CTA_Exam_Access::is_exam_prep( $course ) ) {
+			global $wpdb;
+			$exam_learners = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT a.*, u.display_name, u.user_email
+					FROM {$wpdb->prefix}cta_exam_access a
+					LEFT JOIN {$wpdb->users} u ON u.ID = a.user_id
+					WHERE a.course_id = %d
+					ORDER BY a.expires_at DESC, a.id DESC
+					LIMIT 200",
+					$course_id
+				)
+			);
+		}
+
 		$this->load_view(
 			'courses-edit.php',
 			array(
-				'course'     => $course,
-				'course_id'  => $course_id,
-				'modules'    => $modules,
-				'quiz'       => $quiz,
-				'quiz_questions' => $quiz_questions,
-				'objectives' => $objectives,
-				'categories' => self::get_course_categories(),
+				'course'               => $course,
+				'course_id'            => $course_id,
+				'modules'              => $modules,
+				'quiz'                 => $quiz,
+				'quiz_questions'       => $quiz_questions,
+				'resources'            => $resources,
+				'objectives'           => $objectives,
+				'categories'           => self::get_course_categories(),
+				'default_product_type' => $default_product_type,
+				'exam_learners'        => $exam_learners ? $exam_learners : array(),
 			)
 		);
 	}
@@ -424,11 +497,20 @@ class CTA_Admin {
 	 * Render users list.
 	 */
 	public function render_users() {
-		$role_filter = sanitize_text_field( wp_unslash( $_GET['role'] ?? 'all' ) );
-		$search      = sanitize_text_field( wp_unslash( $_GET['s'] ?? '' ) );
+		$role_filter    = sanitize_text_field( wp_unslash( $_GET['role'] ?? 'all' ) );
+		$search         = sanitize_text_field( wp_unslash( $_GET['s'] ?? '' ) );
+		$license_filter = sanitize_text_field( wp_unslash( $_GET['license'] ?? 'all' ) );
+		$supervision_filter = sanitize_text_field( wp_unslash( $_GET['supervision'] ?? 'all' ) );
+		if ( ! in_array( $license_filter, array( 'all', 'missing', 'present' ), true ) ) {
+			$license_filter = 'all';
+		}
+		$allowed_supervision = array( 'all', 'active', 'past_due', 'locked', 'cancelled', 'pending_approval', 'none' );
+		if ( ! in_array( $supervision_filter, $allowed_supervision, true ) ) {
+			$supervision_filter = 'all';
+		}
 
 		$args = array(
-			'number'  => 100,
+			'number'  => 200,
 			'orderby' => 'registered',
 			'order'   => 'DESC',
 		);
@@ -448,15 +530,145 @@ class CTA_Admin {
 			$args['search_columns'] = array( 'user_login', 'user_email', 'display_name' );
 		}
 
+		$meta_query = array();
+
+		if ( 'missing' === $license_filter ) {
+			$meta_query[] = array(
+				'relation' => 'OR',
+				array(
+					'key'     => 'cta_license_number',
+					'compare' => 'NOT EXISTS',
+				),
+				array(
+					'key'     => 'cta_license_number',
+					'value'   => '',
+					'compare' => '=',
+				),
+			);
+		} elseif ( 'present' === $license_filter ) {
+			$meta_query[] = array(
+				'key'     => 'cta_license_number',
+				'value'   => '',
+				'compare' => '!=',
+			);
+		}
+
+		if ( 'none' === $supervision_filter ) {
+			$meta_query[] = array(
+				'relation' => 'OR',
+				array(
+					'key'     => 'cta_supervision_status',
+					'compare' => 'NOT EXISTS',
+				),
+				array(
+					'key'     => 'cta_supervision_status',
+					'value'   => '',
+					'compare' => '=',
+				),
+			);
+		} elseif ( 'all' !== $supervision_filter ) {
+			$meta_query[] = array(
+				'key'     => 'cta_supervision_status',
+				'value'   => $supervision_filter,
+				'compare' => '=',
+			);
+		}
+
+		if ( count( $meta_query ) > 1 ) {
+			$args['meta_query'] = array_merge( array( 'relation' => 'AND' ), $meta_query ); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+		} elseif ( 1 === count( $meta_query ) ) {
+			$args['meta_query'] = $meta_query; // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+		}
+
 		$user_query = new WP_User_Query( $args );
 		$users      = $user_query->get_results();
+
+		// Count students missing license info (for badge on filter).
+		$missing_count_query = new WP_User_Query(
+			array(
+				'role__in'   => array( 'cta_licensed_professional', 'cta_associate' ),
+				'number'     => 1,
+				'count_total'=> true,
+				'fields'     => 'ID',
+				'meta_query' => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+					'relation' => 'OR',
+					array(
+						'key'     => 'cta_license_number',
+						'compare' => 'NOT EXISTS',
+					),
+					array(
+						'key'     => 'cta_license_number',
+						'value'   => '',
+						'compare' => '=',
+					),
+				),
+			)
+		);
+		$missing_license_count = (int) $missing_count_query->get_total();
 
 		$this->load_view(
 			'users.php',
 			array(
-				'users'       => $users ? $users : array(),
-				'role_filter' => $role_filter,
-				'search'      => $search,
+				'users'                 => $users ? $users : array(),
+				'role_filter'           => $role_filter,
+				'search'                => $search,
+				'license_filter'        => $license_filter,
+				'supervision_filter'    => $supervision_filter,
+				'missing_license_count' => $missing_license_count,
+				'license_types'         => cta_lms_get_license_types(),
+			)
+		);
+	}
+
+	/**
+	 * AJAX: admin save/correct a student's license number and type.
+	 *
+	 * Writes the same user meta keys the student Account Settings form uses
+	 * (`cta_license_number`, `cta_license_type`).
+	 */
+	public function ajax_save_user_license() {
+		$this->verify_admin_ajax();
+
+		$user_id        = absint( wp_unslash( $_POST['user_id'] ?? 0 ) );
+		$license_number = cta_lms_sanitize_license_number( wp_unslash( $_POST['license_number'] ?? '' ) );
+		$license_type   = sanitize_text_field( wp_unslash( $_POST['license_type'] ?? '' ) );
+		$allowed_types  = cta_lms_get_license_types();
+
+		if ( ! $user_id || ! get_userdata( $user_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid user.', 'cta-lms' ) ) );
+		}
+
+		if ( ! cta_lms_is_valid_license_number( $license_number ) ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'License number looks invalid. Include at least one letter or number.', 'cta-lms' ),
+				)
+			);
+		}
+
+		if ( '' !== $license_type && ! in_array( $license_type, $allowed_types, true ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid license type.', 'cta-lms' ) ) );
+		}
+
+		update_user_meta( $user_id, 'cta_license_number', $license_number );
+
+		if ( '' === $license_type ) {
+			delete_user_meta( $user_id, 'cta_license_type' );
+		} else {
+			update_user_meta( $user_id, 'cta_license_type', $license_type );
+		}
+
+		if ( class_exists( 'CTA_Certificates' ) ) {
+			CTA_Certificates::refresh_user_certificates( $user_id );
+		}
+
+		wp_send_json_success(
+			array(
+				'message'         => __( 'License information updated.', 'cta-lms' ),
+				'user_id'         => $user_id,
+				'license_number'  => $license_number,
+				'license_type'    => $license_type,
+				'has_license'     => '' !== $license_number,
 			)
 		);
 	}
@@ -600,6 +812,7 @@ class CTA_Admin {
 						AND (
 							plan_details LIKE '%\"plan_slug\":\"hybrid\"%'
 							OR plan_name LIKE '%Hybrid%'
+							OR plan_name LIKE '%All-Access Program%'
 							OR plan_name LIKE '%Supervision%'
 						)
 					)
@@ -662,22 +875,38 @@ class CTA_Admin {
 		) ) {
 			$supervision_status = (string) get_user_meta( $user->ID, 'cta_supervision_status', true );
 
-			if ( 'pending_approval' === $supervision_status || 'rejected' === $supervision_status ) {
-				$approval_status = 'rejected' === $supervision_status
-					? CTA_Associate_Access::STATUS_REJECTED
-					: CTA_Associate_Access::STATUS_PENDING;
-			} elseif ( 'active' === $supervision_status || '' === $approval_status ) {
-				// Legacy associates with no approval meta are treated as approved.
+			if ( 'rejected' === $supervision_status ) {
+				$approval_status = CTA_Associate_Access::STATUS_REJECTED;
+			} elseif ( 'pending_approval' === $supervision_status ) {
+				$approval_status = CTA_Associate_Access::STATUS_PENDING;
+			} elseif (
+				'active' === $supervision_status
+				&& CTA_Associate_Access::has_qualifying_plan( $user->ID )
+			) {
+				// Legacy active+plan accounts without approval meta → treat as approved.
 				$approval_status = CTA_Associate_Access::STATUS_APPROVED;
 			} else {
 				$approval_status = CTA_Associate_Access::STATUS_PENDING;
 			}
 		}
 
+		// Keep approval meta as-is: Approved without a plan is valid (vetting passed;
+		// access stays locked until purchase or admin assignment).
+
+		if ( ! $payment && class_exists( 'CTA_Database' ) ) {
+			$payment = CTA_Database::get_user_supervision_payment( $user->ID, 'completed' );
+			if ( ! $payment ) {
+				$payment = CTA_Database::get_user_supervision_payment( $user->ID );
+			}
+		}
+
 		$plan_details = array();
 		$plan_name    = '';
+		$has_plan     = CTA_Associate_Access::has_qualifying_plan( $user->ID );
+		$plan_status_key = CTA_Associate_Access::get_plan_status_key( $user->ID );
+		$plan_status_label = CTA_Associate_Access::get_plan_status_label( $user->ID );
 
-		if ( $payment ) {
+		if ( $payment && 'completed' === (string) ( $payment->status ?? '' ) ) {
 			$decoded = json_decode( (string) ( $payment->plan_details ?? '' ), true );
 			if ( is_array( $decoded ) ) {
 				$plan_details = $decoded;
@@ -686,24 +915,33 @@ class CTA_Admin {
 		}
 
 		if ( '' === $plan_name ) {
-			$plan_name = (string) get_user_meta( $user->ID, 'cta_supervision_plan_name', true );
+			$plan_name = CTA_Associate_Access::get_plan_display_name( $user->ID );
+		} elseif ( class_exists( 'CTA_Supervision_Plans' ) ) {
+			$plan_name = CTA_Supervision_Plans::canonicalize_name( $plan_name );
 		}
 
-		if ( '' === $plan_name ) {
-			$plan_name = $payment
-				? __( 'Group Supervision', 'cta-lms' )
-				: __( 'No purchase yet', 'cta-lms' );
+		if ( '' === $plan_name && ! $has_plan ) {
+			$plan_name = __( 'No Plan', 'cta-lms' );
+		} elseif ( '' === $plan_name ) {
+			$plan_name = $plan_status_label;
 		}
+
+		$access_granted = CTA_Associate_Access::can_access_supervision_features( $user->ID );
 
 		return array(
-			'user'             => $user,
-			'payment'          => $payment,
-			'plan_name'        => $plan_name,
-			'plan_details'     => $plan_details,
-			'status'           => $approval_status,
-			'rejection_reason' => (string) get_user_meta( $user->ID, 'cta_approval_rejection_reason', true ),
-			'is_associate'     => CTA_Associate_Access::is_associate( $user->ID ),
-			'registered_at'    => (string) $user->user_registered,
+			'user'               => $user,
+			'payment'            => $payment,
+			'plan_name'          => $plan_name,
+			'plan_details'       => $plan_details,
+			'has_plan'           => $has_plan,
+			'plan_status_key'    => $plan_status_key,
+			'plan_status_label'  => $plan_status_label,
+			'access_granted'     => $access_granted,
+			'status'             => $approval_status,
+			'rejection_reason'   => (string) get_user_meta( $user->ID, 'cta_approval_rejection_reason', true ),
+			'is_associate'       => CTA_Associate_Access::is_associate( $user->ID ),
+			'registered_at'      => (string) $user->user_registered,
+			'admin_plan_audit'   => CTA_Associate_Access::get_admin_assigned_plan_audit( $user->ID ),
 		);
 	}
 
@@ -713,25 +951,32 @@ class CTA_Admin {
 	public function render_bookings() {
 		global $wpdb;
 
-		$tab = sanitize_text_field( wp_unslash( $_GET['tab'] ?? 'upcoming' ) );
+		$tab   = sanitize_text_field( wp_unslash( $_GET['tab'] ?? 'upcoming' ) );
+		$today = cta_lms_current_date( 'Y-m-d' );
 
 		if ( 'history' === $tab ) {
 			$sessions = $wpdb->get_results(
-				"SELECT b.*, u.display_name
-				FROM {$wpdb->prefix}cta_bookings b
-				LEFT JOIN {$wpdb->users} u ON u.ID = b.user_id
-				WHERE b.user_id > 0
-				AND (b.session_date < CURDATE() OR b.status IN ('cancelled','completed'))
-				ORDER BY b.session_date DESC, b.session_time DESC
-				LIMIT 100"
+				$wpdb->prepare(
+					"SELECT b.*, u.display_name
+					FROM {$wpdb->prefix}cta_bookings b
+					LEFT JOIN {$wpdb->users} u ON u.ID = b.user_id
+					WHERE b.user_id > 0
+					AND (b.session_date < %s OR b.status IN ('cancelled','completed'))
+					ORDER BY b.session_date DESC, b.session_time DESC
+					LIMIT 100",
+					$today
+				)
 			);
 		} else {
 			$sessions = $wpdb->get_results(
-				"SELECT * FROM {$wpdb->prefix}cta_bookings
-				WHERE user_id = 0
-				AND status = 'open'
-				AND session_date >= CURDATE()
-				ORDER BY session_date ASC, session_time ASC"
+				$wpdb->prepare(
+					"SELECT * FROM {$wpdb->prefix}cta_bookings
+					WHERE user_id = 0
+					AND status = 'open'
+					AND session_date >= %s
+					ORDER BY session_date ASC, session_time ASC",
+					$today
+				)
 			);
 		}
 
@@ -756,6 +1001,129 @@ class CTA_Admin {
 				'page_options' => self::get_page_option_map(),
 			)
 		);
+	}
+
+	/**
+	 * Render CE course evaluation question bank.
+	 */
+	public function render_evaluation() {
+		if ( ! class_exists( 'CTA_Evaluation_Questions' ) ) {
+			wp_die( esc_html__( 'Evaluation questions module is unavailable.', 'cta-lms' ) );
+		}
+
+		CTA_Evaluation_Questions::install();
+
+		$edit_id       = absint( wp_unslash( $_GET['edit'] ?? 0 ) );
+		$edit_question = $edit_id ? CTA_Evaluation_Questions::get_question( $edit_id ) : null;
+
+		$this->load_view(
+			'evaluation.php',
+			array(
+				'questions'     => CTA_Evaluation_Questions::get_questions( 'all' ),
+				'edit_question' => $edit_question,
+				'notice'        => sanitize_text_field( wp_unslash( $_GET['cta_notice'] ?? '' ) ),
+			)
+		);
+	}
+
+	/**
+	 * Admin: save / update an evaluation question.
+	 */
+	public function save_evaluation_question() {
+		$this->verify_admin_request( 'cta_save_evaluation_question' );
+
+		$question_id = absint( wp_unslash( $_POST['question_id'] ?? 0 ) );
+		$data        = array(
+			'section_label' => cta_lms_sanitize_utf8_text( (string) wp_unslash( $_POST['section_label'] ?? '' ) ),
+			'label'         => cta_lms_sanitize_utf8_text( (string) wp_unslash( $_POST['label'] ?? '' ) ),
+			'question_type' => wp_unslash( $_POST['question_type'] ?? 'rating' ),
+			'options_text'  => cta_lms_sanitize_utf8_text( (string) wp_unslash( $_POST['options_text'] ?? '' ) ),
+			'is_required'   => ! empty( $_POST['is_required'] ) ? 1 : 0,
+			'status'        => wp_unslash( $_POST['status'] ?? 'active' ),
+			'summary_field' => wp_unslash( $_POST['summary_field'] ?? '' ),
+		);
+
+		if ( $question_id ) {
+			$result = CTA_Evaluation_Questions::update_question( $question_id, $data );
+		} else {
+			$existing = CTA_Evaluation_Questions::get_questions( 'all' );
+			$data['order_index'] = count( $existing );
+			$result = CTA_Evaluation_Questions::insert_question( $data );
+		}
+
+		$notice = is_wp_error( $result ) ? 'save_failed' : 'saved';
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'       => 'cta-lms-evaluation',
+					'cta_notice' => $notice,
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
+	 * Admin: delete an evaluation question definition.
+	 */
+	public function delete_evaluation_question() {
+		$this->verify_admin_request( 'cta_delete_evaluation_question' );
+
+		$question_id = absint( wp_unslash( $_GET['question_id'] ?? 0 ) );
+		CTA_Evaluation_Questions::delete_question( $question_id );
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'       => 'cta-lms-evaluation',
+					'cta_notice' => 'deleted',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
+	 * Admin: reorder evaluation questions.
+	 */
+	public function reorder_evaluation_questions() {
+		$this->verify_admin_request( 'cta_reorder_evaluation_questions' );
+
+		$order = array();
+		if ( ! empty( $_POST['order_csv'] ) ) {
+			$parts = explode( ',', (string) wp_unslash( $_POST['order_csv'] ) );
+			foreach ( $parts as $part ) {
+				$id = absint( trim( $part ) );
+				if ( $id ) {
+					$order[] = $id;
+				}
+			}
+		} elseif ( ! empty( $_POST['order'] ) && is_array( $_POST['order'] ) ) {
+			foreach ( wp_unslash( $_POST['order'] ) as $id ) {
+				$id = absint( $id );
+				if ( $id ) {
+					$order[] = $id;
+				}
+			}
+		}
+
+		if ( ! empty( $order ) ) {
+			CTA_Evaluation_Questions::reorder( $order );
+		}
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'       => 'cta-lms-evaluation',
+					'cta_notice' => 'reordered',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
 	}
 
 	/**
@@ -800,18 +1168,42 @@ class CTA_Admin {
 		}
 
 		$course_id  = absint( wp_unslash( $_POST['course_id'] ?? 0 ) );
-		$title      = sanitize_text_field( wp_unslash( $_POST['title'] ?? '' ) );
-		$slug       = sanitize_title( wp_unslash( $_POST['slug'] ?? $title ) );
-		$category   = sanitize_text_field( wp_unslash( $_POST['category'] ?? '' ) );
-		$ce_hours   = (float) wp_unslash( $_POST['ce_hours'] ?? 0 );
-		$price      = (float) wp_unslash( $_POST['price'] ?? 0 );
-		$description = wp_kses_post( wp_unslash( $_POST['description'] ?? '' ) );
+		$title       = cta_lms_sanitize_utf8_text( sanitize_text_field( wp_unslash( $_POST['title'] ?? '' ) ) );
+		$slug        = sanitize_title( wp_unslash( $_POST['slug'] ?? $title ) );
+		$category    = cta_lms_sanitize_utf8_text( sanitize_text_field( wp_unslash( $_POST['category'] ?? '' ) ) );
+		$ce_hours    = (float) wp_unslash( $_POST['ce_hours'] ?? 0 );
+		$price       = (float) wp_unslash( $_POST['price'] ?? 0 );
+		$description = cta_lms_sanitize_utf8_html( wp_kses_post( wp_unslash( $_POST['description'] ?? '' ) ) );
 		$thumbnail  = esc_url_raw( wp_unslash( $_POST['thumbnail_url'] ?? '' ) );
 		$video_type = sanitize_text_field( wp_unslash( $_POST['course_video_type'] ?? 'vimeo' ) );
 		$video_raw  = sanitize_text_field( wp_unslash( $_POST['course_video_value'] ?? '' ) );
 		$video_url  = esc_url_raw( wp_unslash( $_POST['course_video_url'] ?? '' ) );
 		$vimeo_id   = '';
 		$allowed_video_types = array( 'vimeo', 'youtube', 'wordpress', 'url' );
+
+		$product_type = sanitize_text_field( wp_unslash( $_POST['product_type'] ?? 'ce' ) );
+		if ( ! in_array( $product_type, array( 'ce', 'exam_prep' ), true ) ) {
+			$product_type = 'ce';
+		}
+
+		$access_period_months = absint( wp_unslash( $_POST['access_period_months'] ?? 6 ) );
+		if ( $access_period_months < 1 ) {
+			$access_period_months = 6;
+		}
+
+		// Exam prep never awards CE hours or certificates.
+		if ( 'exam_prep' === $product_type ) {
+			$ce_hours            = 0;
+			$awards_ce_hours     = 0;
+			$has_ce_certificate  = 0;
+			if ( '' === $category ) {
+				$category = 'Exam Preparation';
+			}
+		} else {
+			$awards_ce_hours    = 1;
+			$has_ce_certificate = 1;
+			$access_period_months = 6;
+		}
 
 		if ( ! in_array( $video_type, $allowed_video_types, true ) ) {
 			$video_type = 'vimeo';
@@ -835,7 +1227,7 @@ class CTA_Admin {
 
 		if ( is_array( $objectives_in ) ) {
 			foreach ( $objectives_in as $objective ) {
-				$objective = sanitize_text_field( $objective );
+				$objective = cta_lms_sanitize_utf8_text( sanitize_text_field( $objective ) );
 				if ( '' !== $objective ) {
 					$objectives[] = $objective;
 				}
@@ -851,35 +1243,40 @@ class CTA_Admin {
 		}
 
 		$data = array(
-			'title'               => $title,
-			'slug'                => $slug,
-			'category'            => $category,
-			'ce_hours'            => $ce_hours,
-			'price'               => $price,
-			'description'         => $description,
-			'learning_objectives' => wp_json_encode( $objectives ),
-			'thumbnail_url'       => $thumbnail,
-			'vimeo_id'            => $vimeo_id,
-			'video_url'           => $video_url,
-			'status'              => $status,
+			'title'                => $title,
+			'slug'                 => $slug,
+			'category'             => $category,
+			'ce_hours'             => $ce_hours,
+			'price'                => $price,
+			'description'          => $description,
+			'learning_objectives'  => wp_json_encode( $objectives ),
+			'thumbnail_url'        => $thumbnail,
+			'vimeo_id'             => $vimeo_id,
+			'video_url'            => $video_url,
+			'status'               => $status,
+			'product_type'         => $product_type,
+			'access_period_months' => $access_period_months,
+			'awards_ce_hours'      => $awards_ce_hours,
+			'has_ce_certificate'   => $has_ce_certificate,
 		);
 
 		$table = $wpdb->prefix . 'cta_courses';
 		$saved = false;
+		$formats = array( '%s', '%s', '%s', '%f', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d' );
 
 		if ( $course_id ) {
 			$saved = false !== $wpdb->update(
 				$table,
 				$data,
 				array( 'id' => $course_id ),
-				array( '%s', '%s', '%s', '%f', '%f', '%s', '%s', '%s', '%s', '%s' ),
+				$formats,
 				array( '%d' )
 			);
 		} else {
 			$saved = false !== $wpdb->insert(
 				$table,
 				$data,
-				array( '%s', '%s', '%s', '%f', '%f', '%s', '%s', '%s', '%s', '%s' )
+				$formats
 			);
 			$course_id = (int) $wpdb->insert_id;
 		}
@@ -927,6 +1324,255 @@ class CTA_Admin {
 	}
 
 	/**
+	 * Admin: manually extend exam prep access for a learner.
+	 */
+	public function extend_exam_access() {
+		$this->verify_admin_request( 'cta_extend_exam_access' );
+
+		$course_id    = absint( wp_unslash( $_POST['course_id'] ?? 0 ) );
+		$user_id      = absint( wp_unslash( $_POST['user_id'] ?? 0 ) );
+		$extra_months = absint( wp_unslash( $_POST['extra_months'] ?? 1 ) );
+		$notes        = sanitize_textarea_field( wp_unslash( $_POST['extension_notes'] ?? '' ) );
+
+		$result = CTA_Exam_Access::extend_access(
+			$user_id,
+			$course_id,
+			$extra_months,
+			get_current_user_id(),
+			$notes
+		);
+
+		$notice = is_wp_error( $result ) ? 'exam_extend_failed' : 'exam_extended';
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'       => 'cta-lms-course-edit',
+					'course_id'  => $course_id,
+					'cta_notice' => $notice,
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
+	 * Admin: save a downloadable resource (workbook / practice test / handout).
+	 */
+	public function save_resource() {
+		$this->verify_admin_request( 'cta_save_resource' );
+
+		global $wpdb;
+
+		$course_id        = absint( wp_unslash( $_POST['course_id'] ?? 0 ) );
+		$resource_id      = absint( wp_unslash( $_POST['resource_id'] ?? 0 ) );
+		$module_id        = absint( wp_unslash( $_POST['resource_module_id'] ?? 0 ) );
+		$attachment_id    = absint( wp_unslash( $_POST['resource_attachment_id'] ?? 0 ) );
+		$title            = cta_lms_sanitize_utf8_text( sanitize_text_field( wp_unslash( $_POST['resource_title'] ?? '' ) ) );
+		$file_url         = esc_url_raw( wp_unslash( $_POST['resource_file_url'] ?? '' ) );
+		$file_type        = sanitize_text_field( wp_unslash( $_POST['resource_file_type'] ?? '' ) );
+		$order_index      = absint( wp_unslash( $_POST['resource_order_index'] ?? 0 ) );
+		$is_practice_test = ! empty( $_POST['is_practice_test'] ) ? 1 : 0;
+		$file_path        = '';
+
+		if ( ! $course_id || '' === $title ) {
+			wp_die( esc_html__( 'Resource title is required.', 'cta-lms' ) );
+		}
+
+		$redirect_fail = static function ( $notice_key ) use ( $course_id ) {
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'page'       => 'cta-lms-course-edit',
+						'course_id'  => $course_id,
+						'cta_notice' => $notice_key,
+					),
+					admin_url( 'admin.php' )
+				)
+			);
+			exit;
+		};
+
+		// Prefer Media Library selection → copy into protected storage.
+		if ( $attachment_id && class_exists( 'CTA_Course_Materials' ) ) {
+			$imported = CTA_Course_Materials::import_attachment_to_protected( $attachment_id, $course_id );
+			if ( is_wp_error( $imported ) ) {
+				$code = $imported->get_error_code();
+				if ( 'cta_resource_too_large' === $code ) {
+					$redirect_fail( 'resource_too_large' );
+				}
+				if ( 'cta_resource_invalid_type' === $code ) {
+					$redirect_fail( 'resource_invalid_type' );
+				}
+				$redirect_fail( 'resource_save_failed' );
+			}
+			$file_path = $imported['relative_path'];
+			$file_url  = $imported['file_url'];
+			if ( '' === $file_type ) {
+				$file_type = $imported['file_type'];
+			}
+		}
+
+		$existing = $resource_id ? CTA_Database::get_downloadable_resource( $resource_id ) : null;
+
+		// Keep previous protected file when editing without a new upload.
+		if ( $existing && ! $attachment_id && '' === $file_url ) {
+			$file_url  = (string) $existing->file_url;
+			$file_path = (string) ( $existing->file_path ?? '' );
+			$attachment_id = (int) ( $existing->attachment_id ?? 0 );
+			if ( '' === $file_type ) {
+				$file_type = (string) $existing->file_type;
+			}
+		}
+
+		if ( '' === $file_url && ! $file_path ) {
+			wp_die( esc_html__( 'Please select or upload a file for this material.', 'cta-lms' ) );
+		}
+
+		if ( '' === $file_type ) {
+			$path      = wp_parse_url( $file_url, PHP_URL_PATH );
+			$ext       = $path ? strtolower( pathinfo( $path, PATHINFO_EXTENSION ) ) : '';
+			$file_type = $ext ? $ext : 'file';
+		}
+
+		// Validate module belongs to this course when set.
+		if ( $module_id ) {
+			$module_ok = false;
+			foreach ( CTA_Database::get_course_modules( $course_id ) as $module ) {
+				if ( (int) $module->id === $module_id ) {
+					$module_ok = true;
+					break;
+				}
+			}
+			if ( ! $module_ok ) {
+				$module_id = 0;
+			}
+		}
+
+		if ( ! $resource_id ) {
+			$max_order = (int) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COALESCE(MAX(order_index), -1) FROM {$wpdb->prefix}cta_downloadable_resources WHERE course_id = %d",
+					$course_id
+				)
+			);
+			$order_index = $max_order + 1;
+		}
+
+		$table = $wpdb->prefix . 'cta_downloadable_resources';
+		$data  = array(
+			'course_id'        => $course_id,
+			'module_id'        => $module_id,
+			'attachment_id'    => $attachment_id,
+			'title'            => $title,
+			'file_url'         => $file_url ? $file_url : 'cta-protected://' . $file_path,
+			'file_path'        => $file_path,
+			'file_type'        => $file_type,
+			'order_index'      => $order_index,
+			'is_practice_test' => $is_practice_test,
+		);
+		$formats = array( '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%d', '%d' );
+
+		if ( $resource_id ) {
+			// Preserve file_path if not replacing.
+			if ( $existing && empty( $file_path ) && ! empty( $existing->file_path ) ) {
+				$data['file_path'] = $existing->file_path;
+			}
+			$wpdb->update(
+				$table,
+				$data,
+				array( 'id' => $resource_id ),
+				$formats,
+				array( '%d' )
+			);
+		} else {
+			$wpdb->insert( $table, $data, $formats );
+		}
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'       => 'cta-lms-course-edit',
+					'course_id'  => $course_id,
+					'cta_notice' => 'resource_saved',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
+	 * AJAX: reorder downloadable resources.
+	 */
+	public function ajax_reorder_resources() {
+		check_ajax_referer( 'cta_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'cta-lms' ) ) );
+		}
+
+		global $wpdb;
+
+		$course_id = absint( wp_unslash( $_POST['course_id'] ?? 0 ) );
+		$order     = isset( $_POST['order'] ) ? wp_unslash( $_POST['order'] ) : array();
+
+		if ( ! $course_id || ! is_array( $order ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid reorder request.', 'cta-lms' ) ) );
+		}
+
+		$table = $wpdb->prefix . 'cta_downloadable_resources';
+
+		foreach ( array_values( $order ) as $index => $resource_id ) {
+			$wpdb->update(
+				$table,
+				array( 'order_index' => (int) $index ),
+				array(
+					'id'        => absint( $resource_id ),
+					'course_id' => $course_id,
+				),
+				array( '%d' ),
+				array( '%d', '%d' )
+			);
+		}
+
+		wp_send_json_success( array( 'message' => __( 'Resources reordered.', 'cta-lms' ) ) );
+	}
+
+	/**
+	 * Admin: delete a downloadable resource.
+	 */
+	public function delete_resource() {
+		$this->verify_admin_request( 'cta_delete_resource' );
+
+		global $wpdb;
+
+		$resource_id = absint( wp_unslash( $_GET['resource_id'] ?? 0 ) );
+		$course_id   = absint( wp_unslash( $_GET['course_id'] ?? 0 ) );
+
+		if ( $resource_id ) {
+			$wpdb->delete(
+				$wpdb->prefix . 'cta_downloadable_resources',
+				array( 'id' => $resource_id ),
+				array( '%d' )
+			);
+		}
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'       => 'cta-lms-course-edit',
+					'course_id'  => $course_id,
+					'cta_notice' => 'resource_deleted',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
 	 * Delete a course.
 	 */
 	public function delete_course() {
@@ -941,6 +1587,7 @@ class CTA_Admin {
 		global $wpdb;
 
 		$wpdb->delete( $wpdb->prefix . 'cta_course_modules', array( 'course_id' => $course_id ), array( '%d' ) );
+		$wpdb->delete( $wpdb->prefix . 'cta_downloadable_resources', array( 'course_id' => $course_id ), array( '%d' ) );
 		$wpdb->delete( $wpdb->prefix . 'cta_courses', array( 'id' => $course_id ), array( '%d' ) );
 
 		wp_safe_redirect(
@@ -1008,12 +1655,21 @@ class CTA_Admin {
 			update_option( $option_key, absint( wp_unslash( $_POST[ $option_key ] ?? 0 ) ) );
 		}
 
-		update_option( 'cta_camft_provider_number', sanitize_text_field( wp_unslash( $_POST['cta_camft_provider_number'] ?? '' ) ) );
-		update_option( 'cta_admin_name', sanitize_text_field( wp_unslash( $_POST['cta_admin_name'] ?? '' ) ) );
+		update_option( 'cta_camft_provider_number', cta_lms_sanitize_utf8_text( sanitize_text_field( wp_unslash( $_POST['cta_camft_provider_number'] ?? '' ) ) ) );
+		update_option( 'cta_admin_name', cta_lms_sanitize_utf8_text( sanitize_text_field( wp_unslash( $_POST['cta_admin_name'] ?? '' ) ) ) );
 		update_option( 'cta_support_email', sanitize_email( wp_unslash( $_POST['cta_support_email'] ?? '' ) ) );
-		update_option( 'cta_certificate_header_text', sanitize_text_field( wp_unslash( $_POST['cta_certificate_header_text'] ?? '' ) ) );
-		update_option( 'cta_certificate_footer_text', sanitize_text_field( wp_unslash( $_POST['cta_certificate_footer_text'] ?? '' ) ) );
-		update_option( 'cta_certificate_signature_name', sanitize_text_field( wp_unslash( $_POST['cta_certificate_signature_name'] ?? '' ) ) );
+
+		$timezone = sanitize_text_field( wp_unslash( $_POST['cta_timezone'] ?? 'America/Los_Angeles' ) );
+		try {
+			new DateTimeZone( $timezone );
+		} catch ( Exception $e ) {
+			$timezone = 'America/Los_Angeles';
+		}
+		update_option( 'cta_timezone', $timezone );
+
+		update_option( 'cta_certificate_header_text', cta_lms_sanitize_utf8_text( sanitize_text_field( wp_unslash( $_POST['cta_certificate_header_text'] ?? '' ) ) ) );
+		update_option( 'cta_certificate_footer_text', cta_lms_sanitize_utf8_text( sanitize_text_field( wp_unslash( $_POST['cta_certificate_footer_text'] ?? '' ) ) ) );
+		update_option( 'cta_certificate_signature_name', cta_lms_sanitize_utf8_text( sanitize_text_field( wp_unslash( $_POST['cta_certificate_signature_name'] ?? '' ) ) ) );
 
 		wp_safe_redirect(
 			add_query_arg(
@@ -1033,7 +1689,7 @@ class CTA_Admin {
 	public function save_email_settings() {
 		$this->verify_admin_request( 'cta_save_email_settings' );
 
-		update_option( 'cta_admin_name', sanitize_text_field( wp_unslash( $_POST['cta_admin_name'] ?? '' ) ) );
+		update_option( 'cta_admin_name', cta_lms_sanitize_utf8_text( sanitize_text_field( wp_unslash( $_POST['cta_admin_name'] ?? '' ) ) ) );
 		update_option( 'cta_support_email', sanitize_email( wp_unslash( $_POST['cta_support_email'] ?? '' ) ) );
 
 		$submitted = isset( $_POST['emails'] ) && is_array( $_POST['emails'] )
@@ -1044,8 +1700,8 @@ class CTA_Admin {
 			$email = isset( $submitted[ $type ] ) && is_array( $submitted[ $type ] )
 				? $submitted[ $type ]
 				: array();
-			$subject = sanitize_text_field( $email['subject'] ?? $config['default_subject'] );
-			$body    = wp_kses_post( $email['body'] ?? $config['default_body'] );
+			$subject = cta_lms_sanitize_utf8_text( sanitize_text_field( $email['subject'] ?? $config['default_subject'] ) );
+			$body    = cta_lms_sanitize_utf8_html( wp_kses_post( $email['body'] ?? $config['default_body'] ) );
 
 			// Keep empty options for untouched defaults so the original PHP
 			// template remains the fallback (including its conditional content).
@@ -1148,8 +1804,8 @@ class CTA_Admin {
 
 		$module_id   = absint( wp_unslash( $_POST['module_id'] ?? 0 ) );
 		$course_id   = absint( wp_unslash( $_POST['course_id'] ?? 0 ) );
-		$title       = sanitize_text_field( wp_unslash( $_POST['title'] ?? '' ) );
-		$description = sanitize_textarea_field( wp_unslash( $_POST['description'] ?? '' ) );
+		$title       = cta_lms_sanitize_utf8_text( sanitize_text_field( wp_unslash( $_POST['title'] ?? '' ) ) );
+		$description = cta_lms_sanitize_utf8_text( sanitize_textarea_field( wp_unslash( $_POST['description'] ?? '' ) ) );
 		$video_url   = esc_url_raw( wp_unslash( $_POST['video_url'] ?? '' ) );
 		$duration    = absint( wp_unslash( $_POST['duration_mins'] ?? 0 ) );
 		$is_locked   = ! empty( $_POST['is_locked'] ) ? 1 : 0;
@@ -1336,7 +1992,9 @@ class CTA_Admin {
 			wp_send_json_error( array( 'message' => __( 'Date and time are required.', 'cta-lms' ) ) );
 		}
 
-		if ( strtotime( $session_date . ' ' . $session_time ) <= time() ) {
+		$dt = cta_lms_session_datetime( $session_date, $session_time );
+
+		if ( ! $dt || $dt->getTimestamp() <= time() ) {
 			wp_send_json_error( array( 'message' => __( 'Session must be in the future.', 'cta-lms' ) ) );
 		}
 
@@ -1496,6 +2154,144 @@ class CTA_Admin {
 	}
 
 	/**
+	 * AJAX: ensure Stripe Customer Portal configuration exists.
+	 */
+	public function ajax_ensure_billing_portal() {
+		$this->verify_admin_ajax();
+
+		if ( CTA_Stripe::is_payments_bypass_enabled() ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'Turn off Testing Mode (payment bypass) before configuring the billing portal.', 'cta-lms' ),
+				)
+			);
+		}
+
+		$stripe = cta_get_stripe();
+
+		if ( ! $stripe || ! $stripe->is_configured() ) {
+			wp_send_json_error( array( 'message' => __( 'Configure and save Stripe API keys first.', 'cta-lms' ) ) );
+		}
+
+		$result = $stripe->ensure_billing_portal_configuration();
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		if ( '' === $result ) {
+			wp_send_json_success(
+				array(
+					'message' => __( 'Stripe will use your Dashboard default Customer Portal settings.', 'cta-lms' ),
+				)
+			);
+		}
+
+		wp_send_json_success(
+			array(
+				'message' => sprintf(
+					/* translators: %s: Stripe portal configuration ID */
+					__( 'Customer Portal ready (%s).', 'cta-lms' ),
+					$result
+				),
+				'configuration_id' => $result,
+			)
+		);
+	}
+
+	/**
+	 * AJAX: admin cancel a student's Stripe subscription.
+	 */
+	public function ajax_admin_cancel_subscription() {
+		$this->verify_admin_ajax();
+
+		$user_id = absint( wp_unslash( $_POST['user_id'] ?? 0 ) );
+		$mode    = sanitize_text_field( wp_unslash( $_POST['mode'] ?? 'at_period_end' ) );
+		$stripe  = cta_get_stripe();
+
+		if ( ! $stripe ) {
+			wp_send_json_error( array( 'message' => __( 'Stripe is not available.', 'cta-lms' ) ) );
+		}
+
+		$result = $stripe->admin_cancel_subscription( $user_id, $mode );
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		$cancel_pending = '1' === (string) get_user_meta( $user_id, 'cta_supervision_cancel_at_period_end', true );
+
+		wp_send_json_success(
+			array(
+				'message' => ( 'immediately' === $mode )
+					? __( 'Subscription cancelled immediately in Stripe and locally.', 'cta-lms' )
+					: __( 'Subscription set to cancel at period end. Access remains until the paid period ends.', 'cta-lms' ),
+				'user_id'             => $user_id,
+				'supervision_status'  => (string) get_user_meta( $user_id, 'cta_supervision_status', true ),
+				'cancel_at_period_end'=> $cancel_pending,
+			)
+		);
+	}
+
+	/**
+	 * AJAX: admin reactivate a subscription that was set to cancel at period end.
+	 */
+	public function ajax_admin_reactivate_subscription() {
+		$this->verify_admin_ajax();
+
+		$user_id = absint( wp_unslash( $_POST['user_id'] ?? 0 ) );
+		$stripe  = cta_get_stripe();
+
+		if ( ! $stripe ) {
+			wp_send_json_error( array( 'message' => __( 'Stripe is not available.', 'cta-lms' ) ) );
+		}
+
+		$result = $stripe->admin_reactivate_subscription( $user_id );
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		wp_send_json_success(
+			array(
+				'message'            => __( 'Subscription reactivated. Auto-renewal is on again.', 'cta-lms' ),
+				'user_id'            => $user_id,
+				'supervision_status' => (string) get_user_meta( $user_id, 'cta_supervision_status', true ),
+				'cancel_at_period_end' => false,
+			)
+		);
+	}
+
+	/**
+	 * AJAX: pull latest Stripe subscription status into local meta.
+	 */
+	public function ajax_admin_sync_subscription() {
+		$this->verify_admin_ajax();
+
+		$user_id = absint( wp_unslash( $_POST['user_id'] ?? 0 ) );
+		$stripe  = cta_get_stripe();
+
+		if ( ! $stripe ) {
+			wp_send_json_error( array( 'message' => __( 'Stripe is not available.', 'cta-lms' ) ) );
+		}
+
+		$result = $stripe->sync_user_subscription_from_stripe( $user_id );
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		wp_send_json_success(
+			array(
+				'message'              => __( 'Subscription synced from Stripe.', 'cta-lms' ),
+				'user_id'              => $user_id,
+				'supervision_status'   => (string) get_user_meta( $user_id, 'cta_supervision_status', true ),
+				'cancel_at_period_end' => '1' === (string) get_user_meta( $user_id, 'cta_supervision_cancel_at_period_end', true ),
+			)
+		);
+	}
+
+	/**
 	 * AJAX: preview certificate with sample data.
 	 */
 	public function ajax_preview_certificate() {
@@ -1503,12 +2299,24 @@ class CTA_Admin {
 
 		$student_name       = 'Sample Student, LMFT';
 		$course_title       = 'Sample CE Course';
-		$ce_hours           = '2.0';
-		$completion_date    = wp_date( 'F j, Y' );
+		$ce_hours           = '2';
+		$completion_date    = cta_lms_format_local_date( null, 'F j, Y', cta_lms_get_timezone() );
 		$license_number     = 'LMFT12345';
 		$provider_number    = (string) get_option( 'cta_camft_provider_number', get_option( 'cta_cepa_provider_number', '' ) );
-		$certificate_number = 'CTA-' . gmdate( 'Y' ) . '-000000';
-		$logo_url           = CTA_PLUGIN_URL . 'assets/img/placeholder/logo.png';
+		$certificate_number = 'CTA-' . cta_lms_current_date( 'Y' ) . '-000000';
+		$header_text        = (string) get_option( 'cta_certificate_header_text', __( 'Certificate of Completion', 'cta-lms' ) );
+		$footer_text        = (string) get_option( 'cta_certificate_footer_text', 'clinicaltrainingacademy.com' );
+		$signature_name     = (string) get_option( 'cta_certificate_signature_name', '' );
+		if ( '' === $signature_name ) {
+			$signature_name = (string) get_option( 'cta_admin_name', 'Candice Fuimaono, MS, LMFT' );
+		}
+		$organization_name   = __( 'Clinical Training and Supervision Academy', 'cta-lms' );
+		$administrator_title = __( 'Program Administrator', 'cta-lms' );
+		$logo_url            = class_exists( 'CTA_Certificates' ) ? CTA_Certificates::get_logo_data_uri() : '';
+		if ( '' === $logo_url ) {
+			$logo_url = cta_lms_get_logo_url();
+		}
+		$auto_print = false;
 
 		ob_start();
 		include CTA_PLUGIN_DIR . 'templates/certificate.php';
@@ -1610,22 +2418,28 @@ class CTA_Admin {
 			$wpdb->update(
 				$wpdb->prefix . 'cta_quizzes',
 				array(
-					'title'  => $title,
-					'status' => 'active',
+					'title'           => $title,
+					'status'          => 'active',
+					'passing_score'   => 70,
+					'time_limit_mins' => 0,
+					'max_attempts'    => 0,
 				),
 				array( 'id' => $quiz_id ),
-				array( '%s', '%s' ),
+				array( '%s', '%s', '%d', '%d', '%d' ),
 				array( '%d' )
 			);
 		} else {
 			$wpdb->insert(
 				$wpdb->prefix . 'cta_quizzes',
 				array(
-					'course_id' => $course_id,
-					'title'       => $title,
-					'status'      => 'active',
+					'course_id'       => $course_id,
+					'title'           => $title,
+					'status'          => 'active',
+					'passing_score'   => 70,
+					'time_limit_mins' => 0,
+					'max_attempts'    => 0,
 				),
-				array( '%d', '%s', '%s' )
+				array( '%d', '%s', '%s', '%d', '%d', '%d' )
 			);
 			$quiz_id = (int) $wpdb->insert_id;
 		}
@@ -1656,13 +2470,13 @@ class CTA_Admin {
 						$wpdb->prefix . 'cta_quiz_questions',
 						array(
 							'quiz_id'        => $quiz_id,
-							'question_text'  => sanitize_textarea_field( $question['question_text'] ),
-							'option_a'       => sanitize_text_field( $question['option_a'] ?? '' ),
-							'option_b'       => sanitize_text_field( $question['option_b'] ?? '' ),
-							'option_c'       => sanitize_text_field( $question['option_c'] ?? '' ),
-							'option_d'       => sanitize_text_field( $question['option_d'] ?? '' ),
+							'question_text'  => cta_lms_sanitize_utf8_text( sanitize_textarea_field( $question['question_text'] ) ),
+							'option_a'       => cta_lms_sanitize_utf8_text( sanitize_text_field( $question['option_a'] ?? '' ) ),
+							'option_b'       => cta_lms_sanitize_utf8_text( sanitize_text_field( $question['option_b'] ?? '' ) ),
+							'option_c'       => cta_lms_sanitize_utf8_text( sanitize_text_field( $question['option_c'] ?? '' ) ),
+							'option_d'       => cta_lms_sanitize_utf8_text( sanitize_text_field( $question['option_d'] ?? '' ) ),
 							'correct_option' => $correct,
-							'explanation'    => sanitize_textarea_field( $question['explanation'] ?? '' ),
+							'explanation'    => cta_lms_sanitize_utf8_text( sanitize_textarea_field( $question['explanation'] ?? '' ) ),
 							'order_index'    => isset( $question['order_index'] ) ? absint( $question['order_index'] ) : $index,
 						),
 						array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d' )
@@ -1725,8 +2539,8 @@ class CTA_Admin {
 		ob_start();
 		?>
 		<tr data-session-id="<?php echo esc_attr( $session->id ); ?>">
-			<td><?php echo esc_html( $session->session_date ); ?></td>
-			<td><?php echo esc_html( substr( (string) $session->session_time, 0, 5 ) ); ?></td>
+			<td><?php echo esc_html( cta_lms_format_session_date( $session->session_date, 'M j, Y' ) ); ?></td>
+			<td><?php echo esc_html( cta_lms_format_session_time( $session->session_date, $session->session_time, 'g:i A T' ) ); ?></td>
 			<td><?php echo esc_html( ucfirst( $session->session_type ) ); ?></td>
 			<td><?php echo esc_html( (int) $session->seats_booked . ' / ' . (int) $session->seats_total ); ?></td>
 			<td><span class="cta-status-badge cta-status-badge--open"><?php echo esc_html( ucfirst( $session->status ) ); ?></span></td>
@@ -1818,6 +2632,7 @@ class CTA_Admin {
 			'Clinical Skills'     => __( 'Clinical Skills', 'cta-lms' ),
 			'Specialized Topics'  => __( 'Specialized Topics', 'cta-lms' ),
 			'Supervision'         => __( 'Supervision', 'cta-lms' ),
+			'Exam Preparation'    => __( 'Exam Preparation', 'cta-lms' ),
 		);
 	}
 
@@ -1978,13 +2793,69 @@ class CTA_Admin {
 
 		wp_send_json_success(
 			array(
-				'message'             => __( 'Associate approved. Supervision access is now unlocked.', 'cta-lms' ),
+				'message'             => CTA_Associate_Access::has_qualifying_plan( $user_id )
+					? __( 'Associate approved. Supervision access is now unlocked.', 'cta-lms' )
+					: __( 'Associate approved. They still need a purchased or admin-assigned plan before dashboard access unlocks.', 'cta-lms' ),
 				'user_id'             => $user_id,
 				'status'              => CTA_Associate_Access::get_approval_status( $user_id ),
 				'supervision_status'  => CTA_Associate_Access::get_supervision_status( $user_id ),
 				'access_granted'      => CTA_Associate_Access::can_access_supervision_features( $user_id ),
 			)
 		);
+	}
+
+	/**
+	 * AJAX: assign an agency-paid supervision plan to an Associate.
+	 */
+	public function ajax_assign_associate_plan() {
+		$this->verify_admin_ajax();
+
+		$user_id   = absint( wp_unslash( $_POST['user_id'] ?? 0 ) );
+		$plan_slug = sanitize_text_field( wp_unslash( $_POST['plan_slug'] ?? 'group' ) );
+		$note      = sanitize_textarea_field( wp_unslash( $_POST['note'] ?? '' ) );
+		$result    = CTA_Associate_Access::assign_plan( $user_id, $plan_slug, $note );
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		wp_send_json_success(
+			array(
+				'message'   => __( 'Agency-paid plan assigned.', 'cta-lms' ),
+				'user_id'   => $user_id,
+				'plan_name' => CTA_Associate_Access::get_plan_display_name( $user_id ),
+				'has_plan'  => true,
+			)
+		);
+	}
+
+	/**
+	 * Admin-post: assign agency-paid plan (works without JavaScript).
+	 */
+	public function handle_assign_associate_plan() {
+		$user_id   = absint( wp_unslash( $_POST['user_id'] ?? 0 ) );
+		$plan_slug = sanitize_text_field( wp_unslash( $_POST['plan_slug'] ?? 'group' ) );
+		$note      = sanitize_textarea_field( wp_unslash( $_POST['note'] ?? '' ) );
+
+		check_admin_referer( 'cta_assign_plan_' . $user_id, 'cta_assign_plan_nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Permission denied.', 'cta-lms' ) );
+		}
+
+		$result = CTA_Associate_Access::assign_plan( $user_id, $plan_slug, $note );
+		$flash  = is_wp_error( $result ) ? 'error' : 'assigned';
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'         => 'cta-lms-approvals',
+					'cta_approval' => $flash,
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
 	}
 
 	/**
@@ -2073,41 +2944,33 @@ class CTA_Admin {
 		$status = CTA_Associate_Access::get_approval_status( $user_id );
 
 		if ( 'approve' === $decision ) {
-			// Approve from any state except when already approved (idempotent guard only).
+			// Approval is vetting only — a plan is not required. Access stays locked until purchase/assignment.
 			if ( CTA_Associate_Access::STATUS_APPROVED === $status ) {
 				return new WP_Error( 'already_approved', __( 'This Associate is already approved.', 'cta-lms' ) );
 			}
 
 			$ok = CTA_Associate_Access::approve( $user_id );
-		} else {
-			// Reject/revoke from any state (pending, approved, or legacy accounts with
-			// no approval meta) except when already rejected. This guarantees the
-			// "rejected" status is always written so it persists after a page refresh.
-			if ( CTA_Associate_Access::STATUS_REJECTED === $status ) {
-				return new WP_Error( 'already_rejected', __( 'This Associate is already rejected.', 'cta-lms' ) );
+
+			if ( is_wp_error( $ok ) ) {
+				return $ok;
 			}
 
-			$ok = CTA_Associate_Access::reject( $user_id, $reason );
+			if ( ! $ok ) {
+				return new WP_Error( 'approve_failed', __( 'Unable to approve this Associate.', 'cta-lms' ) );
+			}
+
+			return true;
 		}
+
+		// Reject/revoke from any state except when already rejected.
+		if ( CTA_Associate_Access::STATUS_REJECTED === $status ) {
+			return new WP_Error( 'already_rejected', __( 'This Associate is already rejected.', 'cta-lms' ) );
+		}
+
+		$ok = CTA_Associate_Access::reject( $user_id, $reason );
 
 		if ( ! $ok ) {
-			return new WP_Error(
-				'update_failed',
-				'approve' === $decision
-					? __( 'Unable to approve this Associate.', 'cta-lms' )
-					: __( 'Unable to reject this Associate.', 'cta-lms' )
-			);
-		}
-
-		if ( 'approve' === $decision && class_exists( 'CTA_Database' ) ) {
-			$supervision_payment = CTA_Database::get_user_supervision_payment( $user_id, 'completed' );
-
-			if ( $supervision_payment && ! CTA_Associate_Access::can_access_supervision_features( $user_id ) ) {
-				return new WP_Error(
-					'unlock_failed',
-					__( 'Associate was approved, but supervision access could not be activated.', 'cta-lms' )
-				);
-			}
+			return new WP_Error( 'update_failed', __( 'Unable to reject this Associate.', 'cta-lms' ) );
 		}
 
 		return true;

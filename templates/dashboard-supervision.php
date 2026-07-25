@@ -8,6 +8,7 @@
  * @var bool   $is_locked
  * @var bool   $is_pending_plan
  * @var bool   $has_supervision_purchase
+ * @var bool   $is_approved_awaiting_plan
  * @var bool   $can_access_supervision
  * @var bool   $no_plan
  * @var bool   $is_pending_approval
@@ -66,7 +67,7 @@ $document_count     = count( $documents );
 						<h3 class="service-card__title"><?php echo esc_html__( 'Group Supervision', 'cta-lms' ); ?></h3>
 						<p class="service-card__price"><?php echo esc_html( $monthly_display ); ?></p>
 						<p class="service-card__price-unit"><?php echo esc_html__( '/ month', 'cta-lms' ); ?></p>
-						<button type="button" class="btn btn-primary btn--lg service-card__cta cta-subscribe-btn" data-cta-supervision-subscribe>
+						<button type="button" class="btn btn-primary btn--lg service-card__cta cta-subscribe-btn" data-cta-supervision-subscribe data-course-title="<?php echo esc_attr( CTA_Supervision_Plans::get_name( CTA_Supervision_Plans::GROUP_SLUG ) ); ?>" data-price="<?php echo esc_attr( CTA_Supervision_Plans::get_price_label( CTA_Supervision_Plans::GROUP_SLUG ) ); ?>">
 							<?php echo esc_html__( 'Subscribe Now', 'cta-lms' ); ?>
 						</button>
 					</article>
@@ -113,6 +114,38 @@ $document_count     = count( $documents );
 			<?php if ( ! empty( $has_supervision_purchase ) ) : ?>
 				<?php include CTA_PLUGIN_DIR . 'templates/partials/supervision-onboarding-status.php'; ?>
 			<?php endif; ?>
+		</div>
+
+	<?php elseif ( ! empty( $is_approved_awaiting_plan ) ) : ?>
+		<div class="dashboard-main dashboard-main--full">
+			<?php if ( ! empty( $home_url ) ) : ?>
+				<p class="dashboard-home-link"><a href="<?php echo esc_url( $home_url ); ?>">&larr; <?php echo esc_html__( 'Back to Home', 'cta-lms' ); ?></a></p>
+			<?php endif; ?>
+			<div class="cta-empty-state cta-supervision-awaiting-plan">
+				<h1><?php echo esc_html__( 'Application Approved', 'cta-lms' ); ?></h1>
+				<p><?php echo esc_html( CTA_Associate_Access::get_approved_awaiting_plan_message() ); ?></p>
+				<p><?php echo esc_html__( 'Session booking and supervision materials stay locked until a plan is active.', 'cta-lms' ); ?></p>
+
+				<div class="grid-2 grid-2--gap-lg supervision-services__grid cta-supervision-plan-grid">
+					<article class="card service-card">
+						<div class="service-card__badge-row">
+							<span class="badge badge--primary"><?php echo esc_html__( 'Subscription', 'cta-lms' ); ?></span>
+						</div>
+						<h3 class="service-card__title"><?php echo esc_html( CTA_Supervision_Plans::get_name( CTA_Supervision_Plans::GROUP_SLUG ) ); ?></h3>
+						<p class="service-card__price"><?php echo esc_html( '$' . number_format( CTA_Supervision_Plans::get_group_price(), 0 ) ); ?></p>
+						<p class="service-card__price-unit"><?php echo esc_html__( '/ month', 'cta-lms' ); ?></p>
+						<?php if ( $supervision_url ) : ?>
+							<a href="<?php echo esc_url( $supervision_url ); ?>" class="btn btn-primary btn--lg service-card__cta">
+								<?php echo esc_html__( 'View Plans & Subscribe', 'cta-lms' ); ?>
+							</a>
+						<?php else : ?>
+							<button type="button" class="btn btn-primary btn--lg service-card__cta cta-subscribe-btn" data-cta-supervision-subscribe data-course-title="<?php echo esc_attr( CTA_Supervision_Plans::get_name( CTA_Supervision_Plans::GROUP_SLUG ) ); ?>" data-price="<?php echo esc_attr( CTA_Supervision_Plans::get_price_label( CTA_Supervision_Plans::GROUP_SLUG ) ); ?>">
+								<?php echo esc_html__( 'Subscribe Now', 'cta-lms' ); ?>
+							</button>
+						<?php endif; ?>
+					</article>
+				</div>
+			</div>
 		</div>
 
 	<?php elseif ( empty( $can_access_supervision ) ) : ?>
@@ -220,17 +253,29 @@ $document_count     = count( $documents );
 							<?php if ( $next_billing_date ) : ?>
 								<p class="subscription-card__billing">
 									<?php
-									printf(
-										/* translators: %s: billing date */
-										esc_html__( 'Next billing date: %s', 'cta-lms' ),
-										esc_html( $next_billing_date )
-									);
+									$cancel_pending = '1' === (string) get_user_meta( get_current_user_id(), 'cta_supervision_cancel_at_period_end', true );
+									if ( $cancel_pending ) {
+										echo esc_html( $next_billing_date );
+									} else {
+										printf(
+											/* translators: %s: billing date */
+											esc_html__( 'Next billing date: %s', 'cta-lms' ),
+											esc_html( $next_billing_date )
+										);
+									}
 									?>
 								</p>
 							<?php endif; ?>
 						</div>
 						<div class="subscription-card__actions">
-							<span class="badge badge--success"><?php echo esc_html__( 'Active', 'cta-lms' ); ?></span>
+							<?php
+							$cancel_pending_badge = '1' === (string) get_user_meta( get_current_user_id(), 'cta_supervision_cancel_at_period_end', true );
+							if ( $cancel_pending_badge ) :
+								?>
+								<span class="badge badge--warning"><?php echo esc_html__( 'Cancels at period end', 'cta-lms' ); ?></span>
+							<?php else : ?>
+								<span class="badge badge--success"><?php echo esc_html__( 'Active', 'cta-lms' ); ?></span>
+							<?php endif; ?>
 							<button type="button" class="btn btn-outline cta-manage-subscription">
 								<?php echo esc_html__( 'Manage Subscription', 'cta-lms' ); ?>
 							</button>
@@ -283,7 +328,7 @@ $document_count     = count( $documents );
 									<?php foreach ( $session_history as $history ) : ?>
 										<?php $status = $dashboard->get_history_status( $history ); ?>
 										<tr>
-											<td><?php echo esc_html( wp_date( 'M j, Y', strtotime( $history->session_date ) ) ); ?></td>
+											<td><?php echo esc_html( cta_lms_format_session_date( $history->session_date, 'M j, Y' ) ); ?></td>
 											<td><?php echo esc_html( ucfirst( $history->session_type ) ); ?></td>
 											<td><?php echo esc_html( $dashboard->format_duration_label( $history ) ); ?></td>
 											<td><span class="badge <?php echo esc_attr( $status['class'] ); ?>"><?php echo esc_html( $status['label'] ); ?></span></td>
@@ -376,16 +421,29 @@ $document_count     = count( $documents );
 						<?php if ( $next_billing_date ) : ?>
 							<p class="subscription-card__billing">
 								<?php
-								printf(
-									esc_html__( 'Next billing date: %s', 'cta-lms' ),
-									esc_html( $next_billing_date )
-								);
+								$cancel_pending = '1' === (string) get_user_meta( get_current_user_id(), 'cta_supervision_cancel_at_period_end', true );
+								if ( $cancel_pending ) {
+									echo esc_html( $next_billing_date );
+								} else {
+									printf(
+										/* translators: %s: billing date */
+										esc_html__( 'Next billing date: %s', 'cta-lms' ),
+										esc_html( $next_billing_date )
+									);
+								}
 								?>
 							</p>
 						<?php endif; ?>
 					</div>
 					<div class="subscription-card__actions">
-						<span class="badge badge--success"><?php echo esc_html__( 'Active', 'cta-lms' ); ?></span>
+						<?php
+						$cancel_pending_badge = '1' === (string) get_user_meta( get_current_user_id(), 'cta_supervision_cancel_at_period_end', true );
+						if ( $cancel_pending_badge ) :
+							?>
+							<span class="badge badge--warning"><?php echo esc_html__( 'Cancels at period end', 'cta-lms' ); ?></span>
+						<?php else : ?>
+							<span class="badge badge--success"><?php echo esc_html__( 'Active', 'cta-lms' ); ?></span>
+						<?php endif; ?>
 						<button type="button" class="btn btn-outline cta-manage-subscription">
 							<?php echo esc_html__( 'Manage Subscription', 'cta-lms' ); ?>
 						</button>

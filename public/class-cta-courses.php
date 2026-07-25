@@ -38,9 +38,10 @@ class CTA_Courses {
 	public function render_catalog( $atts ) {
 		$atts = shortcode_atts(
 			array(
-				'limit'    => -1,
-				'category' => '',
-				'columns'  => 3,
+				'limit'        => -1,
+				'category'     => '',
+				'columns'      => 3,
+				'product_type' => '',
 			),
 			$atts,
 			'cta_course_catalog'
@@ -51,7 +52,7 @@ class CTA_Courses {
 		$active_category = sanitize_text_field( $atts['category'] );
 		$search          = '';
 
-		$courses = $this->get_courses(
+		$all_published = $this->get_courses(
 			array(
 				'limit'    => $limit,
 				'category' => $active_category,
@@ -59,7 +60,30 @@ class CTA_Courses {
 			)
 		);
 
-		$categories = $this->get_categories();
+		$ce_courses   = array();
+		$exam_courses = array();
+
+		foreach ( $all_published as $course ) {
+			if ( class_exists( 'CTA_Exam_Access' ) && CTA_Exam_Access::is_exam_prep( $course ) ) {
+				$exam_courses[] = $course;
+			} else {
+				$ce_courses[] = $course;
+			}
+		}
+
+		// Default catalog shows CE; optional product_type="exam_prep" for exam-only shortcode.
+		$product_type_filter = sanitize_text_field( $atts['product_type'] );
+		if ( 'exam_prep' === $product_type_filter ) {
+			$courses    = $exam_courses;
+			$ce_courses = array();
+		} elseif ( 'ce' === $product_type_filter ) {
+			$courses      = $ce_courses;
+			$exam_courses = array();
+		} else {
+			$courses = $ce_courses;
+		}
+
+		$categories = $this->get_categories( 'ce' === $product_type_filter || '' === $product_type_filter ? 'ce' : $product_type_filter );
 
 		ob_start();
 		include CTA_PLUGIN_DIR . 'templates/courses.php';
@@ -142,6 +166,7 @@ class CTA_Courses {
 		$login_url       = CTA_Emails::get_page_url( 'cta_login_page_id' );
 		$is_free_course  = (float) $course->price <= 0;
 		$video_helper    = new CTA_Student_Dashboard();
+		$resources       = CTA_Database::get_downloadable_resources( $course_id );
 
 		ob_start();
 		include CTA_PLUGIN_DIR . 'templates/single-course.php';
@@ -237,18 +262,20 @@ class CTA_Courses {
 	public function ajax_filter_courses() {
 		check_ajax_referer( 'cta_nonce', 'nonce' );
 
-		$category = sanitize_text_field( wp_unslash( $_POST['category'] ?? '' ) );
-		$search   = sanitize_text_field( wp_unslash( $_POST['search'] ?? '' ) );
-		$sort     = sanitize_text_field( wp_unslash( $_POST['sort'] ?? 'default' ) );
-		$limit    = isset( $_POST['limit'] ) ? intval( $_POST['limit'] ) : -1;
+		$category     = sanitize_text_field( wp_unslash( $_POST['category'] ?? '' ) );
+		$search       = sanitize_text_field( wp_unslash( $_POST['search'] ?? '' ) );
+		$sort         = sanitize_text_field( wp_unslash( $_POST['sort'] ?? 'default' ) );
+		$limit        = isset( $_POST['limit'] ) ? intval( $_POST['limit'] ) : -1;
+		$product_type = sanitize_text_field( wp_unslash( $_POST['product_type'] ?? 'ce' ) );
 
 		$courses = $this->get_courses(
 			array(
-				'category' => $category,
-				'search'   => $search,
-				'sort'     => $sort,
-				'limit'    => $limit,
-				'status'   => 'published',
+				'category'     => $category,
+				'search'       => $search,
+				'sort'         => $sort,
+				'limit'        => $limit,
+				'status'       => 'published',
+				'product_type' => $product_type,
 			)
 		);
 
@@ -286,17 +313,23 @@ class CTA_Courses {
 		$table = $wpdb->prefix . 'cta_courses';
 
 		$defaults = array(
-			'limit'    => -1,
-			'category' => '',
-			'search'   => '',
-			'sort'     => 'default',
-			'status'   => 'published',
+			'limit'        => -1,
+			'category'     => '',
+			'search'       => '',
+			'sort'         => 'default',
+			'status'       => 'published',
+			'product_type' => '',
 		);
 
 		$args = wp_parse_args( $args, $defaults );
 
 		$where  = array( 'status = %s' );
 		$values = array( $args['status'] );
+
+		if ( ! empty( $args['product_type'] ) && in_array( $args['product_type'], array( 'ce', 'exam_prep' ), true ) ) {
+			$where[]  = 'product_type = %s';
+			$values[] = $args['product_type'];
+		}
 
 		if ( ! empty( $args['category'] ) ) {
 			$where[]  = 'category = %s';
@@ -334,12 +367,27 @@ class CTA_Courses {
 	/**
 	 * Get unique published course categories.
 	 *
+	 * @param string $product_type Optional product type filter.
 	 * @return array
 	 */
-	public function get_categories() {
+	public function get_categories( $product_type = '' ) {
 		global $wpdb;
 
 		$table = $wpdb->prefix . 'cta_courses';
+
+		if ( in_array( $product_type, array( 'ce', 'exam_prep' ), true ) ) {
+			return $wpdb->get_col(
+				$wpdb->prepare(
+					"SELECT DISTINCT category FROM {$table}
+					WHERE status = 'published'
+					AND product_type = %s
+					AND category != ''
+					AND category IS NOT NULL
+					ORDER BY category ASC",
+					$product_type
+				)
+			);
+		}
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name is prefixed.
 		return $wpdb->get_col(

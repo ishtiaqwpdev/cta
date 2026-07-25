@@ -90,7 +90,7 @@ class CTA_Auth {
 		$dashboard_url = home_url( '/' );
 		$user          = null;
 		$home_url      = home_url( '/' );
-		$logo_url      = CTA_PLUGIN_URL . 'assets/img/logo.png';
+		$logo_url      = cta_lms_get_logo_url();
 		$site_name     = get_bloginfo( 'name' );
 		$lost_password_url = wp_lostpassword_url();
 		$logout_url    = wp_logout_url( home_url() );
@@ -277,6 +277,10 @@ class CTA_Auth {
 				'display_name' => $fullname,
 			)
 		);
+
+		if ( function_exists( 'cta_lms_sync_user_name_parts' ) ) {
+			cta_lms_sync_user_name_parts( $user_id, $fullname );
+		}
 
 		if ( class_exists( 'CTA_Roles' ) ) {
 			CTA_Roles::create_roles();

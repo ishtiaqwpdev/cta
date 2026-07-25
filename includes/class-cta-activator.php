@@ -33,6 +33,10 @@ class CTA_Activator {
 		self::maybe_seed_bundles();
 		CTA_Emails::register_cron();
 
+		if ( function_exists( 'cta_lms_ensure_utf8_environment' ) ) {
+			cta_lms_ensure_utf8_environment();
+		}
+
 		add_option( 'cta_lms_version', CTA_VERSION );
 		add_option( 'cta_login_page_id', 0 );
 		add_option( 'cta_courses_page_id', 0 );
@@ -53,6 +57,10 @@ class CTA_Activator {
 		add_option( 'cta_stripe_mode', 'test' );
 		add_option( 'cta_payments_bypass', 'yes' );
 		add_option( 'cta_supervision_monthly_price', 260.0 );
+		add_option( 'cta_supervision_all_access_price', 350.0 );
+		add_option( 'cta_supervision_product_name', 'Group Supervision' );
+		add_option( 'cta_supervision_product_description', 'Monthly group supervision subscription' );
+		add_option( 'cta_timezone', 'America/Los_Angeles' );
 		add_option( 'cta_cepa_provider_number', 'CAMFT CEPA #003369' );
 		add_option( 'cta_admin_name', 'Candice Fuimaono, MS, LMFT' );
 		add_option( 'cta_support_email', 'support@clinicaltrainingacademy.com' );
