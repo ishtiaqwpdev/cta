@@ -20,7 +20,7 @@ if ( ! defined( 'CTA_PLUGIN_FILE' ) ) {
 }
 
 if ( ! defined( 'CTA_VERSION' ) ) {
-	define( 'CTA_VERSION', '1.0.61' );
+	define( 'CTA_VERSION', '1.0.62' );
 }
 
 if ( ! defined( 'CTA_PLUGIN_DIR' ) ) {
@@ -180,50 +180,65 @@ if ( function_exists( 'cta_lms_init' ) && ! has_action( 'plugins_loaded', 'cta_l
 if ( ! function_exists( 'cta_maybe_upgrade_db' ) ) {
 	/**
 	 * Run database upgrades when plugin version changes.
+	 *
+	 * Front-end only stamps the version + queues work so a hung migration
+	 * cannot white-screen the public site. Heavy work runs in wp-admin / WP-CLI.
 	 */
 	function cta_maybe_upgrade_db() {
-		$installed = get_option( 'cta_lms_version', '0' );
+		$installed = (string) get_option( 'cta_lms_version', '0' );
+		$pending   = (string) get_option( 'cta_lms_pending_upgrade_from', '' );
 
-		if ( version_compare( (string) $installed, CTA_VERSION, '>=' ) ) {
+		if ( version_compare( $installed, CTA_VERSION, '<' ) ) {
+			if ( '' === $pending ) {
+				update_option( 'cta_lms_pending_upgrade_from', $installed, false );
+				$pending = $installed;
+			}
+			// Stamp immediately so subsequent public requests skip this path.
+			update_option( 'cta_lms_version', CTA_VERSION, false );
+		}
+
+		if ( '' === $pending ) {
+			delete_transient( 'cta_lms_upgrading' );
 			return;
 		}
 
-		// Prevent overlapping upgrade work in the same request.
+		// Never run heavy schema/data migrations on the public front-end.
+		if ( ! is_admin() && ! ( defined( 'WP_CLI' ) && WP_CLI ) ) {
+			return;
+		}
+
 		if ( get_transient( 'cta_lms_upgrading' ) ) {
 			return;
 		}
 		set_transient( 'cta_lms_upgrading', 1, 120 );
+
+		$from = $pending;
 
 		try {
 			if ( class_exists( 'CTA_Database' ) ) {
 				CTA_Database::create_tables();
 			}
 
-			// Quizzes are untimed with unlimited retakes by product policy.
-			if ( version_compare( $installed, '1.0.39', '<' ) && class_exists( 'CTA_Database' ) ) {
+			if ( version_compare( $from, '1.0.39', '<' ) && class_exists( 'CTA_Database' ) ) {
 				global $wpdb;
 				$table = $wpdb->prefix . 'cta_quizzes';
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 				$wpdb->query( "UPDATE {$table} SET time_limit_mins = 0, max_attempts = 0" );
 			}
 
-			// Re-normalize any leftover legacy quiz caps (e.g. max_attempts=3) on upgrade to 1.0.50+.
-			if ( version_compare( $installed, '1.0.50', '<' ) && class_exists( 'CTA_Database' ) ) {
+			if ( version_compare( $from, '1.0.50', '<' ) && class_exists( 'CTA_Database' ) ) {
 				global $wpdb;
 				$table = $wpdb->prefix . 'cta_quizzes';
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 				$wpdb->query( "UPDATE {$table} SET time_limit_mins = 0, max_attempts = 0, passing_score = 70" );
 			}
 
-			// Align supervision plan names/prices (Group $260, All-Access $350).
-			// Re-run through 1.0.53 so sites already past 1.0.40 still heal mismatched meta.
-			if ( version_compare( $installed, '1.0.53', '<' ) && class_exists( 'CTA_Supervision_Plans' ) ) {
+			if ( version_compare( $from, '1.0.53', '<' ) && class_exists( 'CTA_Supervision_Plans' ) ) {
 				CTA_Supervision_Plans::sync_all_access_bundle();
 				CTA_Supervision_Plans::migrate_legacy_names();
 			}
 
-			// Demote Approved associates who have no purchase and no agency-assigned plan.
-			if ( version_compare( $installed, '1.0.41', '<' ) && class_exists( 'CTA_Associate_Access' ) ) {
+			if ( version_compare( $from, '1.0.41', '<' ) && class_exists( 'CTA_Associate_Access' ) ) {
 				$query = new WP_User_Query(
 					array(
 						'role'       => 'cta_associate',
@@ -248,50 +263,41 @@ if ( ! function_exists( 'cta_maybe_upgrade_db' ) ) {
 				}
 			}
 
-			// Ensure display timezone option exists (default Pacific Time).
-			if ( version_compare( $installed, '1.0.42', '<' ) ) {
+			if ( version_compare( $from, '1.0.42', '<' ) ) {
 				add_option( 'cta_timezone', 'America/Los_Angeles' );
 			}
 
-			// Re-assert Pacific default when option is empty (never change intentional custom zones).
-			if ( version_compare( $installed, '1.0.56', '<' ) ) {
+			if ( version_compare( $from, '1.0.56', '<' ) ) {
 				$tz = (string) get_option( 'cta_timezone', '' );
 				if ( '' === $tz ) {
 					update_option( 'cta_timezone', 'America/Los_Angeles' );
 				}
 			}
 
-			// Public marketing pages + nav cleanup (CE catalog, supervision booking, hide quiz).
-			if ( version_compare( $installed, '1.0.45', '<' ) && class_exists( 'CTA_Pages' ) ) {
+			if ( version_compare( $from, '1.0.45', '<' ) && class_exists( 'CTA_Pages' ) ) {
 				CTA_Pages::sync_public_pages();
 				delete_option( 'cta_pages_synced_' . CTA_VERSION );
 			}
 
-			// Exam Preparation Programs: schema columns, access/resources tables, seed programs.
-			if ( version_compare( $installed, '1.0.47', '<' ) && class_exists( 'CTA_Database' ) ) {
+			if ( version_compare( $from, '1.0.47', '<' ) && class_exists( 'CTA_Database' ) ) {
 				CTA_Database::maybe_add_exam_prep_columns();
 				if ( class_exists( 'CTA_Exam_Access' ) ) {
 					CTA_Exam_Access::seed_default_programs();
 				}
 			}
 
-			// Course materials: module attachment + protected file path columns.
-			if ( version_compare( $installed, '1.0.48', '<' ) && class_exists( 'CTA_Database' ) ) {
+			if ( version_compare( $from, '1.0.48', '<' ) && class_exists( 'CTA_Database' ) ) {
 				CTA_Database::maybe_add_resource_columns();
 				if ( class_exists( 'CTA_Course_Materials' ) ) {
 					CTA_Course_Materials::get_protected_root();
 				}
 			}
 
-			// Admin-configurable CE evaluation question bank.
-			if ( version_compare( $installed, '1.0.51', '<' ) && class_exists( 'CTA_Evaluation_Questions' ) ) {
+			if ( version_compare( $from, '1.0.51', '<' ) && class_exists( 'CTA_Evaluation_Questions' ) ) {
 				CTA_Evaluation_Questions::install();
 			}
 
-			// Force UTF-8 + repair any mojibake already stored in options/tables/meta.
-			// Re-run through 1.0.59: 1.0.57 used wrong evaluation columns and could fatal
-			// on hosts that throw mysqli exceptions for unknown columns.
-			if ( version_compare( $installed, '1.0.59', '<' ) ) {
+			if ( version_compare( $from, '1.0.59', '<' ) ) {
 				if ( function_exists( 'cta_lms_ensure_utf8_environment' ) ) {
 					cta_lms_ensure_utf8_environment();
 				}
@@ -306,8 +312,7 @@ if ( ! function_exists( 'cta_maybe_upgrade_db' ) ) {
 			}
 		}
 
-		// Always stamp the version so a failed one-shot migration cannot boot-loop the site.
-		update_option( 'cta_lms_version', CTA_VERSION );
+		delete_option( 'cta_lms_pending_upgrade_from' );
 		delete_transient( 'cta_lms_upgrading' );
 	}
 }
@@ -711,7 +716,8 @@ if ( ! function_exists( 'cta_lms_find_page_id_by_shortcode' ) ) {
 
 		$like = '%[' . $wpdb->esc_like( $shortcode ) . '%';
 
-		// Fast path: one SQL match on post_content (avoids loading every page into PHP).
+		// Fast path: indexed-ish match on post_content only.
+		// Do NOT LIKE-scan _elementor_data here — that meta is huge and hangs shared hosts.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$page_id = (int) $wpdb->get_var(
 			$wpdb->prepare(
@@ -720,28 +726,6 @@ if ( ! function_exists( 'cta_lms_find_page_id_by_shortcode' ) ) {
 				AND post_status = 'publish'
 				AND post_content LIKE %s
 				ORDER BY ID ASC
-				LIMIT 1",
-				$like
-			)
-		);
-
-		if ( $page_id ) {
-			$cache[ $shortcode ] = $page_id;
-			return $page_id;
-		}
-
-		// Fallback: Elementor stores shortcodes in post meta, not post_content.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		$page_id = (int) $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT p.ID
-				FROM {$wpdb->posts} p
-				INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
-				WHERE p.post_type = 'page'
-				AND p.post_status = 'publish'
-				AND pm.meta_key = '_elementor_data'
-				AND pm.meta_value LIKE %s
-				ORDER BY p.ID ASC
 				LIMIT 1",
 				$like
 			)

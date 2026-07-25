@@ -299,7 +299,10 @@ if ( ! function_exists( 'cta_lms_register_encoding_hooks' ) ) {
 	 * Register runtime hooks that keep responses/scripts on UTF-8.
 	 */
 	function cta_lms_register_encoding_hooks() {
-		add_action( 'plugins_loaded', 'cta_lms_ensure_utf8_environment', 1 );
+		// Charset repair touches DB options — keep off the public critical path.
+		if ( is_admin() ) {
+			add_action( 'admin_init', 'cta_lms_ensure_utf8_environment', 1 );
+		}
 
 		add_filter(
 			'script_loader_tag',
@@ -331,23 +334,6 @@ if ( ! function_exists( 'cta_lms_register_encoding_hooks' ) ) {
 				}
 				return $headers;
 			}
-		);
-
-		// Early charset declaration; safe duplicate of theme output when blog_charset is UTF-8.
-		add_action(
-			'wp_head',
-			static function () {
-				echo '<meta charset="UTF-8" />' . "\n";
-			},
-			0
-		);
-
-		add_action(
-			'admin_head',
-			static function () {
-				echo '<meta charset="UTF-8" />' . "\n";
-			},
-			0
 		);
 	}
 }

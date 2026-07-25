@@ -3,7 +3,7 @@
  * Plugin Name: CTA Academy LMS
  * Plugin URI: https://clinicaltrainingacademy.com
  * Description: Complete LMS platform for Clinical Training and Supervision Academy.
- * Version: 1.0.61
+ * Version: 1.0.62
  * Author: David James
  * Author URI: https://clinicaltrainingacademy.com
  * License: GPL-2.0+
@@ -17,6 +17,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// Must be first: a second CTA LMS copy must not redefine functions (white-screen fatal).
+if ( defined( 'CTA_LMS_LOADED' ) ) {
+	return;
+}
+define( 'CTA_LMS_LOADED', true );
+
 if ( version_compare( PHP_VERSION, '7.4', '<' ) ) {
 	add_action(
 		'admin_notices',
@@ -29,68 +35,65 @@ if ( version_compare( PHP_VERSION, '7.4', '<' ) ) {
 	return;
 }
 
-/**
- * Deactivate known legacy CTA LMS installs without blocking boot.
- */
-function cta_academy_deactivate_legacy_plugins() {
-	if ( ! function_exists( 'deactivate_plugins' ) ) {
-		require_once ABSPATH . 'wp-admin/includes/plugin.php';
-	}
-
-	$self = plugin_basename( __FILE__ );
-
-	$legacy = array(
-		'cta-lms/Cta-plugin.php',
-		'cta-lms/cta-lms.php',
-		'cta-lms/cta-plugin.php',
-		'cta-design/Cta-plugin.php',
-		'cta-design/cta-lms.php',
-		'cta-design/cta-plugin.php',
-		'cta-lms-plugin/Cta-plugin.php',
-		'cta-lms-plugin/cta-lms.php',
-	);
-
-	$to_deactivate = array();
-
-	foreach ( $legacy as $path ) {
-		if ( $path === $self ) {
-			continue;
+if ( ! function_exists( 'cta_academy_deactivate_legacy_plugins' ) ) {
+	/**
+	 * Deactivate known duplicate CTA LMS installs (admin only, never during boot).
+	 */
+	function cta_academy_deactivate_legacy_plugins() {
+		if ( ! is_admin() || wp_doing_ajax() || wp_doing_cron() ) {
+			return;
 		}
-		if ( function_exists( 'is_plugin_active' ) && is_plugin_active( $path ) ) {
-			$to_deactivate[] = $path;
+
+		if ( ! current_user_can( 'activate_plugins' ) ) {
+			return;
 		}
-	}
 
-	if ( empty( $to_deactivate ) ) {
-		return;
-	}
+		if ( ! function_exists( 'deactivate_plugins' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
 
-	try {
-		deactivate_plugins( $to_deactivate, true );
-	} catch ( Throwable $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
-		// Never block site boot if deactivation fails.
+		$self = defined( 'CTA_PLUGIN_BASENAME' ) ? CTA_PLUGIN_BASENAME : plugin_basename( __FILE__ );
+
+		$legacy = array(
+			'cta-lms/Cta-plugin.php',
+			'cta-lms/cta-lms.php',
+			'cta-lms/cta-plugin.php',
+			'cta-design/Cta-plugin.php',
+			'cta-design/cta-lms.php',
+			'cta-design/cta-plugin.php',
+			'cta-lms-plugin/Cta-plugin.php',
+			'cta-lms-plugin/cta-lms.php',
+			'cta-academy-lms/Cta-plugin.php',
+			'cta/Cta-plugin.php',
+			'cta/cta-lms.php',
+		);
+
+		$to_deactivate = array();
+
+		foreach ( $legacy as $path ) {
+			if ( $path === $self ) {
+				continue;
+			}
+			if ( function_exists( 'is_plugin_active' ) && is_plugin_active( $path ) ) {
+				$to_deactivate[] = $path;
+			}
+		}
+
+		if ( empty( $to_deactivate ) ) {
+			return;
+		}
+
+		try {
+			deactivate_plugins( $to_deactivate, true );
+		} catch ( Throwable $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
+			// Never block the admin request.
+		}
 	}
 }
 
-// Prefer deferred deactivation so plugin load cannot fatal the request.
-if ( function_exists( 'add_action' ) ) {
-	add_action( 'plugins_loaded', 'cta_academy_deactivate_legacy_plugins', 0 );
-	add_action( 'admin_init', 'cta_academy_deactivate_legacy_plugins', 1 );
-}
+// Only in wp-admin after boot — never on plugins_loaded (avoids load loops / hangs).
+add_action( 'admin_init', 'cta_academy_deactivate_legacy_plugins', 1 );
 
-if ( defined( 'CTA_LMS_LOADED' ) ) {
-	add_action(
-		'admin_notices',
-		static function () {
-			echo '<div class="notice notice-warning"><p>';
-			echo esc_html__( 'Another CTA LMS copy is already loaded. Keep only CTA Academy LMS active and delete the old plugin folder.', 'cta-lms' );
-			echo '</p></div>';
-		}
-	);
-	return;
-}
-
-define( 'CTA_LMS_LOADED', true );
 define( 'CTA_PLUGIN_FILE', __FILE__ );
 
 $cta_bootstrap = __DIR__ . '/cta-lms.php';
@@ -100,7 +103,7 @@ if ( ! file_exists( $cta_bootstrap ) ) {
 		'admin_notices',
 		static function () {
 			echo '<div class="notice notice-error"><p>';
-			echo esc_html__( 'CTA Academy LMS bootstrap file (cta-lms.php) is missing. Reinstall the plugin zip.', 'cta-lms' );
+			echo esc_html__( 'CTA Academy LMS bootstrap file (cta-lms.php) is missing. Reinstall the plugin.', 'cta-lms' );
 			echo '</p></div>';
 		}
 	);

@@ -70,6 +70,11 @@ class CTA_Pages {
 	 * Sync / create public pages when options are missing or mis-pointed.
 	 */
 	public static function maybe_sync_pages() {
+		// Avoid any page/menu writes on public requests (prevents front-end hangs).
+		if ( ! is_admin() && ! ( defined( 'WP_CLI' ) && WP_CLI ) ) {
+			return;
+		}
+
 		$flag = 'cta_pages_synced_' . CTA_VERSION;
 
 		if ( get_option( $flag ) ) {
