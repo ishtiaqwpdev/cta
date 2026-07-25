@@ -1,0 +1,3 @@
+# Presence of this file puts CTA LMS into emergency safe mode.
+# The plugin will not boot (no upgrades, no shortcodes) so the site can load.
+# Delete this file after the white-screen hang is resolved to re-enable the LMS.

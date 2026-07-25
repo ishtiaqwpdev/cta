@@ -20,7 +20,7 @@ if ( ! defined( 'CTA_PLUGIN_FILE' ) ) {
 }
 
 if ( ! defined( 'CTA_VERSION' ) ) {
-	define( 'CTA_VERSION', '1.0.62' );
+	define( 'CTA_VERSION', '1.0.63' );
 }
 
 if ( ! defined( 'CTA_PLUGIN_DIR' ) ) {
@@ -98,8 +98,12 @@ $cta_required_files = array(
 	'public/class-cta-supervision-dashboard.php',
 	'public/class-cta-certificates.php',
 	'public/class-cta-quiz.php',
-	'admin/class-cta-admin.php',
 );
+
+// Admin class is large — only load in wp-admin / AJAX / cron.
+if ( is_admin() || ( function_exists( 'wp_doing_ajax' ) && wp_doing_ajax() ) || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
+	$cta_required_files[] = 'admin/class-cta-admin.php';
+}
 
 foreach ( $cta_required_files as $cta_file ) {
 	if ( ! cta_lms_require( $cta_file ) ) {
